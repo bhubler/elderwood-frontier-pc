@@ -25,7 +25,18 @@ func _ready() -> void:
 			continue
 		trees.append(p)
 	_load_wayfarer_art()
+	_load_wilderness_terrain()
 	queue_redraw()
+
+func _load_wilderness_terrain() -> void:
+	var pack_path := "res://art/10_Wilderness_Bundle/Terrain_and_Nature/godot/terrain_tileset.tres"
+	if not ResourceLoader.exists(pack_path):
+		return
+	var terrain := TileMapLayer.new()
+	terrain.name = "WildernessTerrain"
+	terrain.set_script(load("res://scripts/wilderness_terrain.gd"))
+	terrain.z_index = -10
+	add_child(terrain)
 
 func _load_wayfarer_art() -> void:
 	# Add the supplied PNG at res://art/wayfarer_inn.png to enable artwork.
@@ -47,8 +58,9 @@ func iso(tx: int, ty: int) -> Vector2:
 	return Vector2((tx - ty) * TILE_W * 0.5, (tx + ty) * TILE_H * 0.5)
 
 func _draw() -> void:
-	_draw_ground()
-	_draw_village_paths()
+	if not has_node("WildernessTerrain"):
+		_draw_ground()
+		_draw_village_paths()
 	for tree_pos in trees:
 		_draw_tree(tree_pos)
 	for building in buildings:
