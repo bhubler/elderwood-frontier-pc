@@ -61,25 +61,27 @@ func _draw() -> void:
 	_draw_sign(Vector2(10, -290))
 
 func _draw_ground() -> void:
-	for ty in range(-EXTENT, EXTENT + 1):
-		for tx in range(-EXTENT, EXTENT + 1):
-			var c: Vector2 = iso(tx, ty)
-			var tint: Color = Color("#314b37")
-			if posmod(tx * 7 + ty * 13, 9) < 3:
-				tint = Color("#3b563c")
-			var diamond := PackedVector2Array([
-				c + Vector2(0, -TILE_H * 0.5),
-				c + Vector2(TILE_W * 0.5, 0),
-				c + Vector2(0, TILE_H * 0.5),
-				c + Vector2(-TILE_W * 0.5, 0)
-			])
-			draw_colored_polygon(diamond, tint)
-			draw_polyline(PackedVector2Array([
-				diamond[0], diamond[1], diamond[2], diamond[3], diamond[0]
-			]), Color(0.1, 0.17, 0.12, 0.16), 1.0)
+	# Painterly layered earth and grass. No visible diamond grid.
+	draw_rect(Rect2(-2400, -1300, 4800, 2600), Color("#293e30"))
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 41129
+	for i in range(3700):
+		var p := Vector2(rng.randf_range(-1900.0, 1900.0), rng.randf_range(-1100.0, 1100.0))
+		var radius := rng.randf_range(3.0, 20.0)
+		var tint := Color("#344b36") if i % 4 == 0 else Color("#3c5139")
+		if i % 7 == 0:
+			tint = Color("#4a4b34")
+		draw_circle(p, radius, Color(tint, 0.32))
+	for i in range(2800):
+		var p := Vector2(rng.randf_range(-1750.0, 1750.0), rng.randf_range(-1000.0, 1000.0))
+		var grass := Color("#65734a") if i % 3 == 0 else Color("#49633e")
+		draw_line(p, p + Vector2(rng.randf_range(-3.0, 3.0), -rng.randf_range(3.0, 9.0)), Color(grass, 0.54), 1.0)
+	for i in range(230):
+		var p := Vector2(rng.randf_range(-1700.0, 1700.0), rng.randf_range(-1000.0, 1000.0))
+		draw_circle(p, rng.randf_range(2.0, 6.0), Color("#676b59", 0.67))
 
 func _draw_village_paths() -> void:
-	# Narrow, irregular earth tracks instead of a formal stone plaza.
+	# Earth tracks: irregular soft edges, packed dirt, embedded pebbles.
 	var routes: Array[PackedVector2Array] = [
 		PackedVector2Array([Vector2(-760, 50), Vector2(-370, 55), Vector2(-100, 40), Vector2(170, 20), Vector2(640, 65)]),
 		PackedVector2Array([Vector2(0, -610), Vector2(-10, -280), Vector2(0, 40), Vector2(-20, 480), Vector2(-40, 720)]),
@@ -88,18 +90,30 @@ func _draw_village_paths() -> void:
 		PackedVector2Array([Vector2(80, 65), Vector2(230, 200), Vector2(410, 280)])
 	]
 	for route in routes:
-		draw_polyline(route, Color("#514a36"), 56.0, true)
-		draw_polyline(route, Color("#786a4b"), 46.0, true)
-		draw_polyline(route, Color("#8a7955", 0.28), 3.0, true)
-	# Scattered stones, roots, and patches of grass break up the trails.
+		draw_polyline(route, Color("#4d4933"), 70.0, true)
+		draw_polyline(route, Color("#65573b"), 60.0, true)
+		draw_polyline(route, Color("#82704d"), 42.0, true)
+		draw_polyline(route, Color("#9b8055", 0.25), 20.0, true)
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 7183
-	for i in range(165):
-		var p := Vector2(rng.randf_range(-710, 710), rng.randf_range(-480, 480))
-		if p.length() < 130.0:
-			continue
-		var size := rng.randf_range(2.0, 7.0)
-		draw_circle(p, size, Color("#67705a", 0.58) if i % 3 == 0 else Color("#4c633c", 0.72))
+	for route in routes:
+		for j in range(route.size() - 1):
+			var start: Vector2 = route[j]
+			var end: Vector2 = route[j + 1]
+			var length: float = start.distance_to(end)
+			var count: int = int(length / 3.0)
+			for k in range(count):
+				var t: float = rng.randf()
+				var along: Vector2 = start.lerp(end, t)
+				var sideways: Vector2 = (end - start).normalized().orthogonal()
+				var p: Vector2 = along + sideways * rng.randf_range(-31.0, 31.0)
+				var radius: float = rng.randf_range(0.7, 3.3)
+				var c := Color("#a48c65") if k % 5 == 0 else Color("#493f30")
+				draw_circle(p, radius, Color(c, 0.57))
+	for i in range(260):
+		var p := Vector2(rng.randf_range(-730.0, 730.0), rng.randf_range(-500.0, 500.0))
+		var c := Color("#687451") if i % 3 == 0 else Color("#536d42")
+		draw_line(p, p + Vector2(3.0, -rng.randf_range(4.0, 11.0)), Color(c, 0.75), 1.5)
 
 func _draw_well(p: Vector2) -> void:
 	draw_ellipse_placeholder(p + Vector2(0, 10), 48.0, 22.0, Color(0, 0, 0, 0.25))
