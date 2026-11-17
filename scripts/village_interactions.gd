@@ -120,29 +120,25 @@ func _make_inventory_window() -> void:
     equipment_title.text = "EQUIPMENT  /  WANDERER"
     equipment_title.add_theme_color_override("font_color", Color("#dfc08a"))
     left.add_child(equipment_title)
-    var portrait := PanelContainer.new()
-    portrait.custom_minimum_size = Vector2(325, 205)
-    portrait.add_theme_stylebox_override("panel", _slot_style())
-    left.add_child(portrait)
-    var portrait_box := VBoxContainer.new()
-    portrait_box.alignment = BoxContainer.ALIGNMENT_CENTER
-    portrait.add_child(portrait_box)
-    var avatar := Label.new()
-    avatar.text = "♜"
-    avatar.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-    avatar.add_theme_font_size_override("font_size", 95)
-    avatar.add_theme_color_override("font_color", Color("#c7a773"))
-    portrait_box.add_child(avatar)
-    var portrait_note := Label.new()
-    portrait_note.text = "LEVEL 1  •  FRONTIER WANDERER"
-    portrait_note.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-    portrait_note.add_theme_color_override("font_color", Color("#c5b18f"))
-    portrait_box.add_child(portrait_note)
+    var character_info := Label.new()
+    character_info.text = "LEVEL 1   /   FRONTIER WANDERER"
+    character_info.add_theme_font_size_override("font_size", 12)
+    character_info.add_theme_color_override("font_color", Color("#a99b84"))
+    left.add_child(character_info)
+    var equipment_hint := Label.new()
+    equipment_hint.text = "EQUIPPED GEAR"
+    equipment_hint.add_theme_font_size_override("font_size", 13)
+    equipment_hint.add_theme_color_override("font_color", Color("#e7c589"))
+    left.add_child(equipment_hint)
     equipment_grid = GridContainer.new()
-    equipment_grid.columns = 3
-    equipment_grid.add_theme_constant_override("h_separation", 7)
-    equipment_grid.add_theme_constant_override("v_separation", 7)
+    equipment_grid.columns = 1
+    equipment_grid.add_theme_constant_override("v_separation", 9)
     left.add_child(equipment_grid)
+    var preview_note := Label.new()
+    preview_note.text = "Character preview unlocks with animated sprites."
+    preview_note.add_theme_font_size_override("font_size", 12)
+    preview_note.add_theme_color_override("font_color", Color("#998d79"))
+    left.add_child(preview_note)
     var right := VBoxContainer.new()
     right.custom_minimum_size = Vector2(420, 0)
     right.add_theme_constant_override("separation", 9)
@@ -184,18 +180,23 @@ func _slot_style() -> StyleBoxFlat:
 func _refresh_inventory() -> void:
     gold_label.text = "%d GOLD" % gold
     for child in equipment_grid.get_children():
+        equipment_grid.remove_child(child)
         child.queue_free()
     for kind in ["weapon", "armor", "accessory"]:
         var item_id: String = equipment[kind]
         var button := Button.new()
-        button.custom_minimum_size = Vector2(103, 72)
+        button.custom_minimum_size = Vector2(320, 84)
         button.add_theme_stylebox_override("normal", _slot_style())
-        button.add_theme_font_size_override("font_size", 13)
+        button.add_theme_font_size_override("font_size", 16)
         button.add_theme_color_override("font_color", Color("#e7d2a7"))
-        button.text = kind.to_upper() + "\n" + ("EMPTY" if item_id == "" else str(item_data[item_id]["icon"]) + " " + str(item_data[item_id]["name"]))
+        var slot_label := "EMPTY SLOT" if item_id == "" else str(item_data[item_id]["icon"]) + "  " + str(item_data[item_id]["name"])
+        button.text = kind.to_upper() + "     /     " + slot_label
         button.clip_text = true
         button.pressed.connect(_unequip.bind(kind))
         equipment_grid.add_child(button)
+    for child in inventory_grid.get_children():
+        inventory_grid.remove_child(child)
+        child.queue_free()
     for i in range(24):
         var button := Button.new()
         button.custom_minimum_size = Vector2(63, 61)
