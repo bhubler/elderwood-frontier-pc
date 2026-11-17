@@ -40,7 +40,7 @@ func _make_interface() -> void:
     prompt.add_theme_color_override("font_color", Color("#ffe5ad"))
     holder.add_child(prompt)
     ui = PanelContainer.new()
-    ui.position = Vector2(22, 480)
+    ui.position = Vector2(22, 425)
     ui.custom_minimum_size = Vector2(480, 0)
     holder.add_child(ui)
     var style := StyleBoxFlat.new()
@@ -50,7 +50,7 @@ func _make_interface() -> void:
     style.set_content_margin_all(14)
     ui.add_theme_stylebox_override("panel", style)
     message = Label.new()
-    message.custom_minimum_size = Vector2(450, 70)
+    message.custom_minimum_size = Vector2(450, 170)
     message.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
     message.add_theme_font_size_override("font_size", 17)
     message.add_theme_color_override("font_color", Color("#f4e8ce"))
@@ -85,7 +85,9 @@ func _process(_delta: float) -> void:
         prompt.text = "Wayfarer Inn — E near the doorway to leave | I inventory"
     else:
         var nearby := _nearest_person()
-        if nearby >= 0:
+        if player.position.distance_to(Vector2(-390, -190)) < 105.0:
+            prompt.text = "E — Enter the Wayfarer Inn | I inventory"
+        elif nearby >= 0:
             prompt.text = "E — Talk to %s (%s) | I inventory" % [people[nearby]["name"], people[nearby]["role"]]
         elif player.position.distance_to(Vector2(-390, -190)) < 155.0:
             prompt.text = "E — Enter the Wayfarer Inn | I inventory"
@@ -123,7 +125,9 @@ func _unhandled_key_input(event: InputEvent) -> void:
                 _show_message("Mara: Make yourself at home. The fire is warm and the road can wait.", 0.0)
         else:
             var nearest := _nearest_person()
-            if nearest >= 0:
+            if player.position.distance_to(Vector2(-390, -190)) < 105.0:
+                _enter_inn()
+            elif nearest >= 0:
                 conversation_open = true
                 _show_message("%s — %s:\n%s\n\n[E] Continue" % [people[nearest]["name"], people[nearest]["role"], people[nearest]["words"]], 0.0)
             elif player.position.distance_to(Vector2(-390, -190)) < 155.0:
