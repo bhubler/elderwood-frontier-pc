@@ -6,6 +6,19 @@ var ui: PanelContainer
 var message: Label
 var inventory_panel: PanelContainer
 var notice_timer: Timer
+var inventory_grid: GridContainer
+var equipment_grid: GridContainer
+var gold_label: Label
+var item_details: Label
+var equipment: Dictionary = {"weapon": "", "armor": "cloak", "accessory": ""}
+var backpack: Array[String] = ["rusty_sword", "old_map", "bread", "healing_potion"]
+var item_data: Dictionary = {
+    "rusty_sword": {"name": "Worn Iron Sword", "kind": "weapon", "icon": "⚔", "rarity": "Common", "description": "A battered but reliable blade.", "attack": 3},
+    "cloak": {"name": "Traveler\u0027s Cloak", "kind": "armor", "icon": "◈", "rarity": "Common", "description": "A weathered cloak for the long road.", "defense": 1},
+    "old_map": {"name": "Old Frontier Map", "kind": "quest", "icon": "▤", "rarity": "Uncommon", "description": "A faded map marking the old forest trails."},
+    "bread": {"name": "Bread x2", "kind": "consumable", "icon": "●", "rarity": "Common", "description": "Simple provisions for a journey."},
+    "healing_potion": {"name": "Minor Healing Potion", "kind": "consumable", "icon": "◆", "rarity": "Uncommon", "description": "A crimson restorative draught."}
+}
 var prompt: Label
 var inventory_open := false
 var inside_inn := false
@@ -28,6 +41,8 @@ func _ready() -> void:
         return
     _make_interface()
     _make_inventory_window()
+    if player.has_method("set_equipment"):
+        player.set_equipment(equipment)
     _make_interior()
     _make_villagers()
     _show_message("Welcome to Elderwood Village. WASD to move, E to interact, I for inventory.", 5.0)
@@ -43,20 +58,20 @@ func _make_interface() -> void:
     prompt.add_theme_color_override("font_color", Color("#ffe5ad"))
     holder.add_child(prompt)
     ui = PanelContainer.new()
-    ui.position = Vector2(22, 615)
-    ui.custom_minimum_size = Vector2(0, 0)
+    ui.position = Vector2(22, 568)
+    ui.custom_minimum_size = Vector2(410, 0)
     holder.add_child(ui)
     var style := StyleBoxFlat.new()
-    style.bg_color = Color(0.075, 0.09, 0.09, 0.93)
+    style.bg_color = Color(0.075, 0.09, 0.09, 0.95)
     style.border_color = Color("#9a774b")
     style.set_border_width_all(2)
-    style.set_content_margin_all(14)
+    style.set_corner_radius_all(6)
+    style.set_content_margin_all(12)
     ui.add_theme_stylebox_override("panel", style)
     message = Label.new()
-    message.custom_minimum_size = Vector2(0, 0)
-    message.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+    message.custom_minimum_size = Vector2(382, 0)
     message.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-    message.add_theme_font_size_override("font_size", 17)
+    message.add_theme_font_size_override("font_size", 15)
     message.add_theme_color_override("font_color", Color("#f4e8ce"))
     ui.add_child(message)
     ui.hide()
@@ -67,70 +82,94 @@ func _make_interface() -> void:
 
 func _make_inventory_window() -> void:
     inventory_panel = PanelContainer.new()
-    inventory_panel.position = Vector2(365, 95)
-    inventory_panel.custom_minimum_size = Vector2(550, 515)
+    inventory_panel.position = Vector2(220, 65)
+    inventory_panel.custom_minimum_size = Vector2(835, 0)
+    inventory_panel.mouse_filter = Control.MOUSE_FILTER_STOP
     add_child(inventory_panel)
     var frame := StyleBoxFlat.new()
     frame.bg_color = Color("#171b1b")
-    frame.border_color = Color("#a8854c")
+    frame.border_color = Color("#b18b51")
     frame.set_border_width_all(3)
     frame.set_corner_radius_all(8)
     frame.set_content_margin_all(18)
     inventory_panel.add_theme_stylebox_override("panel", frame)
     var layout := VBoxContainer.new()
-    layout.add_theme_constant_override("separation", 12)
+    layout.add_theme_constant_override("separation", 9)
     inventory_panel.add_child(layout)
+    var top := HBoxContainer.new()
+    layout.add_child(top)
     var heading := Label.new()
-    heading.text = "✦  ADVENTURER INVENTORY"
-    heading.add_theme_font_size_override("font_size", 23)
+    heading.text = "ELDERWOOD  /  THE ADVENTURER"
+    heading.add_theme_font_size_override("font_size", 22)
     heading.add_theme_color_override("font_color", Color("#e7c589"))
-    layout.add_child(heading)
-    var subtitle := Label.new()
-    subtitle.text = "EQUIPMENT                                     %d GOLD" % gold
-    subtitle.add_theme_font_size_override("font_size", 16)
-    subtitle.add_theme_color_override("font_color", Color("#cbbda1"))
-    layout.add_child(subtitle)
-    var equipment := HBoxContainer.new()
-    equipment.add_theme_constant_override("separation", 10)
-    layout.add_child(equipment)
-    for entry in ["WEAPON\\nEmpty", "ARMOR\\nTraveler\u0027s Cloak", "ACCESSORY\\nEmpty"]:
-        var equip := Label.new()
-        equip.text = entry.replace("\\n", "\n")
-        equip.custom_minimum_size = Vector2(155, 65)
-        equip.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-        equip.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-        equip.add_theme_stylebox_override("normal", _slot_style())
-        equip.add_theme_color_override("font_color", Color("#dfd3b7"))
-        equipment.add_child(equip)
+    heading.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+    top.add_child(heading)
+    gold_label = Label.new()
+    gold_label.add_theme_color_override("font_color", Color("#e7c589"))
+    top.add_child(gold_label)
+    var rule := HSeparator.new()
+    layout.add_child(rule)
+    var columns := HBoxContainer.new()
+    columns.add_theme_constant_override("separation", 22)
+    layout.add_child(columns)
+    var left := VBoxContainer.new()
+    left.custom_minimum_size = Vector2(330, 0)
+    left.add_theme_constant_override("separation", 9)
+    columns.add_child(left)
+    var equipment_title := Label.new()
+    equipment_title.text = "EQUIPMENT  /  WANDERER"
+    equipment_title.add_theme_color_override("font_color", Color("#dfc08a"))
+    left.add_child(equipment_title)
+    var portrait := PanelContainer.new()
+    portrait.custom_minimum_size = Vector2(325, 205)
+    portrait.add_theme_stylebox_override("panel", _slot_style())
+    left.add_child(portrait)
+    var portrait_box := VBoxContainer.new()
+    portrait_box.alignment = BoxContainer.ALIGNMENT_CENTER
+    portrait.add_child(portrait_box)
+    var avatar := Label.new()
+    avatar.text = "♜"
+    avatar.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+    avatar.add_theme_font_size_override("font_size", 95)
+    avatar.add_theme_color_override("font_color", Color("#c7a773"))
+    portrait_box.add_child(avatar)
+    var portrait_note := Label.new()
+    portrait_note.text = "LEVEL 1  •  FRONTIER WANDERER"
+    portrait_note.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+    portrait_note.add_theme_color_override("font_color", Color("#c5b18f"))
+    portrait_box.add_child(portrait_note)
+    equipment_grid = GridContainer.new()
+    equipment_grid.columns = 3
+    equipment_grid.add_theme_constant_override("h_separation", 7)
+    equipment_grid.add_theme_constant_override("v_separation", 7)
+    left.add_child(equipment_grid)
+    var right := VBoxContainer.new()
+    right.custom_minimum_size = Vector2(420, 0)
+    right.add_theme_constant_override("separation", 9)
+    columns.add_child(right)
     var bag_title := Label.new()
-    bag_title.text = "BACKPACK  •  24 SLOTS"
-    bag_title.add_theme_color_override("font_color", Color("#e7c589"))
-    layout.add_child(bag_title)
-    var grid := GridContainer.new()
-    grid.columns = 6
-    grid.add_theme_constant_override("h_separation", 7)
-    grid.add_theme_constant_override("v_separation", 7)
-    layout.add_child(grid)
-    for i in range(24):
-        var slot := PanelContainer.new()
-        slot.custom_minimum_size = Vector2(77, 66)
-        slot.add_theme_stylebox_override("panel", _slot_style())
-        grid.add_child(slot)
-        var label := Label.new()
-        label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-        label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-        label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-        label.add_theme_font_size_override("font_size", 12)
-        label.add_theme_color_override("font_color", Color("#e7d7b7"))
-        if i == 0:
-            label.text = "🗺\\nOld Map".replace("\\n", "\n")
-        elif i == 1:
-            label.text = "🍞\\nBread ×2".replace("\\n", "\n")
-        slot.add_child(label)
+    bag_title.text = "BACKPACK  /  24 SLOTS"
+    bag_title.add_theme_color_override("font_color", Color("#dfc08a"))
+    right.add_child(bag_title)
+    inventory_grid = GridContainer.new()
+    inventory_grid.columns = 6
+    inventory_grid.add_theme_constant_override("h_separation", 5)
+    inventory_grid.add_theme_constant_override("v_separation", 5)
+    right.add_child(inventory_grid)
+    var details_frame := PanelContainer.new()
+    details_frame.custom_minimum_size = Vector2(420, 106)
+    details_frame.add_theme_stylebox_override("panel", _slot_style())
+    right.add_child(details_frame)
+    item_details = Label.new()
+    item_details.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+    item_details.add_theme_color_override("font_color", Color("#e6d4b0"))
+    details_frame.add_child(item_details)
     var footer := Label.new()
-    footer.text = "I / ESC  CLOSE     •     More equipment and loot coming soon"
-    footer.add_theme_color_override("font_color", Color("#aa9b82"))
+    footer.text = "CLICK AN ITEM TO INSPECT / EQUIP   •   I OR ESC TO CLOSE"
+    footer.add_theme_font_size_override("font_size", 13)
+    footer.add_theme_color_override("font_color", Color("#ad9c80"))
     layout.add_child(footer)
+    _refresh_inventory()
     inventory_panel.hide()
 
 func _slot_style() -> StyleBoxFlat:
@@ -139,7 +178,70 @@ func _slot_style() -> StyleBoxFlat:
     style.border_color = Color("#64533b")
     style.set_border_width_all(1)
     style.set_corner_radius_all(3)
+    style.set_content_margin_all(5)
     return style
+
+func _refresh_inventory() -> void:
+    gold_label.text = "%d GOLD" % gold
+    for child in equipment_grid.get_children():
+        child.queue_free()
+    for kind in ["weapon", "armor", "accessory"]:
+        var item_id: String = equipment[kind]
+        var button := Button.new()
+        button.custom_minimum_size = Vector2(103, 72)
+        button.add_theme_stylebox_override("normal", _slot_style())
+        button.add_theme_font_size_override("font_size", 13)
+        button.add_theme_color_override("font_color", Color("#e7d2a7"))
+        button.text = kind.to_upper() + "\n" + ("EMPTY" if item_id == "" else str(item_data[item_id]["icon"]) + " " + str(item_data[item_id]["name"]))
+        button.clip_text = true
+        button.pressed.connect(_unequip.bind(kind))
+        equipment_grid.add_child(button)
+    for i in range(24):
+        var button := Button.new()
+        button.custom_minimum_size = Vector2(63, 61)
+        button.add_theme_stylebox_override("normal", _slot_style())
+        button.add_theme_font_size_override("font_size", 22)
+        if i < backpack.size():
+            var item_id: String = backpack[i]
+            button.text = str(item_data[item_id]["icon"])
+            button.tooltip_text = str(item_data[item_id]["name"])
+            button.pressed.connect(_select_item.bind(item_id))
+        inventory_grid.add_child(button)
+    item_details.text = "SELECT AN ITEM\nInspect its properties and equip weapons or armor."
+
+func _select_item(item_id: String) -> void:
+    var data: Dictionary = item_data[item_id]
+    var stats := ""
+    if data.has("attack"):
+        stats = "  |  ATTACK +%d" % int(data["attack"])
+    if data.has("defense"):
+        stats = "  |  DEFENSE +%d" % int(data["defense"])
+    item_details.text = "%s  [%s]%s\n%s" % [data["name"], data["rarity"], stats, data["description"]]
+    var kind: String = data["kind"]
+    if kind in ["weapon", "armor", "accessory"]:
+        _equip(item_id, kind)
+
+func _equip(item_id: String, kind: String) -> void:
+    var old_id: String = equipment[kind]
+    equipment[kind] = item_id
+    backpack.erase(item_id)
+    if old_id != "":
+        backpack.append(old_id)
+    if player.has_method("set_equipment"):
+        player.set_equipment(equipment)
+    _refresh_inventory()
+    item_details.text = "EQUIPPED: %s\n%s" % [item_data[item_id]["name"], item_data[item_id]["description"]]
+
+func _unequip(kind: String) -> void:
+    var item_id: String = equipment[kind]
+    if item_id == "" or backpack.size() >= 24:
+        return
+    equipment[kind] = ""
+    backpack.append(item_id)
+    if player.has_method("set_equipment"):
+        player.set_equipment(equipment)
+    _refresh_inventory()
+    item_details.text = "UNEQUIPPED: %s" % item_data[item_id]["name"]
 
 func _on_notice_timeout() -> void:
     ui.hide()
