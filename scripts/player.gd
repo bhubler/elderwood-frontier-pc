@@ -47,7 +47,7 @@ func _load_character_animation() -> void:
     animated_sprite.centered = true
     animated_sprite.region_enabled = true
     animated_sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-    animated_sprite.scale = Vector2(0.32, 0.32)
+    animated_sprite.scale = Vector2(0.14, 0.14)
     animated_sprite.position = Vector2(0, -13)
     add_child(animated_sprite)
     _set_animation("idle")
