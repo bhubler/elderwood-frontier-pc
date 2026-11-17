@@ -30,8 +30,8 @@ func _draw() -> void:
     for ty in range(-EXTENT, EXTENT + 1):
         for tx in range(-EXTENT, EXTENT + 1):
             var c := iso(tx, ty)
-            var path_tile := abs(tx - ty) < 2 or abs(tx + ty) < 2
-            var tint := Color("#786c50") if path_tile else Color("#314b37")
+            var path_tile: bool = abs(tx - ty) < 2 or abs(tx + ty) < 2
+            var tint: Color = Color("#786c50") if path_tile else Color("#314b37")
             if not path_tile and posmod(tx * 7 + ty * 13, 9) < 3:
                 tint = Color("#3b563c")
             var diamond := PackedVector2Array([
