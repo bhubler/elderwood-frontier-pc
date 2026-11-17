@@ -73,7 +73,7 @@ func _load_village_building_art() -> void:
 		{"file": "cottage_1.png", "pos": Vector2(-480, 167), "scale": 0.39, "node": "CottageOneArtwork"},
 		{"file": "cottage_2.png", "pos": Vector2(-80, 327), "scale": 0.39, "node": "CottageTwoArtwork"},
 		{"file": "cottage_3.png", "pos": Vector2(410, 222), "scale": 0.39, "node": "CottageThreeArtwork"},
-		{"file": "general_goods.png", "pos": Vector2(210, -49), "scale": 0.38, "node": "GeneralGoodsArtwork"}
+		{"file": "general_goods.png", "pos": Vector2(280, -49), "scale": 0.38, "node": "GeneralGoodsArtwork"}
 	]
 	for item in assets:
 		var path: String = "res://art/village_buildings/" + str(item["file"])
@@ -115,7 +115,7 @@ func _draw() -> void:
 		if not has_node(art_node):
 			_draw_building(building)
 	if not has_node("GeneralGoodsArtwork"):
-		_draw_general_goods_stand(Vector2(210, -15))
+		_draw_general_goods_stand(Vector2(280, -15))
 	_draw_well(Vector2(0, 35))
 	_draw_lantern(Vector2(-180, -80))
 	_draw_lantern(Vector2(190, -110))
