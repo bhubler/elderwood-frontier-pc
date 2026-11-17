@@ -26,6 +26,7 @@ func _ready() -> void:
 		trees.append(p)
 	_load_wayfarer_art()
 	_load_wilderness_terrain()
+	_load_wilderness_vegetation()
 	queue_redraw()
 
 func _load_wilderness_terrain() -> void:
@@ -37,6 +38,15 @@ func _load_wilderness_terrain() -> void:
 	terrain.set_script(load("res://scripts/wilderness_terrain.gd"))
 	terrain.z_index = -10
 	add_child(terrain)
+
+func _load_wilderness_vegetation() -> void:
+	var pack_path := "res://art/10_Wilderness_Bundle/Trees_and_Bushes"
+	if not DirAccess.dir_exists_absolute(pack_path):
+		return
+	var vegetation := Node2D.new()
+	vegetation.name = "WildernessVegetation"
+	vegetation.set_script(load("res://scripts/wilderness_vegetation.gd"))
+	add_child(vegetation)
 
 func _load_wayfarer_art() -> void:
 	# Add the supplied PNG at res://art/wayfarer_inn.png to enable artwork.
