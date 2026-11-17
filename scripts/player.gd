@@ -24,6 +24,7 @@ var animation_name: String = ""
 var animation_frame: int = 0
 var animation_elapsed: float = 0.0
 const ANIMATION_COLUMNS: int = 4
+const ANIMATION_COLUMNS_BY_TYPE := {"idle": 8, "walk": 8, "run": 4}
 const ANIMATION_ROWS: int = 5
 const RUN_MULTIPLIER: float = 1.55
 
@@ -75,7 +76,8 @@ func _update_animation_frame() -> void:
     if animated_sprite == null or animated_sprite.texture == null:
         return
     var tex: Texture2D = animated_sprite.texture
-    var cell_width: int = int(tex.get_width() / ANIMATION_COLUMNS)
+    var columns: int = int(ANIMATION_COLUMNS_BY_TYPE.get(animation_name, ANIMATION_COLUMNS))
+    var cell_width: int = int(tex.get_width() / columns)
     var cell_height: int = int(tex.get_height() / ANIMATION_ROWS)
     if cell_width <= 0 or cell_height <= 0:
         return
@@ -99,7 +101,7 @@ func _advance_animation(delta: float, moving: bool, running: bool) -> void:
     var seconds_per_frame: float = 0.105 if running else (0.17 if moving else 0.28)
     if animation_elapsed >= seconds_per_frame:
         animation_elapsed = fmod(animation_elapsed, seconds_per_frame)
-        animation_frame = (animation_frame + 1) % ANIMATION_COLUMNS
+        animation_frame = (animation_frame + 1) % int(ANIMATION_COLUMNS_BY_TYPE.get(animation_name, ANIMATION_COLUMNS))
     _update_animation_frame()
 
 
