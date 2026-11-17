@@ -23,7 +23,24 @@ func _ready() -> void:
         if abs(p.x) < 670.0 and abs(p.y) < 410.0:
             continue
         trees.append(p)
+    _load_wayfarer_art()
     queue_redraw()
+
+func _load_wayfarer_art() -> void:
+    # Add the supplied PNG at res://art/wayfarer_inn.png to enable artwork.
+    var asset_path: String = "res://art/wayfarer_inn.png"
+    if not ResourceLoader.exists(asset_path):
+        return
+    var tex: Texture2D = load(asset_path) as Texture2D
+    if tex == null:
+        return
+    var inn := Sprite2D.new()
+    inn.name = "WayfarerInnArtwork"
+    inn.texture = tex
+    inn.position = Vector2(-390, -290)
+    inn.scale = Vector2(0.53, 0.53)
+    inn.z_index = 1
+    add_child(inn)
 
 func iso(tx: int, ty: int) -> Vector2:
     return Vector2((tx - ty) * TILE_W * 0.5, (tx + ty) * TILE_H * 0.5)
@@ -35,6 +52,8 @@ func _draw() -> void:
     for tree_pos in trees:
         _draw_tree(tree_pos)
     for building in buildings:
+        if str(building["name"]) == "THE WAYFARER INN" and ResourceLoader.exists("res://art/wayfarer_inn.png"):
+            continue
         _draw_building(building)
     _draw_lantern(Vector2(-185, -125))
     _draw_lantern(Vector2(185, -125))
