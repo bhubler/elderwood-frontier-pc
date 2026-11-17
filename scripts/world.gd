@@ -25,6 +25,7 @@ func _ready() -> void:
 			continue
 		trees.append(p)
 	_load_wayfarer_art()
+	_load_village_building_art()
 	_load_wilderness_terrain()
 	_load_wilderness_vegetation()
 	queue_redraw()
@@ -64,6 +65,32 @@ func _load_wayfarer_art() -> void:
 	inn.z_index = 1
 	add_child(inn)
 
+func _load_village_building_art() -> void:
+	# Individual building PNGs are optional; procedural placeholders remain until installed.
+	# Copy the five PNGs into res://art/village_buildings/.
+	var assets: Array[Dictionary] = [
+		{"file": "town_hall.png", "pos": Vector2(380, -280), "scale": 0.42, "node": "TownHallArtwork"},
+		{"file": "cottage_1.png", "pos": Vector2(-480, 167), "scale": 0.39, "node": "CottageOneArtwork"},
+		{"file": "cottage_2.png", "pos": Vector2(-80, 327), "scale": 0.39, "node": "CottageTwoArtwork"},
+		{"file": "cottage_3.png", "pos": Vector2(410, 222), "scale": 0.39, "node": "CottageThreeArtwork"},
+		{"file": "general_goods.png", "pos": Vector2(210, -49), "scale": 0.38, "node": "GeneralGoodsArtwork"}
+	]
+	for item in assets:
+		var path: String = "res://art/village_buildings/" + str(item["file"])
+		if not ResourceLoader.exists(path):
+			continue
+		var texture: Texture2D = load(path) as Texture2D
+		if texture == null:
+			continue
+		var sprite := Sprite2D.new()
+		sprite.name = str(item["node"])
+		sprite.texture = texture
+		sprite.position = item["pos"]
+		sprite.scale = Vector2.ONE * float(item["scale"])
+		sprite.z_index = 1
+		add_child(sprite)
+
+
 func iso(tx: int, ty: int) -> Vector2:
 	return Vector2((tx - ty) * TILE_W * 0.5, (tx + ty) * TILE_H * 0.5)
 
@@ -74,8 +101,21 @@ func _draw() -> void:
 	for tree_pos in trees:
 		_draw_tree(tree_pos)
 	for building in buildings:
-		_draw_building(building)
-	_draw_general_goods_stand(Vector2(210, -15))
+		var art_node := ""
+		match str(building["kind"]):
+			"hall": art_node = "TownHallArtwork"
+			"house":
+				var pos: Vector2 = building["pos"]
+				if pos.x < -300.0:
+					art_node = "CottageOneArtwork"
+				elif pos.x < 100.0:
+					art_node = "CottageTwoArtwork"
+				else:
+					art_node = "CottageThreeArtwork"
+		if not has_node(art_node):
+			_draw_building(building)
+	if not has_node("GeneralGoodsArtwork"):
+		_draw_general_goods_stand(Vector2(210, -15))
 	_draw_well(Vector2(0, 35))
 	_draw_lantern(Vector2(-180, -80))
 	_draw_lantern(Vector2(190, -110))
