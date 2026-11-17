@@ -1,0 +1,6 @@
+# Godot-generated cache
+.godot/
+# Editor and OS noise
+.DS_Store
+Thumbs.db
+*.tmp
