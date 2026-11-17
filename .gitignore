@@ -4,3 +4,7 @@
 .DS_Store
 Thumbs.db
 *.tmp
+
+# Locally installed third-party asset packs (not redistributed)
+/art/characters/penzilla/
+/art/10_Wilderness_Bundle/
