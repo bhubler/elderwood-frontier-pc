@@ -112,9 +112,9 @@ func _physics_process(delta: float) -> void:
 func _draw() -> void:
     var look: Dictionary = LOOKS[race]
     var moving := velocity.length_squared() > 0.0
-    var swing := sin(stride) * 6.0 if moving else 0.0
-    var bob := abs(sin(stride)) * 2.0 if moving else 0.0
-    var scale_factor := 1.14 if race == "Orc" else 1.0
+    var swing: float = sin(stride) * 6.0 if moving else 0.0
+    var bob: float = absf(sin(stride)) * 2.0 if moving else 0.0
+    var scale_factor: float = 1.14 if race == "Orc" else 1.0
     draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE * scale_factor)
     draw_colored_polygon(PackedVector2Array([
         Vector2(-19, 14), Vector2(-12, 20), Vector2(12, 20), Vector2(19, 14)
