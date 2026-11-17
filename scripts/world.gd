@@ -1,17 +1,18 @@
 extends Node2D
-## Elderwood Village: hand-placed landmarks over deterministic isometric terrain.
-## Placeholder vector art; future updates will replace it with authored sprites.
+## Elderwood Frontier: a modest wilderness settlement with room to grow.
+## The inn is an authored sprite; the other buildings are temporary placeholders.
 const TILE_W: float = 96.0
 const TILE_H: float = 48.0
 const EXTENT: int = 24
 
 var trees: Array[Vector2] = []
 var buildings: Array[Dictionary] = [
-	{"pos": Vector2(-390, -195), "name": "THE WAYFARER INN", "roof": Color("#714438")},
-	{"pos": Vector2(390, -185), "name": "BLACKSMITH", "roof": Color("#505e65")},
-	{"pos": Vector2(-430, 220), "name": "GENERAL GOODS", "roof": Color("#756042")},
-	{"pos": Vector2(415, 230), "name": "VILLAGE HALL", "roof": Color("#64526b")}
+	{"pos": Vector2(380, -230), "name": "TOWN HALL", "roof": Color("#514c47"), "kind": "hall"},
+	{"pos": Vector2(-480, 225), "name": "COTTAGE", "roof": Color("#625448"), "kind": "house"},
+	{"pos": Vector2(-80, 385), "name": "COTTAGE", "roof": Color("#5a5141"), "kind": "house"},
+	{"pos": Vector2(410, 280), "name": "COTTAGE", "roof": Color("#514c56"), "kind": "house"}
 ]
+
 
 func _ready() -> void:
 	var rng := RandomNumberGenerator.new()
@@ -20,7 +21,7 @@ func _ready() -> void:
 		var tx: int = rng.randi_range(-EXTENT + 2, EXTENT - 2)
 		var ty: int = rng.randi_range(-EXTENT + 2, EXTENT - 2)
 		var p: Vector2 = iso(tx, ty)
-		if abs(p.x) < 670.0 and abs(p.y) < 410.0:
+		if abs(p.x) < 730.0 and abs(p.y) < 520.0:
 			continue
 		trees.append(p)
 	_load_wayfarer_art()
@@ -48,19 +49,16 @@ func iso(tx: int, ty: int) -> Vector2:
 func _draw() -> void:
 	_draw_ground()
 	_draw_village_paths()
-	_draw_square()
 	for tree_pos in trees:
 		_draw_tree(tree_pos)
 	for building in buildings:
-		if str(building["name"]) == "THE WAYFARER INN" and ResourceLoader.exists("res://art/wayfarer_inn.png"):
-			continue
 		_draw_building(building)
-	_draw_lantern(Vector2(-185, -125))
-	_draw_lantern(Vector2(185, -125))
-	_draw_lantern(Vector2(-185, 145))
-	_draw_lantern(Vector2(185, 145))
-	_draw_sign(Vector2(0, -205))
-	_draw_fountain(Vector2(0, -75))
+	_draw_general_goods_stand(Vector2(210, -15))
+	_draw_well(Vector2(0, 35))
+	_draw_lantern(Vector2(-180, -80))
+	_draw_lantern(Vector2(190, -110))
+	_draw_lantern(Vector2(-210, 230))
+	_draw_sign(Vector2(10, -290))
 
 func _draw_ground() -> void:
 	for ty in range(-EXTENT, EXTENT + 1):
@@ -81,19 +79,61 @@ func _draw_ground() -> void:
 			]), Color(0.1, 0.17, 0.12, 0.16), 1.0)
 
 func _draw_village_paths() -> void:
-	draw_rect(Rect2(-72, -720, 144, 1440), Color("#786c50"))
-	draw_rect(Rect2(-700, -54, 1400, 108), Color("#786c50"))
-	draw_rect(Rect2(-620, -335, 1240, 670), Color("#786c50"), false, 8.0)
-	for i in range(-6, 7):
-		draw_line(Vector2(i * 95.0, -50), Vector2(i * 95.0 + 32, 50), Color("#948365"), 2.0)
+	# Narrow, irregular earth tracks instead of a formal stone plaza.
+	var routes: Array[PackedVector2Array] = [
+		PackedVector2Array([Vector2(-760, 50), Vector2(-370, 55), Vector2(-100, 40), Vector2(170, 20), Vector2(640, 65)]),
+		PackedVector2Array([Vector2(0, -610), Vector2(-10, -280), Vector2(0, 40), Vector2(-20, 480), Vector2(-40, 720)]),
+		PackedVector2Array([Vector2(-95, 35), Vector2(-290, 130), Vector2(-480, 225)]),
+		PackedVector2Array([Vector2(80, 30), Vector2(260, -110), Vector2(380, -230)]),
+		PackedVector2Array([Vector2(80, 65), Vector2(230, 200), Vector2(410, 280)])
+	]
+	for route in routes:
+		draw_polyline(route, Color("#514a36"), 56.0, true)
+		draw_polyline(route, Color("#786a4b"), 46.0, true)
+		draw_polyline(route, Color("#8a7955", 0.28), 3.0, true)
+	# Scattered stones, roots, and patches of grass break up the trails.
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 7183
+	for i in range(165):
+		var p := Vector2(rng.randf_range(-710, 710), rng.randf_range(-480, 480))
+		if p.length() < 130.0:
+			continue
+		var size := rng.randf_range(2.0, 7.0)
+		draw_circle(p, size, Color("#67705a", 0.58) if i % 3 == 0 else Color("#4c633c", 0.72))
 
-func _draw_square() -> void:
-	draw_rect(Rect2(-235, -165, 470, 340), Color("#6a6857"))
-	for x in range(-220, 221, 44):
-		draw_line(Vector2(x, -165), Vector2(x, 175), Color("#545748"), 1.0)
-	for y in range(-160, 176, 32):
-		draw_line(Vector2(-235, y), Vector2(235, y), Color("#545748"), 1.0)
-	draw_rect(Rect2(-235, -165, 470, 340), Color("#a39b78"), false, 5.0)
+func _draw_well(p: Vector2) -> void:
+	draw_ellipse_placeholder(p + Vector2(0, 10), 48.0, 22.0, Color(0, 0, 0, 0.25))
+	draw_circle(p, 32.0, Color("#524f46"))
+	draw_circle(p, 23.0, Color("#8c8878"))
+	draw_circle(p, 17.0, Color("#253b42"))
+	draw_line(p + Vector2(-25, -8), p + Vector2(-25, -60), Color("#594532"), 7.0)
+	draw_line(p + Vector2(25, -8), p + Vector2(25, -60), Color("#594532"), 7.0)
+	draw_line(p + Vector2(-32, -60), p + Vector2(32, -60), Color("#44372d"), 9.0)
+	draw_line(p + Vector2(0, -60), p + Vector2(0, -23), Color("#a58a62"), 2.0)
+
+func draw_ellipse_placeholder(p: Vector2, rx: float, ry: float, tint: Color) -> void:
+	draw_set_transform(p, 0.0, Vector2(1.0, ry / rx))
+	draw_circle(Vector2.ZERO, rx, tint)
+	draw_set_transform(Vector2.ZERO)
+
+func _draw_general_goods_stand(p: Vector2) -> void:
+	# A small open-air trader's stall, not a permanent shop.
+	draw_rect(Rect2(p + Vector2(-78, -12), Vector2(156, 56)), Color("#49372a"))
+	draw_rect(Rect2(p + Vector2(-83, -19), Vector2(166, 14)), Color("#917049"))
+	for x in [-70.0, 70.0]:
+		draw_line(p + Vector2(x, -15), p + Vector2(x, -96), Color("#57402c"), 9.0)
+	draw_colored_polygon(PackedVector2Array([
+		p + Vector2(-95, -97), p + Vector2(-55, -124),
+		p + Vector2(65, -124), p + Vector2(95, -97)
+	]), Color("#9b7751"))
+	for x in [-50.0, 0.0, 50.0]:
+		draw_line(p + Vector2(x, -120), p + Vector2(x + 10, -97), Color("#724e42"), 12.0)
+	for x in [-45.0, -8.0, 29.0]:
+		draw_circle(p + Vector2(x, -30), 13.0, Color("#a4793f"))
+		draw_circle(p + Vector2(x + 7, -28), 8.0, Color("#71804a"))
+	draw_rect(Rect2(p + Vector2(-64, 7), Vector2(30, 33)), Color("#796042"))
+	draw_rect(Rect2(p + Vector2(42, 12), Vector2(30, 28)), Color("#796042"))
+	draw_string(ThemeDB.fallback_font, p + Vector2(-65, 65), "GENERAL GOODS", HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color("#ead4a3"))
 
 func _draw_building(b: Dictionary) -> void:
 	var p: Vector2 = b["pos"]
