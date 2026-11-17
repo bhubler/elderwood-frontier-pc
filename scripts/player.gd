@@ -18,7 +18,93 @@ var equipped_armor := "cloak"
 var attack_bonus := 0
 var defense_bonus := 1
 
+var animated_sprite: Sprite2D
+var animation_sheets: Dictionary = {}
+var animation_name: String = ""
+var animation_frame: int = 0
+var animation_elapsed: float = 0.0
+const ANIMATION_COLUMNS: int = 4
+const ANIMATION_ROWS: int = 5
+const RUN_MULTIPLIER: float = 1.55
+
+func _load_character_animation() -> void:
+    var root: String = "res://art/characters/penzilla/"
+    var filenames: Dictionary = {
+        "idle": "Character0_Idle.png",
+        "walk": "Character0_Walk.png",
+        "run": "Character0_Run.png"
+    }
+    for kind in filenames:
+        var path: String = root + str(filenames[kind])
+        if ResourceLoader.exists(path):
+            var texture: Texture2D = load(path) as Texture2D
+            if texture != null:
+                animation_sheets[kind] = texture
+    if animation_sheets.is_empty():
+        return
+    animated_sprite = Sprite2D.new()
+    animated_sprite.name = "PenzillaAnimatedCharacter"
+    animated_sprite.centered = true
+    animated_sprite.region_enabled = true
+    animated_sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+    animated_sprite.scale = Vector2(0.32, 0.32)
+    animated_sprite.position = Vector2(0, -13)
+    add_child(animated_sprite)
+    _set_animation("idle")
+    _update_animation_frame()
+
+func _set_animation(next_name: String) -> void:
+    if not animation_sheets.has(next_name):
+        if animation_sheets.has("walk"):
+            next_name = "walk"
+        elif animation_sheets.has("idle"):
+            next_name = "idle"
+        elif animation_sheets.has("run"):
+            next_name = "run"
+        else:
+            return
+    if animation_name == next_name:
+        return
+    animation_name = next_name
+    animation_frame = 0
+    animation_elapsed = 0.0
+    animated_sprite.texture = animation_sheets[animation_name]
+    _update_animation_frame()
+
+func _update_animation_frame() -> void:
+    if animated_sprite == null or animated_sprite.texture == null:
+        return
+    var tex: Texture2D = animated_sprite.texture
+    var cell_width: int = int(tex.get_width() / ANIMATION_COLUMNS)
+    var cell_height: int = int(tex.get_height() / ANIMATION_ROWS)
+    if cell_width <= 0 or cell_height <= 0:
+        return
+    var direction_row: int = 0
+    if absf(facing.x) > absf(facing.y):
+        direction_row = 1 if facing.x > 0.0 else 2
+    elif facing.y < 0.0:
+        direction_row = 3
+    animated_sprite.region_rect = Rect2(
+        animation_frame * cell_width,
+        direction_row * cell_height,
+        cell_width,
+        cell_height
+    )
+
+func _advance_animation(delta: float, moving: bool, running: bool) -> void:
+    if animated_sprite == null:
+        return
+    _set_animation("run" if running else ("walk" if moving else "idle"))
+    animation_elapsed += delta
+    var seconds_per_frame: float = 0.105 if running else (0.17 if moving else 0.28)
+    if animation_elapsed >= seconds_per_frame:
+        animation_elapsed = fmod(animation_elapsed, seconds_per_frame)
+        animation_frame = (animation_frame + 1) % ANIMATION_COLUMNS
+    _update_animation_frame()
+
+
 func _ready() -> void:
+    _load_character_animation()
     _build_race_selection()
 
 func set_equipment(gear: Dictionary) -> void:
@@ -102,14 +188,19 @@ func _physics_process(delta: float) -> void:
         input_vector.y -= 1.0
     if Input.is_key_pressed(KEY_S) or Input.is_key_pressed(KEY_DOWN):
         input_vector.y += 1.0
-    velocity = input_vector.normalized() * SPEED
+    var moving: bool = input_vector.length_squared() > 0.0
+    var running: bool = moving and Input.is_key_pressed(KEY_SHIFT)
+    velocity = input_vector.normalized() * SPEED * (RUN_MULTIPLIER if running else 1.0)
     if input_vector.length_squared() > 0.0:
         facing = input_vector.normalized()
         stride += delta * 10.0
     move_and_slide()
+    _advance_animation(delta, moving, running)
     queue_redraw()
 
 func _draw() -> void:
+    if animated_sprite != null:
+        return
     var look: Dictionary = LOOKS[race]
     var moving := velocity.length_squared() > 0.0
     var swing: float = sin(stride) * 6.0 if moving else 0.0
