@@ -4,6 +4,8 @@ const INTERACT_DISTANCE := 115.0
 var player: CharacterBody2D
 var ui: PanelContainer
 var message: Label
+var inventory_panel: PanelContainer
+var notice_timer: Timer
 var prompt: Label
 var inventory_open := false
 var inside_inn := false
@@ -25,6 +27,7 @@ func _ready() -> void:
     if player == null:
         return
     _make_interface()
+    _make_inventory_window()
     _make_interior()
     _make_villagers()
     _show_message("Welcome to Elderwood Village. WASD to move, E to interact, I for inventory.", 5.0)
@@ -40,8 +43,8 @@ func _make_interface() -> void:
     prompt.add_theme_color_override("font_color", Color("#ffe5ad"))
     holder.add_child(prompt)
     ui = PanelContainer.new()
-    ui.position = Vector2(22, 425)
-    ui.custom_minimum_size = Vector2(480, 0)
+    ui.position = Vector2(22, 615)
+    ui.custom_minimum_size = Vector2(0, 0)
     holder.add_child(ui)
     var style := StyleBoxFlat.new()
     style.bg_color = Color(0.075, 0.09, 0.09, 0.93)
@@ -50,12 +53,97 @@ func _make_interface() -> void:
     style.set_content_margin_all(14)
     ui.add_theme_stylebox_override("panel", style)
     message = Label.new()
-    message.custom_minimum_size = Vector2(450, 170)
+    message.custom_minimum_size = Vector2(0, 0)
+    message.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
     message.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
     message.add_theme_font_size_override("font_size", 17)
     message.add_theme_color_override("font_color", Color("#f4e8ce"))
     ui.add_child(message)
     ui.hide()
+    notice_timer = Timer.new()
+    notice_timer.one_shot = true
+    notice_timer.timeout.connect(_on_notice_timeout)
+    add_child(notice_timer)
+
+func _make_inventory_window() -> void:
+    inventory_panel = PanelContainer.new()
+    inventory_panel.position = Vector2(365, 95)
+    inventory_panel.custom_minimum_size = Vector2(550, 515)
+    add_child(inventory_panel)
+    var frame := StyleBoxFlat.new()
+    frame.bg_color = Color("#171b1b")
+    frame.border_color = Color("#a8854c")
+    frame.set_border_width_all(3)
+    frame.set_corner_radius_all(8)
+    frame.set_content_margin_all(18)
+    inventory_panel.add_theme_stylebox_override("panel", frame)
+    var layout := VBoxContainer.new()
+    layout.add_theme_constant_override("separation", 12)
+    inventory_panel.add_child(layout)
+    var heading := Label.new()
+    heading.text = "✦  ADVENTURER INVENTORY"
+    heading.add_theme_font_size_override("font_size", 23)
+    heading.add_theme_color_override("font_color", Color("#e7c589"))
+    layout.add_child(heading)
+    var subtitle := Label.new()
+    subtitle.text = "EQUIPMENT                                     %d GOLD" % gold
+    subtitle.add_theme_font_size_override("font_size", 16)
+    subtitle.add_theme_color_override("font_color", Color("#cbbda1"))
+    layout.add_child(subtitle)
+    var equipment := HBoxContainer.new()
+    equipment.add_theme_constant_override("separation", 10)
+    layout.add_child(equipment)
+    for entry in ["WEAPON\\nEmpty", "ARMOR\\nTraveler\u0027s Cloak", "ACCESSORY\\nEmpty"]:
+        var equip := Label.new()
+        equip.text = entry.replace("\\n", "\n")
+        equip.custom_minimum_size = Vector2(155, 65)
+        equip.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+        equip.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+        equip.add_theme_stylebox_override("normal", _slot_style())
+        equip.add_theme_color_override("font_color", Color("#dfd3b7"))
+        equipment.add_child(equip)
+    var bag_title := Label.new()
+    bag_title.text = "BACKPACK  •  24 SLOTS"
+    bag_title.add_theme_color_override("font_color", Color("#e7c589"))
+    layout.add_child(bag_title)
+    var grid := GridContainer.new()
+    grid.columns = 6
+    grid.add_theme_constant_override("h_separation", 7)
+    grid.add_theme_constant_override("v_separation", 7)
+    layout.add_child(grid)
+    for i in range(24):
+        var slot := PanelContainer.new()
+        slot.custom_minimum_size = Vector2(77, 66)
+        slot.add_theme_stylebox_override("panel", _slot_style())
+        grid.add_child(slot)
+        var label := Label.new()
+        label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+        label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+        label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+        label.add_theme_font_size_override("font_size", 12)
+        label.add_theme_color_override("font_color", Color("#e7d7b7"))
+        if i == 0:
+            label.text = "🗺\\nOld Map".replace("\\n", "\n")
+        elif i == 1:
+            label.text = "🍞\\nBread ×2".replace("\\n", "\n")
+        slot.add_child(label)
+    var footer := Label.new()
+    footer.text = "I / ESC  CLOSE     •     More equipment and loot coming soon"
+    footer.add_theme_color_override("font_color", Color("#aa9b82"))
+    layout.add_child(footer)
+    inventory_panel.hide()
+
+func _slot_style() -> StyleBoxFlat:
+    var style := StyleBoxFlat.new()
+    style.bg_color = Color("#292d2b")
+    style.border_color = Color("#64533b")
+    style.set_border_width_all(1)
+    style.set_corner_radius_all(3)
+    return style
+
+func _on_notice_timeout() -> void:
+    ui.hide()
+    conversation_open = false
 
 func _make_villagers() -> void:
     for person in people:
@@ -101,19 +189,23 @@ func _unhandled_key_input(event: InputEvent) -> void:
         inventory_open = not inventory_open
         conversation_open = false
         if inventory_open:
-            _show_inventory()
-        else:
+            notice_timer.stop()
             ui.hide()
+            inventory_panel.show()
+        else:
+            inventory_panel.hide()
         get_viewport().set_input_as_handled()
     elif event.keycode == KEY_ESCAPE and (conversation_open or inventory_open):
         conversation_open = false
         inventory_open = false
         ui.hide()
+        inventory_panel.hide()
+        notice_timer.stop()
         get_viewport().set_input_as_handled()
     elif event.keycode == KEY_E:
         if inventory_open:
             inventory_open = false
-            ui.hide()
+            inventory_panel.hide()
         elif conversation_open:
             conversation_open = false
             ui.hide()
@@ -161,5 +253,8 @@ func _show_inventory() -> void:
     _show_message("INVENTORY   •   %d gold\n\nEquipment: Traveler's Cloak\n%s\n\n[I] Close" % [gold, "\n".join(items)], 0.0)
 
 func _show_message(value: String, _seconds: float) -> void:
+    if inventory_open:
+        return
     message.text = value
     ui.show()
+    notice_timer.start(5.0)
