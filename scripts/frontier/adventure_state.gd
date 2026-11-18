@@ -104,7 +104,13 @@ func save_progress(path: String) -> Error:
     file.set_value("chapter", INITIATION, initiation)
     file.set_value("chapter", "experience", experience)
     file.set_value("chapter", "conjuration_uses", conjuration_uses)
-    return file.save(path)
+    var temporary_path := path + ".tmp"
+    var result := file.save(temporary_path)
+    if result == OK:
+        result = DirAccess.rename_absolute(temporary_path, path)
+    if result != OK:
+        DirAccess.remove_absolute(temporary_path)
+    return result
 
 func load_progress(path: String) -> Error:
     var file := ConfigFile.new()

@@ -31,9 +31,10 @@ var mana := float(State.MAX_MANA)
 var attack_wait := 0.0
 var notice := "The old road ends at the Forsaken Graveyard."
 var can_save := true
+var save_path := SAVE_PATH
 
 func _ready() -> void:
-    var result := state.load_progress(SAVE_PATH)
+    var result := state.load_progress(save_path)
     if result != OK and result != ERR_FILE_NOT_FOUND:
         can_save = false
         notice = "Chapter save could not be loaded. This session will not overwrite it."
@@ -348,5 +349,5 @@ func _recover_at_graveyard() -> void:
     notice = "You recover at the graveyard entrance. Your quest progress is intact."
 
 func _save() -> void:
-    if can_save and state.save_progress(SAVE_PATH) != OK:
+    if can_save and state.save_progress(save_path) != OK:
         notice += " Chapter progress could not be saved."
