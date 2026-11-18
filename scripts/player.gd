@@ -19,6 +19,11 @@ var attack_bonus := 0
 var defense_bonus := 1
 
 var animated_sprite: Sprite2D
+var necromancer_sprite: Sprite2D
+var necromancer_appearance_enabled: bool = true
+var necromancer_idle_clock: float = 0.0
+@export_range(0.15, 0.50, 0.01) var necromancer_scale: float = 0.27
+const NECROMANCER_ART := "res://art/characters/necromancer/elderwood_necromancer_player.png"
 var animation_sheets: Dictionary = {}
 var animation_name: String = ""
 var animation_frame: int = 0
@@ -107,7 +112,51 @@ func _advance_animation(delta: float, moving: bool, running: bool) -> void:
 
 func _ready() -> void:
     _load_character_animation()
+    _load_necromancer_appearance()
+    _refresh_character_appearance()
     _build_race_selection()
+
+func _load_necromancer_appearance() -> void:
+    # Optional, locally installed original illustration. Other races keep existing art.
+    if not ResourceLoader.exists(NECROMANCER_ART):
+        return
+    var tex: Texture2D = load(NECROMANCER_ART) as Texture2D
+    if tex == null:
+        return
+    necromancer_sprite = Sprite2D.new()
+    necromancer_sprite.name = "PlayableNecromancer"
+    necromancer_sprite.texture = tex
+    necromancer_sprite.centered = true
+    necromancer_sprite.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
+    necromancer_sprite.scale = Vector2.ONE * necromancer_scale
+    necromancer_sprite.position = Vector2(0, -35)
+    add_child(necromancer_sprite)
+
+func _refresh_character_appearance() -> void:
+    var necromancer_active: bool = necromancer_sprite != null and race == "Human" and necromancer_appearance_enabled
+    if necromancer_sprite != null:
+        necromancer_sprite.visible = necromancer_active
+    if animated_sprite != null:
+        animated_sprite.visible = not necromancer_active
+    queue_redraw()
+
+func _animate_necromancer(delta: float, moving: bool) -> void:
+    if necromancer_sprite == null or not necromancer_sprite.visible:
+        return
+    necromancer_idle_clock += delta
+    # A subtle living idle and step motion, not a fabricated directional sprite sheet.
+    var motion: float = sin(stride) * 2.1 if moving else sin(necromancer_idle_clock * 2.1) * 0.75
+    necromancer_sprite.position = Vector2(0, -35 + motion)
+    necromancer_sprite.rotation = sin(stride) * 0.012 if moving else 0.0
+    necromancer_sprite.scale = Vector2.ONE * necromancer_scale
+    if moving and absf(facing.x) > 0.15:
+        necromancer_sprite.flip_h = facing.x < 0.0
+
+func _unhandled_key_input(event: InputEvent) -> void:
+    if event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_N and not choosing_race:
+        necromancer_appearance_enabled = not necromancer_appearance_enabled
+        _refresh_character_appearance()
+        get_viewport().set_input_as_handled()
 
 func set_equipment(gear: Dictionary) -> void:
     equipped_weapon = str(gear.get("weapon", ""))
@@ -160,13 +209,14 @@ func _build_race_selection() -> void:
     for race_name in RACES:
         var button := Button.new()
         button.custom_minimum_size = Vector2(0, 70)
-        button.text = race_name.to_upper() + "\n" + descriptions[race_name]
+        var appearance_note: String = "  /  NECROMANCER ART TEST" if race_name == "Human" else ""
+        button.text = race_name.to_upper() + appearance_note + "\n" + descriptions[race_name]
         button.add_theme_font_size_override("font_size", 17)
         button.add_theme_color_override("font_color", LOOKS[race_name]["trim"])
         button.pressed.connect(_choose_race.bind(race_name))
         column.add_child(button)
     var note := Label.new()
-    note.text = "Choose once to begin exploring. Character art can be upgraded later."
+    note.text = "Human uses the necromancer test sprite when installed. Press N to compare."
     note.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
     note.add_theme_font_size_override("font_size", 12)
     column.add_child(note)
@@ -175,7 +225,7 @@ func _choose_race(chosen: String) -> void:
     race = chosen
     choosing_race = false
     selection_layer.hide()
-    queue_redraw()
+    _refresh_character_appearance()
 
 func _physics_process(delta: float) -> void:
     if choosing_race:
@@ -197,11 +247,13 @@ func _physics_process(delta: float) -> void:
         facing = input_vector.normalized()
         stride += delta * 10.0
     move_and_slide()
-    _advance_animation(delta, moving, running)
+    if animated_sprite != null and animated_sprite.visible:
+        _advance_animation(delta, moving, running)
+    _animate_necromancer(delta, moving)
     queue_redraw()
 
 func _draw() -> void:
-    if animated_sprite != null:
+    if (animated_sprite != null and animated_sprite.visible) or (necromancer_sprite != null and necromancer_sprite.visible):
         return
     var look: Dictionary = LOOKS[race]
     var moving := velocity.length_squared() > 0.0
