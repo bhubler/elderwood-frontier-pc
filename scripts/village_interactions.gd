@@ -1,6 +1,8 @@
 extends CanvasLayer
 ## Frontier village interactions: NPCs, inn interior, dialogue, and starter inventory.
 const INTERACT_DISTANCE := 115.0
+const BACKPACK_CAPACITY := 24
+@export var inventory_only := false
 var player: CharacterBody2D
 var ui: PanelContainer
 var message: Label
@@ -39,10 +41,13 @@ func _ready() -> void:
     player = get_parent().get_node_or_null("Player") as CharacterBody2D
     if player == null:
         return
-    _make_interface()
+    if not inventory_only:
+        _make_interface()
     _make_inventory_window()
     if player.has_method("set_equipment"):
         player.set_equipment(equipment)
+    if inventory_only:
+        return
     _make_interior()
     _make_villagers()
     _show_message("Welcome to Elderwood Village. WASD to move, E to interact, I for inventory.", 5.0)
@@ -197,7 +202,7 @@ func _refresh_inventory() -> void:
     for child in inventory_grid.get_children():
         inventory_grid.remove_child(child)
         child.queue_free()
-    for i in range(24):
+    for i in range(BACKPACK_CAPACITY):
         var button := Button.new()
         button.custom_minimum_size = Vector2(63, 61)
         button.add_theme_stylebox_override("normal", _slot_style())
@@ -209,6 +214,21 @@ func _refresh_inventory() -> void:
             button.pressed.connect(_select_item.bind(item_id))
         inventory_grid.add_child(button)
     item_details.text = "SELECT AN ITEM\nInspect its properties and equip weapons or armor."
+
+func grant_item(item_id: String, definition: Dictionary) -> bool:
+    if item_id in backpack:
+        return true
+    if backpack.size() >= BACKPACK_CAPACITY:
+        return false
+    item_data[item_id] = definition
+    backpack.append(item_id)
+    _refresh_inventory()
+    return true
+
+func remove_item(item_id: String) -> void:
+    if item_id in backpack:
+        backpack.erase(item_id)
+        _refresh_inventory()
 
 func _select_item(item_id: String) -> void:
     var data: Dictionary = item_data[item_id]
@@ -235,7 +255,7 @@ func _equip(item_id: String, kind: String) -> void:
 
 func _unequip(kind: String) -> void:
     var item_id: String = equipment[kind]
-    if item_id == "" or backpack.size() >= 24:
+    if item_id == "" or backpack.size() >= BACKPACK_CAPACITY:
         return
     equipment[kind] = ""
     backpack.append(item_id)
@@ -266,7 +286,7 @@ func _make_interior() -> void:
     get_parent().add_child(interior)
 
 func _process(_delta: float) -> void:
-    if player == null:
+    if player == null or inventory_only:
         return
     if inventory_open:
         prompt.text = "Inventory open — press I to close"
@@ -287,6 +307,14 @@ func _process(_delta: float) -> void:
 
 func _unhandled_key_input(event: InputEvent) -> void:
     if not event is InputEventKey or not event.pressed or event.echo:
+        return
+    if inventory_only:
+        if player == null or player.choosing_race:
+            return
+        if event.keycode == KEY_I or (inventory_open and event.keycode == KEY_ESCAPE):
+            inventory_open = not inventory_open
+            inventory_panel.visible = inventory_open
+            get_viewport().set_input_as_handled()
         return
     if event.keycode == KEY_I:
         inventory_open = not inventory_open
