@@ -84,7 +84,7 @@ func _draw_necromancer() -> void:
     var gold := Color("#99805e")
     var violet := Color("#a35df1")
     # Ground shadow and articulated boots.
-    draw_ellipse(Vector2(0, 16), 37, 10, Color(0, 0, 0, 0.38))
+    _draw_prototype_ellipse(Vector2(0, 16), 37, 10, Color(0, 0, 0, 0.38))
     draw_rect(Rect2(-19, 0 + stride * 4, 12, 19), Color("#201a20"))
     draw_rect(Rect2(7, 0 - stride * 4, 12, 19), Color("#201a20"))
     draw_rect(Rect2(-21, 13 + stride * 4, 15, 6), Color("#695649"))
@@ -134,7 +134,7 @@ func _draw_necromancer() -> void:
         draw_circle(Vector2(-35, -30), 8.0 + sin(world_clock * 18.0) * 2.0, violet)
     draw_set_transform(Vector2.ZERO)
 
-func draw_ellipse(center: Vector2, rx: float, ry: float, color: Color) -> void:
+func _draw_prototype_ellipse(center: Vector2, rx: float, ry: float, color: Color) -> void:
     draw_set_transform(center, 0.0, Vector2(1.0, ry / rx))
     draw_circle(Vector2.ZERO, rx, color)
     draw_set_transform(Vector2.ZERO)
