@@ -263,7 +263,8 @@ func _make_interior() -> void:
     interior.position = Vector2(4200, 0)
     interior.z_index = 0
     interior.set_script(load("res://scripts/inn_interior.gd"))
-    get_parent().add_child(interior)
+    # The parent is still assembling its scene tree during _ready().
+    get_parent().call_deferred("add_child", interior)
 
 func _process(_delta: float) -> void:
     if player == null:
