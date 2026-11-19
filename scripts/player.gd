@@ -22,7 +22,7 @@ const RACE_ART := {
     "Human": preload("res://art/characters/original/human.png"),
     "Dark Elf": preload("res://art/characters/original/dark_elf.png"),
 }
-const DARK_ELF_ART_HEIGHT := 50.0
+const SWORD_ART_REFERENCE_HEIGHT := 50.0
 const DEFAULT_CHARACTER_ART_HEIGHT := 68.0
 const RACE_ART_FEET_Y := 18.0
 
@@ -160,7 +160,7 @@ func _refresh_character_appearance() -> void:
     race_sprite.texture = race_texture
     race_sprite.visible = not necromancer_active and race_texture != null
     if race_sprite.visible:
-        var height := character_art_height if race == "Human" else DARK_ELF_ART_HEIGHT
+        var height := character_art_height
         race_sprite.scale = Vector2.ONE * (height / race_texture.get_height())
         race_sprite.position = Vector2(0, RACE_ART_FEET_Y - height / 2.0)
         race_sprite.flip_h = facing.x < 0.0
@@ -296,7 +296,7 @@ func _draw() -> void:
         if equipped_weapon == "rusty_sword":
             var hand_side := -1.0 if race_sprite.flip_h else 1.0
             var height := race_sprite.texture.get_height() * race_sprite.scale.y
-            var size_ratio := height / DARK_ELF_ART_HEIGHT
+            var size_ratio := height / SWORD_ART_REFERENCE_HEIGHT
             var feet := race_sprite.position + Vector2(0, height / 2.0)
             var hand := feet + Vector2(12.0 * hand_side, -15.0) * size_ratio
             draw_line(hand, hand + Vector2(7.0 * hand_side, -25.0) * size_ratio, Color("#c1c6c6"), 3.0)
