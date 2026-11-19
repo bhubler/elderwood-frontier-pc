@@ -346,7 +346,7 @@ func _nearest_person() -> int:
 func _enter_inn() -> void:
     inside_inn = true
     return_position = player.position
-    player.position = Vector2(4200, 20)
+    player.position = Vector2(4200, 105)
     _show_message("The Wayfarer Inn — a warm refuge on the frontier. Walk south to the doorway and press E to leave.", 5.0)
 
 func _leave_inn() -> void:

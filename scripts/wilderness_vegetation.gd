@@ -1,6 +1,7 @@
 extends Node2D
 ## Places licensed Wilderness Bundle scenes locally without committing their assets.
 ## Looks for standalone tree/bush scenes. Demo scenes are deliberately excluded.
+const WorldCollision := preload("res://scripts/world_collision.gd")
 const PACK_ROOT := "res://art/10_Wilderness_Bundle/Trees_and_Bushes"
 const SEED := 77139
 
@@ -64,6 +65,8 @@ func _populate() -> void:
 		decoration.position = pos
 		decoration.z_index = 0
 		add_child(decoration)
+		if is_tree:
+			WorldCollision.circle(self, "TreeTrunk", pos, 10.0)
 
 func _reserved(pos: Vector2) -> bool:
 	# Wide open village square, inn entrance, merchant stand, hall and cottages.

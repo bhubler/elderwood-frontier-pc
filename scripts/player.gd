@@ -280,10 +280,13 @@ func _physics_process(delta: float) -> void:
     var moving: bool = input_vector.length_squared() > 0.0
     var running: bool = moving and Input.is_key_pressed(KEY_SHIFT)
     velocity = input_vector.normalized() * SPEED * (RUN_MULTIPLIER if running else 1.0)
-    if input_vector.length_squared() > 0.0:
-        facing = input_vector.normalized()
-        stride += delta * 10.0
     move_and_slide()
+    moving = get_real_velocity().length_squared() > 1.0
+    if moving:
+        facing = get_real_velocity().normalized()
+        stride += delta * 10.0
+    elif input_vector != Vector2.ZERO:
+        facing = input_vector.normalized()
     if animated_sprite != null and animated_sprite.visible:
         _advance_animation(delta, moving, running)
     _animate_race_art(moving)

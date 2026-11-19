@@ -1,6 +1,7 @@
 extends Node2D
 ## Elderwood Frontier: a modest wilderness settlement with room to grow.
 ## The inn is an authored sprite; the other buildings are temporary placeholders.
+const WorldCollision := preload("res://scripts/world_collision.gd")
 const TILE_W: float = 96.0
 const TILE_H: float = 48.0
 const EXTENT: int = 24
@@ -28,7 +29,50 @@ func _ready() -> void:
 	_load_village_building_art()
 	_load_wilderness_terrain()
 	_load_wilderness_vegetation()
+	_make_collision()
 	queue_redraw()
+
+func _make_collision() -> void:
+	var obstacles := Node2D.new()
+	obstacles.name = "WorldCollision"
+	add_child(obstacles)
+
+	var perimeter := PackedVector2Array([
+		Vector2(-2380, -1280), Vector2(2380, -1280),
+		Vector2(2380, 1280), Vector2(-2380, 1280)
+	])
+	var terrain := get_node_or_null("WildernessTerrain") as TileMapLayer
+	if terrain != null and terrain.tile_set != null:
+		var terrain_bounds := terrain.get_used_rect()
+		var first := terrain_bounds.position
+		var last := terrain_bounds.end - Vector2i.ONE
+		perimeter = PackedVector2Array([
+			terrain.map_to_local(first),
+			terrain.map_to_local(Vector2i(last.x, first.y)),
+			terrain.map_to_local(last),
+			terrain.map_to_local(Vector2i(first.x, last.y))
+		])
+	WorldCollision.polygon(obstacles, "VillageBoundary", perimeter, CollisionPolygon2D.BUILD_SEGMENTS)
+	if has_node("WayfarerInnArtwork"):
+		WorldCollision.polygon(obstacles, "WayfarerInn", PackedVector2Array([
+			Vector2(-640, -235), Vector2(-430, -341), Vector2(-151, -239),
+			Vector2(-151, -208), Vector2(-367, -157), Vector2(-459, -147),
+			Vector2(-640, -199)
+		]))
+	for building in buildings:
+		var pos: Vector2 = building["pos"]
+		WorldCollision.box(obstacles, str(building["name"]).to_pascal_case(),
+			Rect2(pos + Vector2(-92, -50), Vector2(184, 94)))
+	var stall_bounds := Rect2(202, -27, 156, 56)
+	if has_node("GeneralGoodsArtwork"):
+		stall_bounds = Rect2(202, -45, 156, 56)
+	WorldCollision.box(obstacles, "GeneralGoods", stall_bounds)
+	WorldCollision.circle(obstacles, "Well", Vector2(0, 35), 32.0)
+	for p in [Vector2(-180, -80), Vector2(190, -110), Vector2(-210, 230)]:
+		WorldCollision.circle(obstacles, "LanternPost", p, 4.0)
+	WorldCollision.circle(obstacles, "VillageSign", Vector2(10, -290), 5.0)
+	for tree_pos in trees:
+		WorldCollision.circle(obstacles, "TreeTrunk", tree_pos, 8.0)
 
 func _load_wilderness_terrain() -> void:
 	var pack_path := "res://art/10_Wilderness_Bundle/Terrain_and_Nature/godot/terrain_tileset.tres"

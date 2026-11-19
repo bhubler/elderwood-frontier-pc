@@ -1,5 +1,18 @@
 extends Node2D
 ## Separate off-map inn room; no modifications to the exterior village art.
+const WorldCollision := preload("res://scripts/world_collision.gd")
+
+func _ready() -> void:
+    WorldCollision.polygon(self, "RoomBoundary", PackedVector2Array([
+        Vector2(-357, -207), Vector2(357, -207),
+        Vector2(357, 207), Vector2(-357, 207)
+    ]), CollisionPolygon2D.BUILD_SEGMENTS)
+    WorldCollision.box(self, "Hearth", Rect2(-305, -190, 145, 80))
+    WorldCollision.box(self, "Counter", Rect2(115, -155, 185, 80))
+    WorldCollision.box(self, "Table", Rect2(-120, -25, 220, 110))
+    for p in [Vector2(-150, 100), Vector2(120, 110), Vector2(-140, -90)]:
+        WorldCollision.circle(self, "Stool", p, 25.0)
+
 func _draw() -> void:
     draw_rect(Rect2(-420,-270,840,540), Color("#201c1b"))
     draw_rect(Rect2(-390,-240,780,480), Color("#76553a"))

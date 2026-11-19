@@ -14,7 +14,7 @@ script = ExtResource("1")
 script = ExtResource("3")
 
 [node name="Player" parent="." instance=ExtResource("2")]
-position = Vector2(0, 0)
+position = Vector2(-65, 0)
 
 [node name="VillageInteractions" type="CanvasLayer" parent="."]
 script = ExtResource("4")
