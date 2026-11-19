@@ -27,11 +27,22 @@ var conversation_open := false
 var gold := 25
 var items := ["Traveler's Cloak", "Old Map", "Bread x2"]
 var people := [
-    {"name": "Mara", "role": "Innkeeper", "pos": Vector2(-285, -165), "words": "Welcome to the Wayfarer Inn! Travelers are always welcome. Come inside and rest by the hearth."},
-    {"name": "Elden", "role": "Village Elder", "pos": Vector2(315, -165), "words": "Our little frontier settlement is growing. The roads beyond the woods are not always safe."},
-    {"name": "Pip", "role": "Merchant", "pos": Vector2(290, 20), "words": "Fresh supplies! The wilderness rewards those who come prepared."},
-    {"name": "Rowan", "role": "Villager", "pos": Vector2(-360, 250), "words": "The forest is beautiful, but I wouldn't wander too far after dusk."}
+    {"name": "Mara", "role": "Innkeeper", "pos": Vector2(-285, -165),
+        "route": [Vector2(-240, -107), Vector2(-330, -115)], "wait": 2.5, "speed": 39.0,
+        "words": "Welcome to the Wayfarer Inn! Travelers are always welcome. Come inside and rest by the hearth."},
+    {"name": "Elden", "role": "Village Elder", "pos": Vector2(315, -165),
+        "route": [Vector2(247, -150), Vector2(215, -92)], "wait": 5.0, "speed": 31.0,
+        "words": "Our little frontier settlement is growing. The roads beyond the woods are not always safe."},
+    {"name": "Pip", "role": "Merchant", "pos": Vector2(290, 30),
+        "route": [Vector2(347, 30), Vector2(221, 35)], "wait": 1.0, "speed": 44.0,
+        "words": "Fresh supplies! The wilderness rewards those who come prepared."},
+    {"name": "Rowan", "role": "Villager", "pos": Vector2(-360, 250),
+        "route": [Vector2(-285, 173), Vector2(-141, 83), Vector2(-245, 104)],
+        "wait": 3.5, "speed": 53.0,
+        "words": "The forest is beautiful, but I wouldn't wander too far after dusk."}
 ]
+var villagers: Array[VillageNPC] = []
+var speaker: VillageNPC
 var interior: Node2D
 var return_position := Vector2.ZERO
 var previous_camera_zoom := Vector2.ONE
@@ -256,6 +267,12 @@ func _make_villagers() -> void:
         npc.position = person["pos"]
         npc.z_index = 8
         npc.artwork_height = player.character_art_height
+        npc.player = player
+        npc.route = PackedVector2Array(person["route"])
+        npc.route.append(npc.position)
+        npc.pause_time = person["wait"]
+        npc.walk_speed = person["speed"]
+        villagers.append(npc)
         get_parent().call_deferred("add_child", npc)
 
 func _make_interior() -> void:
@@ -270,6 +287,9 @@ func _make_interior() -> void:
 func _process(_delta: float) -> void:
     if player == null:
         return
+    if is_instance_valid(speaker) and not conversation_open:
+        speaker.talking = false
+        speaker = null
     if inventory_open:
         prompt.text = "Inventory open — press I to close"
     elif conversation_open:
@@ -325,6 +345,8 @@ func _unhandled_key_input(event: InputEvent) -> void:
             if player.position.distance_to(Vector2(-390, -190)) < 105.0:
                 _enter_inn()
             elif nearest >= 0:
+                speaker = villagers[nearest]
+                speaker.talking = true
                 conversation_open = true
                 _show_message("%s — %s:\n%s\n\n[E] Continue" % [people[nearest]["name"], people[nearest]["role"], people[nearest]["words"]], 0.0)
             elif player.position.distance_to(Vector2(-390, -190)) < 155.0:
@@ -336,8 +358,8 @@ func _nearest_person() -> int:
         return -1
     var best := -1
     var distance := INTERACT_DISTANCE
-    for i in range(people.size()):
-        var d: float = player.position.distance_to(people[i]["pos"])
+    for i in range(villagers.size()):
+        var d := player.position.distance_to(villagers[i].position)
         if d < distance:
             distance = d
             best = i
