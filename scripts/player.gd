@@ -18,6 +18,14 @@ var equipped_armor := "cloak"
 var attack_bonus := 0
 var defense_bonus := 1
 
+const RACE_ART := {
+    "Human": preload("res://art/characters/original/human.png"),
+    "Dark Elf": preload("res://art/characters/original/dark_elf.png"),
+}
+const RACE_ART_HEIGHT := 50.0
+const RACE_ART_FEET_Y := 18.0
+
+var race_sprite: Sprite2D
 var animated_sprite: Sprite2D
 var necromancer_sprite: Sprite2D
 var necromancer_appearance_enabled: bool = true
@@ -113,6 +121,10 @@ func _advance_animation(delta: float, moving: bool, running: bool) -> void:
 func _ready() -> void:
     _load_character_animation()
     _load_necromancer_appearance()
+    race_sprite = Sprite2D.new()
+    race_sprite.name = "OriginalRaceArtwork"
+    race_sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+    add_child(race_sprite)
     _refresh_character_appearance()
     _build_race_selection()
 
@@ -136,9 +148,24 @@ func _refresh_character_appearance() -> void:
     var necromancer_active: bool = necromancer_sprite != null and race == "Human" and necromancer_appearance_enabled
     if necromancer_sprite != null:
         necromancer_sprite.visible = necromancer_active
+    var race_texture: Texture2D = RACE_ART.get(race)
+    race_sprite.texture = race_texture
+    race_sprite.visible = not necromancer_active and race_texture != null
+    if race_sprite.visible:
+        race_sprite.scale = Vector2.ONE * (RACE_ART_HEIGHT / race_texture.get_height())
+        race_sprite.position = Vector2(0, RACE_ART_FEET_Y - RACE_ART_HEIGHT / 2.0)
+        race_sprite.flip_h = facing.x < 0.0
     if animated_sprite != null:
-        animated_sprite.visible = not necromancer_active
+        animated_sprite.visible = not necromancer_active and not race_sprite.visible
     queue_redraw()
+
+func _animate_race_art(moving: bool) -> void:
+    if not race_sprite.visible:
+        return
+    var bob := absf(sin(stride)) * 2.0 if moving else 0.0
+    race_sprite.position.y = RACE_ART_FEET_Y - RACE_ART_HEIGHT / 2.0 - bob
+    if moving and absf(facing.x) > 0.15:
+        race_sprite.flip_h = facing.x < 0.0
 
 func _animate_necromancer(delta: float, moving: bool) -> void:
     if necromancer_sprite == null or not necromancer_sprite.visible:
@@ -209,14 +236,14 @@ func _build_race_selection() -> void:
     for race_name in RACES:
         var button := Button.new()
         button.custom_minimum_size = Vector2(0, 70)
-        var appearance_note: String = "  /  NECROMANCER ART TEST" if race_name == "Human" else ""
-        button.text = race_name.to_upper() + appearance_note + "\n" + descriptions[race_name]
+        button.text = race_name.to_upper() + "\n" + descriptions[race_name]
         button.add_theme_font_size_override("font_size", 17)
         button.add_theme_color_override("font_color", LOOKS[race_name]["trim"])
         button.pressed.connect(_choose_race.bind(race_name))
         column.add_child(button)
     var note := Label.new()
-    note.text = "Human uses the necromancer test sprite when installed. Press N to compare."
+    note.text = "Press N to switch between Human and necromancer artwork."
+    note.visible = necromancer_sprite != null
     note.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
     note.add_theme_font_size_override("font_size", 12)
     column.add_child(note)
@@ -249,10 +276,19 @@ func _physics_process(delta: float) -> void:
     move_and_slide()
     if animated_sprite != null and animated_sprite.visible:
         _advance_animation(delta, moving, running)
+    _animate_race_art(moving)
     _animate_necromancer(delta, moving)
     queue_redraw()
 
 func _draw() -> void:
+    if race_sprite != null and race_sprite.visible:
+        draw_circle(Vector2(0, RACE_ART_FEET_Y - 2.0), 12.0, Color(0, 0, 0, 0.3))
+        if equipped_weapon == "rusty_sword":
+            var hand_side := -1.0 if race_sprite.flip_h else 1.0
+            var hand := Vector2(12.0 * hand_side, 3.0)
+            draw_line(hand, hand + Vector2(7.0 * hand_side, -25.0), Color("#c1c6c6"), 3.0)
+            draw_line(hand + Vector2(-4, -1), hand + Vector2(4, 1), Color("#7a5637"), 2.0)
+        return
     if (animated_sprite != null and animated_sprite.visible) or (necromancer_sprite != null and necromancer_sprite.visible):
         return
     var look: Dictionary = LOOKS[race]
