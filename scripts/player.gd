@@ -22,9 +22,11 @@ const RACE_ART := {
     "Human": preload("res://art/characters/original/human.png"),
     "Dark Elf": preload("res://art/characters/original/dark_elf.png"),
 }
-const RACE_ART_HEIGHT := 50.0
+const DARK_ELF_ART_HEIGHT := 50.0
+const DEFAULT_CHARACTER_ART_HEIGHT := 68.0
 const RACE_ART_FEET_Y := 18.0
 
+var character_art_height := DEFAULT_CHARACTER_ART_HEIGHT
 var race_sprite: Sprite2D
 var animated_sprite: Sprite2D
 var necromancer_sprite: Sprite2D
@@ -135,6 +137,12 @@ func _load_necromancer_appearance() -> void:
     var tex: Texture2D = load(NECROMANCER_ART) as Texture2D
     if tex == null:
         return
+    # Use the opaque bounds so padding in the local PNG does not affect size matching.
+    var image := tex.get_image()
+    if image != null:
+        var visible_height := image.get_used_rect().size.y
+        if visible_height > 0:
+            character_art_height = visible_height * necromancer_scale
     necromancer_sprite = Sprite2D.new()
     necromancer_sprite.name = "PlayableNecromancer"
     necromancer_sprite.texture = tex
@@ -152,8 +160,9 @@ func _refresh_character_appearance() -> void:
     race_sprite.texture = race_texture
     race_sprite.visible = not necromancer_active and race_texture != null
     if race_sprite.visible:
-        race_sprite.scale = Vector2.ONE * (RACE_ART_HEIGHT / race_texture.get_height())
-        race_sprite.position = Vector2(0, RACE_ART_FEET_Y - RACE_ART_HEIGHT / 2.0)
+        var height := character_art_height if race == "Human" else DARK_ELF_ART_HEIGHT
+        race_sprite.scale = Vector2.ONE * (height / race_texture.get_height())
+        race_sprite.position = Vector2(0, RACE_ART_FEET_Y - height / 2.0)
         race_sprite.flip_h = facing.x < 0.0
     if animated_sprite != null:
         animated_sprite.visible = not necromancer_active and not race_sprite.visible
@@ -163,7 +172,8 @@ func _animate_race_art(moving: bool) -> void:
     if not race_sprite.visible:
         return
     var bob := absf(sin(stride)) * 2.0 if moving else 0.0
-    race_sprite.position.y = RACE_ART_FEET_Y - RACE_ART_HEIGHT / 2.0 - bob
+    var height := race_sprite.texture.get_height() * race_sprite.scale.y
+    race_sprite.position.y = RACE_ART_FEET_Y - height / 2.0 - bob
     if moving and absf(facing.x) > 0.15:
         race_sprite.flip_h = facing.x < 0.0
 
@@ -285,9 +295,12 @@ func _draw() -> void:
         draw_circle(Vector2(0, RACE_ART_FEET_Y - 2.0), 12.0, Color(0, 0, 0, 0.3))
         if equipped_weapon == "rusty_sword":
             var hand_side := -1.0 if race_sprite.flip_h else 1.0
-            var hand := Vector2(12.0 * hand_side, 3.0)
-            draw_line(hand, hand + Vector2(7.0 * hand_side, -25.0), Color("#c1c6c6"), 3.0)
-            draw_line(hand + Vector2(-4, -1), hand + Vector2(4, 1), Color("#7a5637"), 2.0)
+            var height := race_sprite.texture.get_height() * race_sprite.scale.y
+            var size_ratio := height / DARK_ELF_ART_HEIGHT
+            var feet := race_sprite.position + Vector2(0, height / 2.0)
+            var hand := feet + Vector2(12.0 * hand_side, -15.0) * size_ratio
+            draw_line(hand, hand + Vector2(7.0 * hand_side, -25.0) * size_ratio, Color("#c1c6c6"), 3.0)
+            draw_line(hand + Vector2(-4, -1) * size_ratio, hand + Vector2(4, 1) * size_ratio, Color("#7a5637"), 2.0)
         return
     if (animated_sprite != null and animated_sprite.visible) or (necromancer_sprite != null and necromancer_sprite.visible):
         return

@@ -1,6 +1,7 @@
 extends CanvasLayer
 ## Frontier village interactions: NPCs, inn interior, dialogue, and starter inventory.
 const INTERACT_DISTANCE := 115.0
+const VillageNPC := preload("res://scripts/village_npc.gd")
 var player: CharacterBody2D
 var ui: PanelContainer
 var message: Label
@@ -250,11 +251,11 @@ func _on_notice_timeout() -> void:
 
 func _make_villagers() -> void:
     for person in people:
-        var npc := Node2D.new()
+        var npc := VillageNPC.new()
         npc.name = str(person["name"])
         npc.position = person["pos"]
         npc.z_index = 8
-        npc.set_script(load("res://scripts/village_npc.gd"))
+        npc.artwork_height = player.character_art_height
         get_parent().call_deferred("add_child", npc)
 
 func _make_interior() -> void:

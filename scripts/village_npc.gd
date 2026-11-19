@@ -5,7 +5,7 @@ const ART := {
     &"Pip": preload("res://art/characters/original/pip.png"),
     &"Rowan": preload("res://art/characters/original/rowan.png"),
 }
-const HEIGHTS := {&"Mara": 45.0, &"Elden": 48.0, &"Pip": 42.0, &"Rowan": 48.0}
+var artwork_height: float
 
 func _ready() -> void:
     var texture: Texture2D = ART.get(name)
@@ -15,7 +15,7 @@ func _ready() -> void:
     sprite.name = "Artwork"
     sprite.texture = texture
     sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-    var height: float = HEIGHTS[name]
+    var height := artwork_height
     sprite.scale = Vector2.ONE * (height / texture.get_height())
     sprite.position = Vector2(0, 15.0 - height / 2.0)
     add_child(sprite)
