@@ -4,7 +4,7 @@ extends Node2D
 const WELL_ART_PATH := "res://art/village_well.png"
 const WELL_POSITION := Vector2(0, 35)
 const WayfindingArt := preload("res://scripts/wayfinding_art.gd")
-const PinewoodForest := preload("res://scripts/pinewood_forest.gd")
+const PINEWOOD_ENTRANCE := Vector2(4, -670)
 const ForestLayout := preload("res://scripts/forest_layout.gd")
 const WorldCollision := preload("res://scripts/world_collision.gd")
 const WildernessTerrain := preload("res://scripts/wilderness_terrain.gd")
@@ -34,7 +34,7 @@ func _ready() -> void:
 		var p: Vector2 = iso(tx, ty)
 		if abs(p.x) < 730.0 and abs(p.y) < 520.0:
 			continue
-		if p.distance_to(PinewoodForest.VILLAGE_ENTRANCE) < 185.0:
+		if p.distance_to(PINEWOOD_ENTRANCE) < 185.0:
 			continue
 		if ForestLayout.near_route(p, ForestLayout.ROADS, ForestLayout.TRAIL_CLEARANCE) \
 		or ForestLayout.near_route(p, ForestLayout.TRAILS, ForestLayout.TRAIL_CLEARANCE) \
@@ -50,7 +50,7 @@ func _ready() -> void:
 	lettering.z_index = 3
 	lettering.draw.connect(func() -> void:
 		WayfindingArt.draw_landmark(lettering, Vector2(58, -290), WayfindingArt.ELDERWOOD_SIGN)
-		WayfindingArt.draw_landmark(lettering, PinewoodForest.VILLAGE_ENTRANCE, WayfindingArt.PINEWOOD_GATE)
+		WayfindingArt.draw_landmark(lettering, PINEWOOD_ENTRANCE, WayfindingArt.PINEWOOD_GATE)
 	)
 	add_child(lettering)
 	queue_redraw()
@@ -103,7 +103,7 @@ func _make_collision() -> void:
 	WorldCollision.circle(obstacles, "VillageSign", Vector2(58, -290), 9.0)
 	for offset in [-85, 85]:
 		WorldCollision.circle(obstacles, "TrailGatePost",
-			PinewoodForest.VILLAGE_ENTRANCE + Vector2(offset, 0), 14.0)
+			PINEWOOD_ENTRANCE + Vector2(offset, 0), 14.0)
 	for tree_pos in trees:
 		WorldCollision.circle(obstacles, "TreeTrunk", tree_pos, 8.0)
 
@@ -123,7 +123,7 @@ func _load_wilderness_vegetation() -> void:
 	vegetation.name = "WildernessVegetation"
 	vegetation.trunks = trees.duplicate()
 	vegetation.authored_trunks = trees
-	vegetation.keep_clear = [PinewoodForest.VILLAGE_ENTRANCE]
+	vegetation.keep_clear = [PINEWOOD_ENTRANCE]
 	add_child(vegetation)
 	using_bundle_trees = vegetation.trees_placed == trees.size()
 

@@ -1,7 +1,7 @@
 extends Node2D
 
 signal player_fell
-signal wolf_defeated
+signal wolf_defeated(variant: int)
 
 const WayfindingArt := preload("res://scripts/wayfinding_art.gd")
 const WorldCollision := preload("res://scripts/world_collision.gd")
@@ -13,7 +13,6 @@ const WildernessVegetation := preload("res://scripts/wilderness_vegetation.gd")
 const STONEHAVEN_GATEHOUSE := preload("res://art/stonehaven/gatehouse.png")
 const STONEHAVEN_WALL := preload("res://art/stonehaven/curtain_wall.png")
 const MONSTER_ART := "res://art/pinewood/briar_wolves.png"
-const VILLAGE_ENTRANCE := Vector2(4, -670)
 const SOUTH_ENTRY := Vector2(0, 704)
 const SOUTH_EXIT := Vector2(0, 795)
 const SOUTH_GATE := Vector2(0, 835)
@@ -36,6 +35,7 @@ const CLEARING := [
 
 var player: CharacterBody2D
 var wolves: Array[Wolf] = []
+var defeated_wolves: Array[int] = []
 var trees: Array[Vector2] = []
 var boundary_trees: Array[Vector2] = []
 var using_bundle_terrain := false
@@ -148,6 +148,8 @@ func _load_wilderness_art() -> void:
 		using_bundle_trees = vegetation.trees_placed > 0
 
 func _spawn_wolf(at: Vector2, variant: int) -> void:
+	if defeated_wolves.has(variant):
+		return
 	var wolf := Wolf.new()
 	wolf.position = at
 	wolf.player = player
@@ -247,7 +249,7 @@ func _damage_wolf(wolf: Wolf, damage: int) -> void:
 	if wolf.health == 0:
 		wolves.erase(wolf)
 		wolf.queue_free()
-		wolf_defeated.emit()
+		wolf_defeated.emit(wolf.variant)
 
 func cast_fireball(facing: Vector2, cursor := Vector2.INF) -> bool:
 	if not active or combat_paused or in_stonehaven() or cast_cooldown > 0.0 or pending_damage > 0:
