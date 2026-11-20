@@ -2,6 +2,11 @@
 
 Personal dark-fantasy isometric RPG, built in **Godot 4** using **GDScript**.
 
+## Current playtest
+
+Follow the road north from Elderwood through Pinewood to Stonehaven.
+[Stonehaven and Forsaken playtest guide](docs/stonehaven-art-production.md)
+
 ## Version 0.1 — movement and terrain foundation
 
 This is a **first playable technical prototype**, not the final art direction.

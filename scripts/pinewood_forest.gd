@@ -188,6 +188,7 @@ func _physics_process(delta: float) -> void:
 		if cast_windup > 0.0:
 			cast_windup = 0.0
 			cast_effect.hide()
+			player.cancel_cast_pose()
 		_set_preview_target(null)
 		return
 	var cursor := get_local_mouse_position()
@@ -270,6 +271,7 @@ func cast_fireball(facing: Vector2, cursor := Vector2.INF) -> bool:
 		cast_direction = _player_feet().direction_to(cast_target.position)
 	cast_windup = CAST_WINDUP_TIME
 	cast_cooldown = 0.8
+	player.play_cast(cast_direction, CAST_WINDUP_TIME)
 	_position_cast_effect()
 	cast_effect.show()
 	cast_effect.play(&"windup")
@@ -379,6 +381,7 @@ func _tick_fireballs(delta: float) -> void:
 
 func clear_fireballs() -> void:
 	cast_effect.hide()
+	player.cancel_cast_pose()
 	cast_windup = 0.0
 	cast_cooldown = 0.0
 	cast_target = null

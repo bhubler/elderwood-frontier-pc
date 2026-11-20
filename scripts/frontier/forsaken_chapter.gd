@@ -12,10 +12,10 @@ const Enemy = preload("res://scripts/frontier/encounter_enemy.gd")
 const POINT_SCENE := preload("res://scenes/frontier/interaction_point.tscn")
 const ENEMY_SCENE := preload("res://scenes/frontier/encounter_enemy.tscn")
 const SAVE_PATH := "user://forsaken_chapter_v1.cfg"
-const NPC_SCENE := "res://scenes/npc/animated_npc.tscn"
+const NpcLibrary := preload("res://scripts/npc/npc_library.gd")
 const NPC_ART := "res://art/characters/stonehaven/"
 const LANDMARK_ROOT := "res://art/landmarks/"
-const SUMMON_FRAMES := "res://art/effects/summon.tres"
+const SpellEffects := preload("res://scripts/npc/spell_effects.gd")
 const MAX_HEALTH := 100
 
 @onready var player = $Player
@@ -40,8 +40,15 @@ const LOCAL_DIALOGUE := {
     "merchant_mage": ["Merchant Mage", "Watch the charm. A steady glow tells you the binding will hold."],
     "guard_sword": ["Stonehaven Sword Guard", "Keep outside sword reach. I'll show you the drill."],
     "guard_spear": ["Stonehaven Spear Guard", "See how the point leads? Give it room."],
+    "priest": ["Stonehaven Priest", "May you find your way home, whatever road you take."],
+    "monk": ["Stonehaven Monk", "I keep a record of travelers who leave offerings on the north road."],
+    "noble": ["Stonehaven Councillor", "The quarter is open again now that the road watch has returned."],
+    "sweeper": ["Market Sweeper", "If you're waiting for the next wagon, stand clear of the doorway."],
+    "dockhand": ["Porter", "Keep the parcels marked for the chapel on this side."],
 }
-var summon: Polygon2D
+var summon: Node2D
+var summon_actor: Node2D
+var summon_windup := 0.0
 var summon_remaining := 0.0
 var summon_attack_wait := 0.0
 var health := MAX_HEALTH
@@ -59,9 +66,7 @@ func _ready() -> void:
     for item_id in state.quest_items:
         if Layouts.ITEMS.has(item_id):
             inventory.grant_item(item_id, Layouts.ITEMS[item_id])
-    summon = Polygon2D.new()
-    summon.polygon = PackedVector2Array([Vector2(0, -27), Vector2(12, -13), Vector2(9, 7), Vector2(-9, 7), Vector2(-12, -13)])
-    summon.color = Color("#acdec5")
+    summon = Node2D.new()
     summon.z_index = 6
     summon.hide()
     add_child(summon)
@@ -129,6 +134,8 @@ func _dress_region() -> void:
             _add_local_vendor("alchemist", "alch_shop", Vector2(-110, -142))
             _add_local_vendor("shopkeeper", "goods_shop", Vector2(110, -142))
             _add_local_vendor("merchant_mage", "mage_shop", Vector2(327, -142))
+            _add_local_npc("sweeper", Vector2(-212, 73), 2)
+            _add_local_npc("dockhand", Vector2(246, 54), 5)
         "town_court":
             _add_landmark("barracks", Vector2(-355, -124), 199)
             _add_landmark("civic", Vector2(-111, -124), 218)
@@ -136,6 +143,9 @@ func _dress_region() -> void:
             _add_landmark("residence", Vector2(371, -124), 172)
             _add_local_npc("guard_sword", Vector2(-219, 14))
             _add_local_npc("guard_spear", Vector2(228, 32))
+            _add_local_npc("priest", Vector2(118, -57))
+            _add_local_npc("monk", Vector2(373, -31), 2)
+            _add_local_npc("noble", Vector2(-104, -50))
         "northern_watch":
             _add_landmark("watchtower", Vector2(0, -96), 180)
         "raided_caravan":
@@ -147,14 +157,14 @@ func _dress_region() -> void:
         "hideout":
             veiled_agent = _add_npc("veiled_agent", Vector2(0, -70))
             if is_instance_valid(veiled_agent):
-                veiled_agent.patrol_offset = Vector2(-12, 0)
+                veiled_agent.autonomous_patrol = false
 
 func _add_local_vendor(key: String, shop: String, where: Vector2) -> void:
     _add_landmark(shop, where, 195)
     _add_local_npc(key, where + Vector2(0, 65))
 
-func _add_local_npc(key: String, where: Vector2) -> void:
-    var npc := _add_npc(key, where)
+func _add_local_npc(key: String, where: Vector2, wardrobe := 0) -> void:
+    var npc := _add_npc(key, where, wardrobe)
     if npc == null:
         return
     local_npcs[key] = npc
@@ -177,12 +187,10 @@ func _add_landmark(key: String, where: Vector2, width: float) -> void:
         var footprint := Vector2(width * 0.62, 25.0)
         WorldCollision.box(props, key, Rect2(where - Vector2(footprint.x * 0.5, 25.0), footprint))
 
-func _add_npc(key: String, where: Vector2) -> Node2D:
-    var path := NPC_ART + key + ".tres"
-    if not ResourceLoader.exists(path):
+func _add_npc(key: String, where: Vector2, wardrobe := 0) -> Node2D:
+    var npc := NpcLibrary.create(key, wardrobe)
+    if npc == null:
         return null
-    var npc: Node2D = load(NPC_SCENE).instantiate()
-    npc.frames = load(path)
     npc.position = where
     props.add_child(npc)
     return npc
@@ -213,9 +221,11 @@ func _add_enemy(definition: Array) -> void:
     enemy.reward_xp = definition[4]
     enemy.tint = Color(definition[5])
     if definition.size() > 6:
-        var path := NPC_ART + str(definition[6]) + ".tres"
+        var sheet := str(definition[6])
+        var path := NPC_ART + sheet + ".tres"
         if ResourceLoader.exists(path):
             enemy.frames = load(path)
+            enemy.attack_style = NpcLibrary.ATTACK_STYLES.get(sheet, "melee")
     enemy.defeated.connect(_on_victory)
     enemy.attack_landed.connect(_take_damage)
     props.add_child(enemy)
@@ -253,9 +263,16 @@ func _physics_process(delta: float) -> void:
     attack_wait = maxf(0.0, attack_wait - delta)
     if summon_remaining <= 0.0:
         return
+    if summon_windup > 0.0:
+        summon_windup = maxf(0.0, summon_windup - delta)
+        if summon_windup > 0.0:
+            return
+        summon.position = player.position + Vector2(34, 24)
+        _summon_effect(&"arrival", summon.position)
+        summon.show()
     summon_remaining = maxf(0.0, summon_remaining - delta)
-    summon.visible = summon_remaining > 0.0
-    if not summon.visible:
+    if summon_remaining <= 0.0:
+        summon.hide()
         _summon_effect(&"expire", summon.position)
         return
     summon_attack_wait = maxf(0.0, summon_attack_wait - delta)
@@ -264,8 +281,16 @@ func _physics_process(delta: float) -> void:
         destination = enemy.position
         if summon.position.distance_to(destination) <= 46 and summon_attack_wait <= 0.0:
             summon_attack_wait = 1.15
-            enemy.take_hit(9)
-    summon.position = summon.position.move_toward(destination, 200 * delta)
+            summon_actor.face(summon.position.direction_to(destination))
+            summon_actor.attack()
+    if not summon_actor.busy():
+        var next := summon.position.move_toward(destination, 200.0 * delta)
+        summon_actor.locomotion(summon.position.direction_to(next))
+        summon.position = next
+
+func _on_summon_contact() -> void:
+    if summon.visible and is_instance_valid(enemy) and summon.position.distance_to(enemy.position) <= 49:
+        enemy.take_hit(9)
 
 func _bounded(where: Vector2) -> Vector2:
     return where.clamp(Floor.BOUNDS.position + Vector2(20, 28), Floor.BOUNDS.end - Vector2(20, 20))
@@ -435,10 +460,14 @@ func _cast_summon() -> void:
         mana -= State.SPELL_COST
         summon_remaining = State.SUMMON_SECONDS
         summon_attack_wait = 0.0
-        summon.position = player.position + Vector2(34, 24)
-        summon.show()
+        summon_windup = 0.22
+        player.play_cast(player.facing, summon_windup)
+        if summon_actor == null:
+            summon_actor = NpcLibrary.create("skeleton")
+            summon_actor.autonomous_patrol = false
+            summon_actor.attack_contact.connect(_on_summon_contact)
+            summon.add_child(summon_actor)
         _summon_effect(&"windup", player.position + Vector2(0, -18))
-        _summon_effect(&"arrival", summon.position)
         state.record_summon()
         notice = "A skeleton rises for 35 seconds."
         if state.emissary_pending:
@@ -447,14 +476,7 @@ func _cast_summon() -> void:
         _save()
 
 func _summon_effect(clip: StringName, where: Vector2) -> void:
-    var effect := AnimatedSprite2D.new()
-    effect.sprite_frames = load(SUMMON_FRAMES)
-    effect.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-    effect.position = where
-    effect.z_index = 7
-    effect.animation_finished.connect(effect.queue_free)
-    props.add_child(effect)
-    effect.play(clip)
+    SpellEffects.play(props, "summon", clip, where)
 
 func _attack() -> void:
     if attack_wait > 0.0:
@@ -489,7 +511,9 @@ func _recover_at_graveyard() -> void:
     health = MAX_HEALTH
     mana = State.MAX_MANA
     summon_remaining = 0.0
+    summon_windup = 0.0
     summon.hide()
+    player.cancel_cast_pose()
     _load_region("graveyard")
     notice = "You recover at the graveyard entrance. Your quest progress is intact."
 

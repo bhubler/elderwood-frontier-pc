@@ -17,12 +17,14 @@ var equipped_weapon := ""
 var equipped_armor := "cloak"
 const STRIKE_DURATION := 0.34
 const SWORD_SWING_ART := preload("res://art/characters/original/human_sword_swing.png")
+const CAST_POSE_PATH := "res://art/characters/original/human_cast.tres"
 const SWORD_FRAME_SIZE := 112
 const SWORD_ART_BODY_HEIGHT := 88.0
 const SWORD_ART_FEET := 101.0
 var strike_time := 0.0
 var sword_strike := false
 var sword_sprite: Sprite2D
+var cast_sprite: AnimatedSprite2D
 var hurt_time := 0.0
 var strike_direction := Vector2.DOWN
 var attack_bonus := 0
@@ -284,16 +286,45 @@ func _choose_race(chosen: String) -> void:
     _refresh_character_appearance()
 
 func play_strike(direction: Vector2, melee := false) -> void:
+    if melee:
+        cancel_cast_pose()
     strike_direction = direction
     strike_time = STRIKE_DURATION
     sword_strike = melee and equipped_weapon == "rusty_sword"
     _update_sword_sprite()
 
+func play_cast(direction: Vector2, windup: float) -> void:
+    play_strike(direction)
+    if race != "Human" or not race_sprite.visible:
+        return
+    if cast_sprite == null:
+        var frames := load(CAST_POSE_PATH) as SpriteFrames
+        if frames == null:
+            return
+        cast_sprite = AnimatedSprite2D.new()
+        cast_sprite.sprite_frames = frames
+        cast_sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+        cast_sprite.position = Vector2(0, RACE_ART_FEET_Y - 39)
+        add_child(cast_sprite)
+        cast_sprite.animation_finished.connect(cancel_cast_pose)
+    cast_sprite.flip_h = direction.x < 0.0
+    cast_sprite.show()
+    cast_sprite.play(&"cast", 0.18 / windup)
+    cast_sprite.set_frame_and_progress(0, 0.0)
+
+func cancel_cast_pose() -> void:
+    if cast_sprite != null:
+        cast_sprite.stop()
+        cast_sprite.hide()
+
+func _is_cast_pose_visible() -> bool:
+    return cast_sprite != null and cast_sprite.visible
+
 func is_showing_sword_strike() -> bool:
     return strike_time > 0.0 and sword_strike and race == "Human" and race_sprite.visible
 
 func _update_sword_sprite() -> void:
-    sword_sprite.visible = race == "Human" and race_sprite.visible and equipped_weapon == "rusty_sword"
+    sword_sprite.visible = race == "Human" and race_sprite.visible and equipped_weapon == "rusty_sword" and not _is_cast_pose_visible()
     if not sword_sprite.visible:
         return
     var swinging := is_showing_sword_strike()
@@ -386,12 +417,15 @@ func _physics_process(delta: float) -> void:
     _animate_necromancer(delta, moving)
     _animate_combat_pose()
     _update_sword_sprite()
+    if _is_cast_pose_visible():
+        race_sprite.self_modulate.a = 0.0
+        cast_sprite.self_modulate = Color("#ff9e92") if hurt_time > 0.0 else Color.WHITE
     queue_redraw()
 
 func _draw() -> void:
     if race_sprite != null and race_sprite.visible:
         draw_circle(Vector2(0, RACE_ART_FEET_Y - 2.0), 12.0, Color(0, 0, 0, 0.3))
-        if equipped_weapon == "rusty_sword" and not sword_sprite.visible and strike_time <= 0.0:
+        if equipped_weapon == "rusty_sword" and not sword_sprite.visible and not _is_cast_pose_visible() and strike_time <= 0.0:
             var hand_side := -1.0 if race_sprite.flip_h else 1.0
             var height := race_sprite.texture.get_height() * race_sprite.scale.y
             var size_ratio := height / SWORD_ART_REFERENCE_HEIGHT

@@ -7,7 +7,7 @@ var region_id := ""
 func _draw() -> void:
     draw_rect(BOUNDS, ground)
     draw_rect(BOUNDS, ground.lightened(0.23), false, 4)
-    var outdoors := region_id in ["graveyard", "stonehaven", "town_court", "raided_caravan", "old_cabin", "northern_watch"]
+    var outdoors := region_id in ["graveyard", "stonehaven", "town_court", "raided_caravan", "old_cabin", "northern_watch", "bandit_camp", "goblin_hollow"]
     for x in range(-480, 500, 48):
         for y in range(-265, 285, 48):
             var point := Vector2(x, y)
@@ -25,7 +25,7 @@ func _draw() -> void:
                     var p := Vector2(-477 + column * 28 + 9 * (row % 2), -148 + row * 21)
                     var tile := Color("#655c50") if (column + row) % 5 == 0 else Color("#56514a")
                     draw_rect(Rect2(p, Vector2(24, 17)), tile)
-        "raided_caravan", "old_cabin", "northern_watch":
+        "raided_caravan", "old_cabin", "northern_watch", "bandit_camp", "goblin_hollow":
             draw_line(Vector2(0, 286), Vector2(0, -92), Color("#514738"), 82.0, true)
         _:
             for x in [-335, 335]:

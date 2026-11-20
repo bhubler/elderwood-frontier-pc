@@ -21,20 +21,20 @@ The requested counts total 128. Use 68-pixel standing humans and align feet
 with the existing player. Build individual silhouette and palette changes
 over shared walk and idle clips where clothing and props permit it.
 
-| Role | Target | Integrated in first batch |
+| Role | Catalog appearances | Placed in the world |
 | --- | ---: | --- |
-| Blacksmith | 10 | Garrik |
-| Alchemist | 10 | Gray-braided potion mixer |
-| General goods | 10 | Parcel merchant |
-| Merchant mage | 10 | Charm examiner |
-| City guard | 2 | Sword guard and spear guard |
-| City lord or noble | 10 | Later batch |
-| Bandits | 4 | Hatchet bandit |
-| Goblins | 4 | Hooked-knife goblin |
-| Black Hand | 5 | Veiled Agent |
-| Priest | 10 | Later batch |
-| Monk | 3 | Later batch |
-| Townspeople | 50 | Later batch |
+| Blacksmith | 10 | Garrik (1) |
+| Alchemist | 10 | Gray-braided potion mixer (1) |
+| General goods | 10 | Parcel merchant (1) |
+| Merchant mage | 10 | Charm examiner (1) |
+| City guard | 2 | Sword guard and spear guard (2) |
+| City lord or noble | 10 | Councillor (1) |
+| Bandits | 4 | Blackbriar bandit and chief (2) |
+| Goblins | 4 | Cabin goblin and chief (2) |
+| Black Hand | 5 | Veiled Agent and cellar guard (2) |
+| Priest | 10 | Civic court priest (1) |
+| Monk | 3 | Civic court monk (1) |
+| Townspeople | 50 | Market sweeper and porter (2) |
 
 Garrik belongs in Stonehaven. In the PC Forsaken development chapter, the
 Veiled Agent receives the player after either the Forbidden Grimoire route or
@@ -44,10 +44,33 @@ ledger. The earlier browser quest *The Missing Ledger* also uses the Agent as
 its contact and sends the player to the Blackbriar caravan. *The Empty Seat*
 and Rellan belong to a separate browser initiation design.
 
-The initial batch integrates 9 of 128 appearances. Later rows are production
-targets. Guards are friendly and demonstrate their attacks as drills. The
-encounter enemies use the attack clip's contact frame for live damage and
-save their defeat immediately so reentry cannot restart a completed encounter.
+The catalog has 128 appearances from 34 original animation sheets and 94
+wardrobe variants. Seventeen have populated world placements. The remaining
+111 are available in the editor playtest scene or through
+`scripts/npc/npc_library.gd`. The sanctuary leader is ready for placement
+when the sanctuary story is built.
+
+Open `scenes/npc/roster_preview.tscn` and press F6 to inspect the catalog
+beside the Human player. Tab changes roles, Q/E changes the appearance,
+and 1–4 plays the available action clips. Use V to jump to the spell page.
+On that page, 1–3 plays wind-up, active, and finish clips.
+
+Guards are friendly and demonstrate their attacks as drills. Actual encounter
+attacks land at contact or on projectile impact. Defeats save immediately so
+reentry cannot restart a completed encounter. The Blackbriar chief uses a
+hammer shockwave, and the goblin chief uses a wider overhead slam.
+
+### Add an appearance
+
+Create a SpriteFrames resource beside its atlas in
+`art/characters/stonehaven/`. The sheets use 112-by-112 cells, with the
+center of the ground contact at x=56 and the lowest boot at y=95. Use
+`idle` and `walk` loops, then an `interact` clip for social actions or
+`attack`, `hit`, and `defeat` clips for the corresponding combat
+actions. On a four-frame attack, the third frame is the contact or release.
+Add the sheet to the appropriate role in `npc_library.gd` with its wardrobe
+count. Assign the SpriteFrames to `animated_npc.tscn`, or use
+`NpcLibrary.create(sheet, wardrobe)` to place it at a ground anchor.
 
 ## Spell effects
 
@@ -58,8 +81,13 @@ save their defeat immediately so reentry cannot restart a completed encounter.
 | Ember Dart, Chill Needle, Mending Light | Earlier browser spells | Ember dart, narrow frost projectile, localized healing light |
 | Sanguine Drain, Covenant of Thorns, Bone Spear | Earlier Maelis spell designs | Blood transfer, brief cast and sustained thorn accent, bone projectile and shatter |
 | Fire skeleton and reinforced skeleton | Cross-school concepts | Preserve the summon silhouette, add fire embers or reinforced bone plates |
-| Quickcast, dual casting and sustained buffs | System design | Local hand effects leave room for concurrent projectiles, and persistent cues stay close to feet or equipment |
+| Quickcast, dual casting and sustained buffs | System design | Effects use independent sprites, with persistent cues near feet or equipment. PC equipment and casting rules are pending. |
 | Cursed objects and item or weapon runes | System concepts | Equipment-bound markings and short trigger pulses |
+
+The browser and concept effects are viewable through the spell preview. They
+have no PC gameplay bindings. Fireball and Summon Skeleton are the playable PC
+spells in this batch. They use a shared Human cast animation, with the other
+races retaining their existing character presentation and the same effects.
 
 ## Environment
 
@@ -76,6 +104,7 @@ two smaller points of interest.
 Godot 4.7.2 Linux headless checks covered startup dependencies, approach loading,
 road quest persistence on reload of the Pinewood area, both Black Hand entry
 routes and saved state, gate-to-chapter and chapter-to-gate round trips,
-merchant actions, guard drills, bandit contact and defeat, and Fireball impact.
+merchant actions, guard drills, bandit contact and defeat, Fireball impact,
+Summon Skeleton wind-up and melee contact, and loading every roster appearance.
 Windows keyboard and mouse playthrough, rendered visual checks, and balance
 are still pending.

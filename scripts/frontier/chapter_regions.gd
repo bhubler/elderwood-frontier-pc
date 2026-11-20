@@ -45,20 +45,30 @@ const REGIONS := {
         "title": "Northern Frontier Watchtower", "ground": "#32372d",
         "points": [["town_court", "Road to Stonehaven", EXIT]],
     },
+    "bandit_camp": {
+        "title": "Blackbriar Raider Camp", "ground": "#38312b",
+        "points": [["raided_caravan", "Back to the caravan", EXIT]],
+        "enemy": ["blackbriar_chief", "Blackbriar Chief", 66, 18, 55, "#b07b55", "bandit_chief"],
+    },
+    "goblin_hollow": {
+        "title": "Goblin Hollow", "ground": "#303522",
+        "points": [["old_cabin", "Back to the cabin", EXIT]],
+        "enemy": ["goblin_chief", "Goblin Chief", 60, 16, 48, "#738857", "goblin_chief"],
+    },
     "raided_caravan": {
         "title": "Blackbriar Caravan Wreck", "ground": "#373228",
-        "points": [["stonehaven", "Road to Stonehaven", EXIT]],
+        "points": [["stonehaven", "Road to Stonehaven", EXIT], ["bandit_camp", "Raider camp trail", Vector2(-425, -136)]],
         "enemy": ["blackbriar_bandit", "Blackbriar Bandit", 33, 11, 24, "#bd8061", "bandit"],
     },
     "old_cabin": {
         "title": "Old Cabin in the Woods", "ground": "#2c3428",
-        "points": [["graveyard", "Forsaken Graveyard", EXIT]],
+        "points": [["graveyard", "Forsaken Graveyard", EXIT], ["goblin_hollow", "Goblin Hollow trail", Vector2(390, -134)]],
         "enemy": ["cabin_goblin", "Cabin Goblin", 27, 9, 21, "#849659", "goblin"],
     },
     "cellar_gate": {
         "title": "Stonehaven — Cellar Stair", "ground": "#2c2a28",
         "points": [["stonehaven", "Eastward Quarter", EXIT], ["hideout", "Black Hand cellar", NORTH]],
-        "enemy": ["cellar_guard", "Black Hand Guard", 52, 15, 45, "#c38772"],
+        "enemy": ["cellar_guard", "Black Hand Guard", 52, 15, 45, "#c38772", "black_hand_guard"],
     },
     "hideout": {
         "title": "Black Hand Hideout", "ground": "#2a2931",
