@@ -34,7 +34,7 @@ var character_art_height := DEFAULT_CHARACTER_ART_HEIGHT
 var race_sprite: Sprite2D
 var animated_sprite: Sprite2D
 var necromancer_sprite: Sprite2D
-var necromancer_appearance_enabled: bool = true
+var necromancer_appearance_enabled: bool = false
 var necromancer_idle_clock: float = 0.0
 @export_range(0.15, 0.50, 0.01) var necromancer_scale: float = 0.27
 const NECROMANCER_ART := "res://art/characters/necromancer/elderwood_necromancer_player.png"
