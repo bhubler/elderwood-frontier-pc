@@ -1,6 +1,10 @@
 extends CanvasLayer
 ## Frontier village interactions: NPCs, inn interior, dialogue, and starter inventory.
+@export var inventory_only := false
+
+const BACKPACK_CAPACITY := 24
 const INTERACT_DISTANCE := 115.0
+const FORSAKEN_CHAPTER := "res://scenes/frontier/forsaken_chapter.tscn"
 const PINEWOOD_SCRIPT := "res://scripts/pinewood_forest.gd"
 const PINEWOOD_ENTRANCE := Vector2(4, -670)
 const PINEWOOD_APPROACH_DISTANCE := 440.0
@@ -45,6 +49,8 @@ var item_data: Dictionary = {
 var prompt: Label
 var forest: Node2D
 var pinewood_requested := false
+var chapter: Node2D
+var gate_resources := Vector2.ZERO
 var pinewood_entry_pending := false
 var defeated_wolves: Array[int] = []
 var road_quest := RoadQuest.OFFERED
@@ -83,6 +89,8 @@ func _ready() -> void:
     _make_inventory_window()
     if player.has_method("set_equipment"):
         player.set_equipment(equipment)
+    if inventory_only:
+        return
     _make_interior()
     _make_villagers()
     _show_message("Welcome to Elderwood Village. WASD to move, E to interact, I for inventory.", 5.0)
@@ -350,7 +358,7 @@ func _refresh_inventory() -> void:
     for child in inventory_grid.get_children():
         inventory_grid.remove_child(child)
         child.queue_free()
-    for i in range(24):
+    for i in range(BACKPACK_CAPACITY):
         var button := Button.new()
         button.custom_minimum_size = Vector2(63, 61)
         button.add_theme_stylebox_override("normal", _slot_style())
@@ -362,6 +370,21 @@ func _refresh_inventory() -> void:
             button.pressed.connect(_select_item.bind(item_id))
         inventory_grid.add_child(button)
     item_details.text = "SELECT AN ITEM\nInspect its properties and equip weapons or armor."
+
+func grant_item(item_id: String, definition: Dictionary) -> bool:
+    if item_id in backpack:
+        return true
+    if backpack.size() >= BACKPACK_CAPACITY:
+        return false
+    item_data[item_id] = definition
+    backpack.append(item_id)
+    _refresh_inventory()
+    return true
+
+func remove_item(item_id: String) -> void:
+    if item_id in backpack:
+        backpack.erase(item_id)
+        _refresh_inventory()
 
 func _select_item(item_id: String) -> void:
     var data: Dictionary = item_data[item_id]
@@ -427,7 +450,7 @@ func _make_interior() -> void:
     get_parent().call_deferred("add_child", interior)
 
 func _process(_delta: float) -> void:
-    if player == null:
+    if player == null or inventory_only:
         return
     _update_pinewood_loading()
     if is_instance_valid(speaker) and not conversation_open:
@@ -474,6 +497,10 @@ func _nearby_route() -> Dictionary:
     if player.choosing_race or inventory_open or conversation_open:
         return {}
     if is_instance_valid(forest) and forest.active:
+        var district_sign: Vector2 = forest.to_global(forest.STONEHAVEN_DISTRICT_SIGN)
+        if forest.in_stonehaven() and player.global_position.distance_to(district_sign) < 126.0:
+            return _route(district_sign, Rect2(district_sign - Vector2(55, 158), Vector2(110, 167)),
+                "Stonehaven Eastward Quarter", _enter_stonehaven_district)
         if _near_forest_exit():
             return _route(forest.to_global(forest.SOUTH_GATE),
                 Rect2(forest.to_global(forest.SOUTH_GATE - Vector2(114, 178)), Vector2(228, 178)), "Elderwood Village", _leave_pinewood)
@@ -509,13 +536,55 @@ func _activate_offered_route() -> void:
     if not route.is_empty():
         route.action.call()
 
+func _enter_stonehaven_district() -> void:
+    if is_instance_valid(chapter):
+        return
+    var scene := load(FORSAKEN_CHAPTER) as PackedScene
+    if scene == null:
+        return
+    chapter = scene.instantiate()
+    _mount_chapter.call_deferred()
+
+func _mount_chapter() -> void:
+    var world := get_parent() as Node2D
+    gate_resources = Vector2(forest.health, forest.mana)
+    forest.queue_free()
+    forest = null
+    world.hide()
+    world.process_mode = Node.PROCESS_MODE_DISABLED
+    hide()
+    chapter.linked_from_gate = true
+    chapter.return_to_gate.connect(_restore_stonehaven_gate, CONNECT_DEFERRED)
+    get_tree().root.add_child(chapter)
+    chapter.player._choose_race(player.race)
+    chapter.player.get_node("Camera2D").make_current()
+
+func _restore_stonehaven_gate() -> void:
+    if not is_instance_valid(chapter):
+        return
+    chapter.queue_free()
+    chapter = null
+    var world := get_parent() as Node2D
+    _prepare_pinewood(load(PINEWOOD_SCRIPT) as GDScript)
+    forest.health = int(gate_resources.x)
+    forest.mana = gate_resources.y
+    forest.active = true
+    forest.show()
+    player.global_position = forest.to_global(forest.STONEHAVEN_DISTRICT_SIGN + Vector2(-55, 14))
+    world.process_mode = Node.PROCESS_MODE_INHERIT
+    world.show()
+    show()
+    var camera := player.get_node("Camera2D") as Camera2D
+    camera.make_current()
+    camera.reset_smoothing()
+
 func _cross_stonehaven_gate() -> void:
     var crossing_south: bool = forest.in_stonehaven()
     player.global_position = forest.to_global(Vector2(0, -552 if crossing_south else -789))
     player.get_node("Camera2D").reset_smoothing()
 
 func _unhandled_input(event: InputEvent) -> void:
-    if not event is InputEventMouseButton or not event.pressed:
+    if inventory_only or not event is InputEventMouseButton or not event.pressed:
         return
     if event.button_index not in [MOUSE_BUTTON_LEFT, MOUSE_BUTTON_RIGHT]:
         return
@@ -564,6 +633,8 @@ func _unhandled_key_input(event: InputEvent) -> void:
         inventory_panel.hide()
         notice_timer.stop()
         get_viewport().set_input_as_handled()
+    elif inventory_only:
+        return
     elif event.keycode in [KEY_SPACE, KEY_F] and is_instance_valid(forest) and forest.active:
         if not inventory_open and not conversation_open:
             _pinewood_combat_input(event.keycode == KEY_SPACE, player.facing)
@@ -704,7 +775,7 @@ func _on_wolf_defeated(variant: int) -> void:
 
 func _pinewood_prompt() -> String:
     if forest.in_stonehaven():
-        return "Stonehaven Gate | Click the gate or press E to return to Pinewood"
+        return "Stonehaven Gate | Follow the Stonehaven sign into the Eastward Quarter"
     var status := "LMB swing | RMB Fireball | I inventory"
     if _near_forest_exit():
         return "Click the gate or press E — Elderwood Village | " + status

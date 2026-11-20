@@ -16,6 +16,7 @@ const MONSTER_ART := "res://art/pinewood/briar_wolves.png"
 const SOUTH_ENTRY := Vector2(0, 704)
 const SOUTH_EXIT := Vector2(0, 795)
 const SOUTH_GATE := Vector2(0, 835)
+const STONEHAVEN_DISTRICT_SIGN := Vector2(184, -794)
 const MAX_HEALTH := 14
 const MAX_MANA := 6.0
 const FIREBALL_COST := 2.0
@@ -58,6 +59,7 @@ var swing_effect := 0.0
 var swing_direction := Vector2.UP
 var armor := 0
 var swing_overlay: Node2D
+var cast_effect: AnimatedSprite2D
 
 func _ready() -> void:
 	WorldCollision.polygon(self, "ForestEdge", PackedVector2Array([
@@ -72,6 +74,11 @@ func _ready() -> void:
 	swing_overlay.z_index = 11
 	swing_overlay.draw.connect(_draw_swing)
 	add_child(swing_overlay)
+	cast_effect = AnimatedSprite2D.new()
+	cast_effect.sprite_frames = Fireball.FRAMES
+	cast_effect.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	cast_effect.hide()
+	swing_overlay.add_child(cast_effect)
 	_place_trees()
 	_place_boundary_trees()
 	_load_wilderness_art()
@@ -80,6 +87,7 @@ func _ready() -> void:
 	lettering.draw.connect(func() -> void:
 		WayfindingArt.draw_landmark(lettering, SOUTH_GATE, WayfindingArt.ELDERWOOD_GATE)
 		WayfindingArt.draw_landmark(lettering, Vector2(-226, 269), WayfindingArt.STONEHAVEN_SIGN)
+		WayfindingArt.draw_landmark(lettering, STONEHAVEN_DISTRICT_SIGN, WayfindingArt.STONEHAVEN_SIGN)
 	)
 	add_child(lettering)
 	_spawn_wolf(Vector2(-357, 127), 0)
@@ -179,7 +187,7 @@ func _physics_process(delta: float) -> void:
 		pending_damage = 0
 		if cast_windup > 0.0:
 			cast_windup = 0.0
-			swing_overlay.queue_redraw()
+			cast_effect.hide()
 		_set_preview_target(null)
 		return
 	var cursor := get_local_mouse_position()
@@ -188,7 +196,7 @@ func _physics_process(delta: float) -> void:
 	cast_cooldown = maxf(0.0, cast_cooldown - delta)
 	if cast_windup > 0.0:
 		cast_windup -= delta
-		swing_overlay.queue_redraw()
+		_position_cast_effect()
 		if cast_windup <= 0.0:
 			_launch_fireball()
 	_tick_fireballs(delta)
@@ -262,8 +270,10 @@ func cast_fireball(facing: Vector2, cursor := Vector2.INF) -> bool:
 		cast_direction = _player_feet().direction_to(cast_target.position)
 	cast_windup = CAST_WINDUP_TIME
 	cast_cooldown = 0.8
-	player.play_strike(cast_direction)
-	swing_overlay.queue_redraw()
+	_position_cast_effect()
+	cast_effect.show()
+	cast_effect.play(&"windup")
+	cast_effect.set_frame_and_progress(0, 0.0)
 	return true
 
 func cursor_aim(cursor: Vector2, melee := false) -> Vector2:
@@ -313,7 +323,11 @@ func _wall_hit(start: Vector2, finish: Vector2) -> Dictionary:
 	var query := PhysicsRayQueryParameters2D.create(to_global(start), to_global(finish), 1, [player.get_rid()])
 	return get_world_2d().direct_space_state.intersect_ray(query)
 
+func _position_cast_effect() -> void:
+	cast_effect.position = to_local(player.global_position) + Vector2(0, -12) + cast_direction * 18.0
+
 func _launch_fireball() -> void:
+	cast_effect.hide()
 	mana -= FIREBALL_COST
 	var ball := Fireball.new()
 	ball.position = _player_feet()
@@ -333,8 +347,6 @@ func _tick_fireballs(delta: float) -> void:
 			if ball.burst <= 0.0:
 				ball.queue_free()
 				fireballs.remove_at(i)
-			else:
-				ball.queue_redraw()
 			continue
 		ball.remaining -= delta
 		var start := ball.position
@@ -342,7 +354,7 @@ func _tick_fireballs(delta: float) -> void:
 			ball.direction = Vector2.from_angle(rotate_toward(
 				ball.direction.angle(), start.angle_to_point(ball.target.position), TRACKING_SPEED * delta
 			))
-			ball.queue_redraw()
+			ball.point_along_flight()
 		var finish := start + ball.direction * Fireball.SPEED * delta
 		var obstacle := _wall_hit(start, finish)
 		if not obstacle.is_empty():
@@ -366,6 +378,7 @@ func _tick_fireballs(delta: float) -> void:
 				ball.detonate()
 
 func clear_fireballs() -> void:
+	cast_effect.hide()
 	cast_windup = 0.0
 	cast_cooldown = 0.0
 	cast_target = null
@@ -422,11 +435,6 @@ func _draw_placeholder_ground() -> void:
 
 func _draw_swing() -> void:
 	var center := to_local(player.global_position) + Vector2(0, -2)
-	if cast_windup > 0.0:
-		var orb := center + cast_direction * 18.0
-		var radius := lerpf(11.0, 4.0, cast_windup / CAST_WINDUP_TIME)
-		swing_overlay.draw_circle(orb, radius, Color(1.0, 0.38, 0.08, 0.6))
-		swing_overlay.draw_circle(orb, radius * 0.45, Color("#ffd68c"))
 	if swing_effect > 0.0 and not player.is_showing_sword_strike():
 		var angle := swing_direction.angle()
 		var opacity := swing_effect / 0.16
