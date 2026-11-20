@@ -10,6 +10,8 @@ const VillageNPC := preload("res://scripts/village_npc.gd")
 var player: CharacterBody2D
 var ui: PanelContainer
 var message: Label
+var quest_offer: CenterContainer
+var accept_quest: Button
 var inventory_panel: PanelContainer
 var notice_timer: Timer
 var inventory_grid: GridContainer
@@ -78,9 +80,14 @@ func _make_interface() -> void:
     prompt.add_theme_color_override("font_color", Color("#ffe5ad"))
     holder.add_child(prompt)
     ui = PanelContainer.new()
-    ui.position = Vector2(22, 568)
-    ui.custom_minimum_size = Vector2(410, 0)
     holder.add_child(ui)
+    ui.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_LEFT)
+    ui.offset_left = 22
+    ui.offset_right = 432
+    ui.offset_top = -24
+    ui.offset_bottom = -24
+    ui.grow_vertical = Control.GROW_DIRECTION_BEGIN
+    ui.mouse_filter = Control.MOUSE_FILTER_IGNORE
     var style := StyleBoxFlat.new()
     style.bg_color = Color(0.075, 0.09, 0.09, 0.95)
     style.border_color = Color("#9a774b")
@@ -95,10 +102,63 @@ func _make_interface() -> void:
     message.add_theme_color_override("font_color", Color("#f4e8ce"))
     ui.add_child(message)
     ui.hide()
+    _make_quest_offer(holder, style)
     notice_timer = Timer.new()
     notice_timer.one_shot = true
     notice_timer.timeout.connect(_on_notice_timeout)
     add_child(notice_timer)
+
+func _make_quest_offer(holder: Control, style: StyleBoxFlat) -> void:
+    quest_offer = CenterContainer.new()
+    holder.add_child(quest_offer)
+    quest_offer.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+    var panel := PanelContainer.new()
+    panel.custom_minimum_size.x = 560
+    panel.add_theme_stylebox_override("panel", style)
+    quest_offer.add_child(panel)
+    var content := VBoxContainer.new()
+    content.add_theme_constant_override("separation", 14)
+    panel.add_child(content)
+    var title := Label.new()
+    title.text = "Clear the Pinewood Road"
+    title.add_theme_font_size_override("font_size", 24)
+    title.add_theme_color_override("font_color", Color("#ffe5ad"))
+    content.add_child(title)
+    var details := Label.new()
+    details.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+    details.text = "Pip needs help clearing two briar wolves from the road to Stonehaven. Take the north trail into Pinewood Forest. Look for one wolf in the clearing at the fork and the other farther north along the main road. Return to Pip when the road is clear.\n\nReward  ·  %d gold" % ROAD_REWARD
+    content.add_child(details)
+    var actions := HBoxContainer.new()
+    actions.alignment = BoxContainer.ALIGNMENT_END
+    content.add_child(actions)
+    var decline := Button.new()
+    decline.text = "Decline"
+    decline.pressed.connect(_close_quest_offer)
+    actions.add_child(decline)
+    accept_quest = Button.new()
+    accept_quest.text = "Accept quest"
+    accept_quest.pressed.connect(_accept_road_quest)
+    actions.add_child(accept_quest)
+    quest_offer.hide()
+
+func _show_quest_offer() -> void:
+    notice_timer.stop()
+    ui.hide()
+    quest_offer.show()
+    accept_quest.grab_focus()
+
+func _close_quest_offer() -> void:
+    quest_offer.hide()
+    conversation_open = false
+
+func _accept_road_quest() -> void:
+    if not quest_offer.visible or road_quest != RoadQuest.OFFERED:
+        return
+    road_quest = RoadQuest.ACTIVE
+    _close_quest_offer()
+    var already_clear := is_instance_valid(forest) and forest.wolves.is_empty()
+    var objective := "Talk to Pip to collect your reward." if already_clear else "Take the north trail into Pinewood Forest."
+    _show_message("Quest accepted — Clear the Pinewood Road\n" + objective, 5.0)
 
 func _make_inventory_window() -> void:
     inventory_panel = PanelContainer.new()
@@ -305,6 +365,8 @@ func _process(_delta: float) -> void:
 
     if inventory_open:
         prompt.text = "Inventory open — press I to close"
+    elif quest_offer.visible:
+        prompt.text = "Pip — Merchant"
     elif conversation_open:
         prompt.text = "Press E or Esc to close dialogue"
     elif in_forest:
@@ -344,6 +406,11 @@ func _pinewood_combat_input(melee: bool, aim: Vector2, cursor := Vector2.INF) ->
 
 func _unhandled_key_input(event: InputEvent) -> void:
     if not event is InputEventKey or not event.pressed or event.echo:
+        return
+    if quest_offer.visible:
+        if event.keycode == KEY_ESCAPE:
+            _close_quest_offer()
+        get_viewport().set_input_as_handled()
         return
     if event.keycode == KEY_I:
         inventory_open = not inventory_open
@@ -394,6 +461,10 @@ func _unhandled_key_input(event: InputEvent) -> void:
                 conversation_open = true
                 var words: String = people[nearest]["words"]
                 var road_dialogue := speaker.name == &"Pip" and road_quest != RoadQuest.COMPLETE
+                if road_dialogue and road_quest == RoadQuest.OFFERED:
+                    _show_quest_offer()
+                    get_viewport().set_input_as_handled()
+                    return
                 if road_dialogue:
                     words = _pip_road_dialogue()
                 _show_message("%s — %s:\n%s\n\n[E] Continue" % [people[nearest]["name"], people[nearest]["role"], words], 0.0)
@@ -410,9 +481,6 @@ func _pip_road_dialogue() -> String:
         gold += ROAD_REWARD
         _refresh_inventory()
         return "The road is open again. Here’s %d gold for your trouble. Follow the road north to Stonehaven." % ROAD_REWARD
-    if road_quest == RoadQuest.OFFERED:
-        road_quest = RoadQuest.ACTIVE
-        return "Two briar wolves have been stalking the Stonehaven road. Take the north trail into Pinewood Forest. One wolf is in the clearing where the road forks. The other is farther north along the main road. Clear them out and come see me.\n\nQuest started — Clear the Pinewood Road"
     return "%d briar %s still on the Pinewood road. I’ll be here when the road is clear." % [
         remaining, "wolf is" if remaining == 1 else "wolves are"
     ]

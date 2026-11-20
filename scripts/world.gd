@@ -5,6 +5,8 @@ const WELL_ART_PATH := "res://art/village_well.png"
 const WELL_POSITION := Vector2(0, 35)
 const ForestLayout := preload("res://scripts/forest_layout.gd")
 const WorldCollision := preload("res://scripts/world_collision.gd")
+const WildernessTerrain := preload("res://scripts/wilderness_terrain.gd")
+const WildernessVegetation := preload("res://scripts/wilderness_vegetation.gd")
 const TILE_W: float = 96.0
 const TILE_H: float = 48.0
 const EXTENT: int = 24
@@ -99,22 +101,18 @@ func _make_collision() -> void:
 		WorldCollision.circle(obstacles, "TreeTrunk", tree_pos, 8.0)
 
 func _load_wilderness_terrain() -> void:
-	var pack_path := "res://art/10_Wilderness_Bundle/Terrain_and_Nature/godot/terrain_tileset.tres"
-	if not ResourceLoader.exists(pack_path):
+	if not ResourceLoader.exists(WildernessTerrain.TILESET_PATH):
 		return
-	var terrain := TileMapLayer.new()
+	var terrain := WildernessTerrain.new()
 	terrain.name = "WildernessTerrain"
-	terrain.set_script(load("res://scripts/wilderness_terrain.gd"))
 	terrain.z_index = -10
 	add_child(terrain)
 
 func _load_wilderness_vegetation() -> void:
-	var pack_path := "res://art/10_Wilderness_Bundle/Trees_and_Bushes"
-	if not DirAccess.dir_exists_absolute(pack_path):
+	if not DirAccess.dir_exists_absolute(WildernessVegetation.PACK_ROOT):
 		return
-	var vegetation := Node2D.new()
+	var vegetation := WildernessVegetation.new()
 	vegetation.name = "WildernessVegetation"
-	vegetation.set_script(load("res://scripts/wilderness_vegetation.gd"))
 	vegetation.trunks = trees.duplicate()
 	add_child(vegetation)
 

@@ -7,6 +7,9 @@ const PACK_ROOT := "res://art/10_Wilderness_Bundle/Trees_and_Bushes"
 const SEED := 77139
 
 var trunks: Array[Vector2] = []
+var authored_trunks: Array[Vector2] = []
+var use_authored_layout := false
+var trees_placed := 0
 var tree_scenes: Array[PackedScene] = []
 var bush_scenes: Array[PackedScene] = []
 
@@ -18,7 +21,10 @@ func _ready() -> void:
 	if tree_scenes.is_empty() and bush_scenes.is_empty():
 		push_warning("No standalone vegetation scenes found. Share the Trees_and_Bushes folder structure to wire exact assets.")
 		return
-	_populate()
+	if use_authored_layout:
+		_populate_authored()
+	else:
+		_populate()
 
 func _discover(path: String) -> void:
 	var dir := DirAccess.open(path)
@@ -63,18 +69,31 @@ func _populate() -> void:
 			continue
 		if is_tree and not ForestLayout.has_trunk_clearance(pos, trunks):
 			continue
-		var instance := scene.instantiate()
-		if not (instance is Node2D):
-			instance.queue_free()
-			continue
-		var decoration := instance as Node2D
-		decoration.position = pos
-		decoration.z_index = 0
-		add_child(decoration)
-		if is_tree:
+		if _plant(scene, pos) and is_tree:
 			trunks.append(pos)
 			# The sprite can sway independently of its grounded trunk.
 			WorldCollision.circle(self, "TreeTrunk", pos, 10.0)
+
+func _populate_authored() -> void:
+	if tree_scenes.is_empty():
+		return
+	var rng := RandomNumberGenerator.new()
+	rng.seed = SEED
+	for pos in authored_trunks:
+		var scene := tree_scenes[rng.randi_range(0, tree_scenes.size() - 1)]
+		if _plant(scene, pos):
+			trees_placed += 1
+
+func _plant(scene: PackedScene, pos: Vector2) -> bool:
+	var instance := scene.instantiate()
+	if not instance is Node2D:
+		instance.queue_free()
+		return false
+	var decoration := instance as Node2D
+	decoration.position = pos
+	decoration.z_index = 0
+	add_child(decoration)
+	return true
 
 func _reserved(pos: Vector2) -> bool:
 	# Wide open village square, inn entrance, merchant stand, hall and cottages.

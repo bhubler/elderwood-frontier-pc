@@ -7,6 +7,8 @@ const WorldCollision := preload("res://scripts/world_collision.gd")
 const Wolf := preload("res://scripts/pinewood_wolf.gd")
 const Fireball := preload("res://scripts/pinewood_fireball.gd")
 const Layout := preload("res://scripts/forest_layout.gd")
+const WildernessTerrain := preload("res://scripts/wilderness_terrain.gd")
+const WildernessVegetation := preload("res://scripts/wilderness_vegetation.gd")
 const MONSTER_ART := "res://art/pinewood/briar_wolves.png"
 const VILLAGE_ENTRANCE := Vector2(4, -670)
 const SOUTH_ENTRY := Vector2(0, 704)
@@ -31,6 +33,8 @@ const CLEARING := [
 var player: CharacterBody2D
 var wolves: Array[Wolf] = []
 var trees: Array[Vector2] = []
+var using_bundle_terrain := false
+var using_bundle_trees := false
 var health := MAX_HEALTH
 var mana := MAX_MANA
 var cast_cooldown := 0.0
@@ -72,8 +76,33 @@ func _ready() -> void:
 		trees.append(p)
 		WorldCollision.circle(self, "PineTrunk", p, 12.0)
 	trees.sort_custom(func(a: Vector2, b: Vector2) -> bool: return a.y < b.y)
+	_load_wilderness_art()
 	_spawn_wolf(Vector2(-357, 127), 0)
 	_spawn_wolf(Vector2(170, -250), 1)
+
+func _load_wilderness_art() -> void:
+	if ResourceLoader.exists(WildernessTerrain.TILESET_PATH):
+		var terrain := WildernessTerrain.new()
+		terrain.name = "WildernessTerrain"
+		terrain.z_index = -10
+		terrain.roads = [ROAD]
+		terrain.trails = [CLEARING]
+		terrain.road_half_width = 52.0
+		terrain.trail_half_width = 35.0
+		terrain.cobble_center = Vector2(0, -790)
+		terrain.cobble_radius = 132.0
+		terrain.cobble_over_roads = true
+		terrain.cell_extent = 54
+		terrain.ground_bounds = Rect2(-1180, -1130, 2360, 2220)
+		add_child(terrain)
+		using_bundle_terrain = not terrain.get_used_cells().is_empty()
+	if DirAccess.dir_exists_absolute(WildernessVegetation.PACK_ROOT):
+		var vegetation := WildernessVegetation.new()
+		vegetation.name = "WildernessVegetation"
+		vegetation.use_authored_layout = true
+		vegetation.authored_trunks = trees
+		add_child(vegetation)
+		using_bundle_trees = vegetation.trees_placed > 0
 
 func _spawn_wolf(at: Vector2, variant: int) -> void:
 	var wolf := Wolf.new()
@@ -317,6 +346,16 @@ func in_stonehaven() -> bool:
 	return to_local(player.global_position).y < -679.0
 
 func _draw() -> void:
+	if not using_bundle_terrain:
+		_draw_placeholder_ground()
+	if not using_bundle_trees:
+		for p in trees:
+			_draw_pine(p)
+	_draw_waypost(Vector2(86, 731), "PINEWOOD FOREST")
+	_draw_waypost(Vector2(-226, 269), "STONEHAVEN ↑")
+	_draw_gate()
+
+func _draw_placeholder_ground() -> void:
 	draw_rect(Rect2(-1010, -1020, 2020, 1990), Color("#243b33"))
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 712
@@ -334,11 +373,6 @@ func _draw() -> void:
 		var end: Vector2 = ROAD[at + 1]
 		var p := start.lerp(end, rng.randf()) + (end - start).normalized().orthogonal() * rng.randf_range(-46.0, 46.0)
 		draw_circle(p, rng.randf_range(1.3, 4.2), Color("#94856b") if i % 2 == 0 else Color("#55493b"))
-	for p in trees:
-		_draw_pine(p)
-	_draw_waypost(Vector2(86, 731), "PINEWOOD FOREST")
-	_draw_waypost(Vector2(-226, 269), "STONEHAVEN ↑")
-	_draw_gate()
 
 func _draw_swing() -> void:
 	var center := to_local(player.global_position) + Vector2(0, -2)
@@ -386,11 +420,12 @@ func _draw_waypost(p: Vector2, title: String) -> void:
 		HORIZONTAL_ALIGNMENT_CENTER, 142, 14, Color("#ffe1a5"))
 
 func _draw_gate() -> void:
-	draw_rect(Rect2(-900, -920, 1800, 254), Color("#454c4e"))
-	for row in range(10):
-		for column in range(40):
-			var p := Vector2(-900 + column * 46 - (row % 2) * 23, -920 + row * 29)
-			draw_rect(Rect2(p, Vector2(43, 26)), Color("#565957") if (row + column) % 3 == 0 else Color("#4d514f"))
+	if not using_bundle_terrain:
+		draw_rect(Rect2(-900, -920, 1800, 254), Color("#454c4e"))
+		for row in range(10):
+			for column in range(40):
+				var p := Vector2(-900 + column * 46 - (row % 2) * 23, -920 + row * 29)
+				draw_rect(Rect2(p, Vector2(43, 26)), Color("#565957") if (row + column) % 3 == 0 else Color("#4d514f"))
 	for x in [-900, 100]:
 		draw_rect(Rect2(x, -713, 800, 89), Color("#525a5b"))
 		for i in range(16):
