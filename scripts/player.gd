@@ -293,26 +293,32 @@ func is_showing_sword_strike() -> bool:
     return strike_time > 0.0 and sword_strike and race == "Human" and race_sprite.visible
 
 func _update_sword_sprite() -> void:
-    sword_sprite.visible = is_showing_sword_strike()
+    sword_sprite.visible = race == "Human" and race_sprite.visible and equipped_weapon == "rusty_sword"
     if not sword_sprite.visible:
         return
-    var elapsed := STRIKE_DURATION - strike_time
-    # Show the contact frame as melee damage resolves, then follow through and recover.
-    var frame := 0
-    if elapsed >= 0.25:
-        frame = 3
-    elif elapsed >= 0.17:
-        frame = 2
-    elif elapsed >= 0.10:
-        frame = 1
-    var row := 1 if strike_direction.y < -0.32 else 0
+    var swinging := is_showing_sword_strike()
+    var direction := strike_direction if swinging else facing
+    var frame := 3 # The recovery frame already has the blade resting in the Human's hand.
+    if swinging:
+        var elapsed := STRIKE_DURATION - strike_time
+        if elapsed < 0.10:
+            frame = 0
+        elif elapsed < 0.17:
+            frame = 1
+        elif elapsed < 0.25:
+            frame = 2
+    var row := 1 if direction.y < -0.32 else 0
     sword_sprite.region_rect = Rect2(frame * SWORD_FRAME_SIZE, row * SWORD_FRAME_SIZE,
         SWORD_FRAME_SIZE, SWORD_FRAME_SIZE)
     var scale_factor := character_art_height / SWORD_ART_BODY_HEIGHT
+    var idle_offset := Vector2.ZERO
+    if not swinging:
+        var base_feet_y := race_sprite.position.y + race_sprite.texture.get_height() * race_sprite.scale.y * 0.5
+        idle_offset = Vector2(race_sprite.position.x, base_feet_y - RACE_ART_FEET_Y)
     sword_sprite.scale = Vector2.ONE * scale_factor
     sword_sprite.position = Vector2(-SWORD_FRAME_SIZE * 0.5 * scale_factor,
-        RACE_ART_FEET_Y - SWORD_ART_FEET * scale_factor)
-    sword_sprite.flip_h = strike_direction.x < 0.0
+        RACE_ART_FEET_Y - SWORD_ART_FEET * scale_factor) + idle_offset
+    sword_sprite.flip_h = direction.x < 0.0
     sword_sprite.self_modulate = Color("#ff9e92") if hurt_time > 0.0 else Color.WHITE
     race_sprite.self_modulate.a = 0.0
 
@@ -385,7 +391,7 @@ func _physics_process(delta: float) -> void:
 func _draw() -> void:
     if race_sprite != null and race_sprite.visible:
         draw_circle(Vector2(0, RACE_ART_FEET_Y - 2.0), 12.0, Color(0, 0, 0, 0.3))
-        if equipped_weapon == "rusty_sword" and strike_time <= 0.0:
+        if equipped_weapon == "rusty_sword" and not sword_sprite.visible and strike_time <= 0.0:
             var hand_side := -1.0 if race_sprite.flip_h else 1.0
             var height := race_sprite.texture.get_height() * race_sprite.scale.y
             var size_ratio := height / SWORD_ART_REFERENCE_HEIGHT

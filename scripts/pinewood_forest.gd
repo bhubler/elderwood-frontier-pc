@@ -9,6 +9,8 @@ const Fireball := preload("res://scripts/pinewood_fireball.gd")
 const Layout := preload("res://scripts/forest_layout.gd")
 const WildernessTerrain := preload("res://scripts/wilderness_terrain.gd")
 const WildernessVegetation := preload("res://scripts/wilderness_vegetation.gd")
+const STONEHAVEN_GATEHOUSE := preload("res://art/stonehaven/gatehouse.png")
+const STONEHAVEN_WALL := preload("res://art/stonehaven/curtain_wall.png")
 const MONSTER_ART := "res://art/pinewood/briar_wolves.png"
 const VILLAGE_ENTRANCE := Vector2(4, -670)
 const SOUTH_ENTRY := Vector2(0, 704)
@@ -441,13 +443,8 @@ func _draw_gate() -> void:
 			for column in range(40):
 				var p := Vector2(-900 + column * 46 - (row % 2) * 23, -920 + row * 29)
 				draw_rect(Rect2(p, Vector2(43, 26)), Color("#565957") if (row + column) % 3 == 0 else Color("#4d514f"))
-	for x in [-900, 100]:
-		draw_rect(Rect2(x, -713, 800, 89), Color("#525a5b"))
-		for i in range(16):
-			draw_rect(Rect2(x + i * 51, -721, 35, 17), Color("#79807b"))
-	for x in [-130, 100]:
-		draw_rect(Rect2(x, -751, 30, 123), Color("#717974"))
-		draw_circle(Vector2(x + 15, -692), 8.0, Color("#f1b765"))
-	draw_arc(Vector2(0, -718), 114.0, PI, TAU, 24, Color("#727b76"), 22.0, true)
-	draw_string(ThemeDB.fallback_font, Vector2(-96, -811), "STONEHAVEN",
-		HORIZONTAL_ALIGNMENT_CENTER, 192, 24, Color("#f2d7a6"))
+	# Set the stone foundations on the collision line, then layer the towers
+	# over the inner ends of the curtain walls. The arch itself is transparent.
+	for x in [-900, -549, 197, 548]:
+		draw_texture_rect(STONEHAVEN_WALL, Rect2(x, -716, 352, 92), false)
+	draw_texture_rect(STONEHAVEN_GATEHOUSE, Rect2(-280, -962, 560, 338), false)
