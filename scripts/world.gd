@@ -1,7 +1,7 @@
 extends Node2D
 ## Elderwood Frontier: a modest wilderness settlement with room to grow.
 ## The inn is an authored sprite; the other buildings are temporary placeholders.
-const WELL_ART := preload("res://art/village_well.png")
+const WELL_ART_PATH := "res://art/village_well.png"
 const WELL_POSITION := Vector2(0, 35)
 const ForestLayout := preload("res://scripts/forest_layout.gd")
 const WorldCollision := preload("res://scripts/world_collision.gd")
@@ -9,6 +9,7 @@ const TILE_W: float = 96.0
 const TILE_H: float = 48.0
 const EXTENT: int = 24
 
+var well_art: Texture2D
 var trees: Array[Vector2] = []
 var buildings: Array[Dictionary] = [
 	{"pos": Vector2(380, -230), "name": "TOWN HALL", "roof": Color("#514c47"), "kind": "hall"},
@@ -19,6 +20,7 @@ var buildings: Array[Dictionary] = [
 
 
 func _ready() -> void:
+	well_art = _load_well_art()
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 17361
 	for i in range(155):
@@ -38,6 +40,16 @@ func _ready() -> void:
 	_load_wilderness_vegetation()
 	_make_collision()
 	queue_redraw()
+
+func _load_well_art() -> Texture2D:
+	# Editor runs can happen before Godot imports a newly pulled PNG.
+	if OS.has_feature("editor") and FileAccess.file_exists(WELL_ART_PATH):
+		var image := Image.new()
+		if image.load_png_from_buffer(FileAccess.get_file_as_bytes(WELL_ART_PATH)) == OK:
+			return ImageTexture.create_from_image(image)
+	if ResourceLoader.exists(WELL_ART_PATH):
+		return load(WELL_ART_PATH) as Texture2D
+	return null
 
 func _make_collision() -> void:
 	var obstacles := Node2D.new()
@@ -237,7 +249,16 @@ func _draw_dirt_track(route: PackedVector2Array, half_width: float) -> void:
 func _draw_well(p: Vector2) -> void:
 	draw_ellipse_placeholder(p + Vector2(0, 10), 48.0, 22.0, Color(0, 0, 0, 0.25))
 	# Center the stone base on the collision footprint with the crank rising above it.
-	draw_texture(WELL_ART, p + Vector2(-40, -68))
+	if well_art != null:
+		draw_texture(well_art, p + Vector2(-40, -68))
+		return
+	draw_circle(p, 32.0, Color("#524f46"))
+	draw_circle(p, 23.0, Color("#8c8878"))
+	draw_circle(p, 17.0, Color("#253b42"))
+	draw_line(p + Vector2(-25, -8), p + Vector2(-25, -60), Color("#594532"), 7.0)
+	draw_line(p + Vector2(25, -8), p + Vector2(25, -60), Color("#594532"), 7.0)
+	draw_line(p + Vector2(-32, -60), p + Vector2(32, -60), Color("#44372d"), 9.0)
+	draw_line(p + Vector2(0, -60), p + Vector2(0, -23), Color("#a58a62"), 2.0)
 
 func draw_ellipse_placeholder(p: Vector2, rx: float, ry: float, tint: Color) -> void:
 	draw_set_transform(p, 0.0, Vector2(1.0, ry / rx))
