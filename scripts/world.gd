@@ -190,6 +190,7 @@ func _draw() -> void:
 	_draw_lantern(Vector2(190, -110))
 	_draw_lantern(Vector2(-210, 230))
 	_draw_sign(Vector2(10, -290))
+	_draw_sign(Vector2(94, -672), "PINEWOOD FOREST")
 
 func _draw_ground() -> void:
 	# Painterly layered earth and grass. No visible diamond grid.
@@ -320,11 +321,11 @@ func _draw_lantern(p: Vector2) -> void:
 	draw_rect(Rect2(p + Vector2(-8, -84), Vector2(16, 18)), Color("#e5ac53"))
 	draw_rect(Rect2(p + Vector2(-10, -86), Vector2(20, 22)), Color("#423b30"), false, 3.0)
 
-func _draw_sign(p: Vector2) -> void:
+func _draw_sign(p: Vector2, title := "ELDERWOOD VILLAGE") -> void:
 	draw_line(p, p + Vector2(0, -65), Color("#594431"), 7.0)
 	draw_rect(Rect2(p + Vector2(-95, -108), Vector2(190, 43)), Color("#4c382b"))
 	draw_rect(Rect2(p + Vector2(-95, -108), Vector2(190, 43)), Color("#b89561"), false, 3.0)
-	draw_string(ThemeDB.fallback_font, p + Vector2(-80, -79), "ELDERWOOD VILLAGE", HORIZONTAL_ALIGNMENT_LEFT, -1, 16, Color("#f2dba7"))
+	draw_string(ThemeDB.fallback_font, p + Vector2(-90, -79), title, HORIZONTAL_ALIGNMENT_CENTER, 180, 16, Color("#f2dba7"))
 
 func _draw_fountain(p: Vector2) -> void:
 	draw_circle(p + Vector2(0, 8), 44.0, Color("#484f51"))

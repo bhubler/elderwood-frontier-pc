@@ -15,6 +15,10 @@ var facing: Vector2 = Vector2.DOWN
 var stride: float = 0.0
 var equipped_weapon := ""
 var equipped_armor := "cloak"
+const STRIKE_DURATION := 0.34
+var strike_time := 0.0
+var hurt_time := 0.0
+var strike_direction := Vector2.DOWN
 var attack_bonus := 0
 var defense_bonus := 1
 
@@ -264,10 +268,47 @@ func _choose_race(chosen: String) -> void:
     selection_layer.hide()
     _refresh_character_appearance()
 
+func play_strike(direction: Vector2) -> void:
+    strike_direction = direction
+    strike_time = STRIKE_DURATION
+
+func play_hurt() -> void:
+    hurt_time = 0.22
+
+func _strike_lean() -> float:
+    var time := STRIKE_DURATION - strike_time
+    if time < 0.10:
+        return lerpf(0.0, -0.65, time / 0.10)
+    if time < 0.18:
+        return lerpf(-0.65, 1.0, (time - 0.10) / 0.08)
+    return clampf(strike_time / (STRIKE_DURATION - 0.18), 0.0, 1.0)
+
+func _animate_combat_pose() -> void:
+    var lean := _strike_lean() if strike_time > 0.0 else 0.0
+    var shift := strike_direction * lean * 5.0
+    var tilt := strike_direction.x * lean * 0.12
+    race_sprite.position.x = 0.0
+    race_sprite.rotation = 0.0
+    if animated_sprite != null:
+        animated_sprite.position = Vector2(0, -13)
+        animated_sprite.rotation = 0.0
+    for sprite in [race_sprite, animated_sprite, necromancer_sprite]:
+        if sprite == null:
+            continue
+        sprite.self_modulate = Color("#ff9e92") if hurt_time > 0.0 else Color.WHITE
+        if not sprite.visible or strike_time <= 0.0:
+            continue
+        sprite.position += shift
+        sprite.rotation += tilt
+    if strike_time > 0.0 and race_sprite.visible and absf(strike_direction.x) > 0.15:
+        race_sprite.flip_h = strike_direction.x < 0.0
+
 func _physics_process(delta: float) -> void:
     if choosing_race:
         velocity = Vector2.ZERO
         return
+    strike_time = maxf(0.0, strike_time - delta)
+    hurt_time = maxf(0.0, hurt_time - delta)
     var input_vector := Vector2.ZERO
     if Input.is_key_pressed(KEY_A) or Input.is_key_pressed(KEY_LEFT):
         input_vector.x -= 1.0
@@ -280,6 +321,8 @@ func _physics_process(delta: float) -> void:
     var moving: bool = input_vector.length_squared() > 0.0
     var running: bool = moving and Input.is_key_pressed(KEY_SHIFT)
     velocity = input_vector.normalized() * SPEED * (RUN_MULTIPLIER if running else 1.0)
+    if strike_time > 0.0:
+        velocity *= 0.62
     move_and_slide()
     moving = get_real_velocity().length_squared() > 1.0
     if moving:
@@ -291,12 +334,13 @@ func _physics_process(delta: float) -> void:
         _advance_animation(delta, moving, running)
     _animate_race_art(moving)
     _animate_necromancer(delta, moving)
+    _animate_combat_pose()
     queue_redraw()
 
 func _draw() -> void:
     if race_sprite != null and race_sprite.visible:
         draw_circle(Vector2(0, RACE_ART_FEET_Y - 2.0), 12.0, Color(0, 0, 0, 0.3))
-        if equipped_weapon == "rusty_sword":
+        if equipped_weapon == "rusty_sword" and strike_time <= 0.0:
             var hand_side := -1.0 if race_sprite.flip_h else 1.0
             var height := race_sprite.texture.get_height() * race_sprite.scale.y
             var size_ratio := height / SWORD_ART_REFERENCE_HEIGHT
@@ -312,7 +356,8 @@ func _draw() -> void:
     var swing: float = sin(stride) * 6.0 if moving else 0.0
     var bob: float = absf(sin(stride)) * 2.0 if moving else 0.0
     var scale_factor: float = 1.14 if race == "Orc" else 1.0
-    draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE * scale_factor)
+    var attack_shift := strike_direction * _strike_lean() * 5.0 if strike_time > 0.0 else Vector2.ZERO
+    draw_set_transform(attack_shift, attack_shift.x * 0.024, Vector2.ONE * scale_factor)
     draw_colored_polygon(PackedVector2Array([
         Vector2(-19, 14), Vector2(-12, 20), Vector2(12, 20), Vector2(19, 14)
     ]), Color(0.02, 0.02, 0.02, 0.38))
@@ -347,7 +392,7 @@ func _draw() -> void:
     if facing.y > -0.2:
         draw_circle(Vector2(-4, -23 - bob), 1.1, Color("#282b2b"))
         draw_circle(Vector2(4, -23 - bob), 1.1, Color("#282b2b"))
-    if equipped_weapon == "rusty_sword":
+    if equipped_weapon == "rusty_sword" and strike_time <= 0.0:
         draw_line(Vector2(16, 2 - swing - bob), Vector2(23, -27 - swing - bob), Color("#c1c6c6"), 4.0)
         draw_line(Vector2(15, -1 - swing - bob), Vector2(28, 1 - swing - bob), Color("#7a5637"), 3.0)
     else:
