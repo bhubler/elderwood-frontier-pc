@@ -14,6 +14,7 @@ const TILE_H: float = 48.0
 const EXTENT: int = 24
 
 var well_art: Texture2D
+var using_bundle_trees := false
 var trees: Array[Vector2] = []
 var buildings: Array[Dictionary] = [
 	{"pos": Vector2(380, -230), "name": "TOWN HALL", "roof": Color("#514c47"), "kind": "hall"},
@@ -33,6 +34,8 @@ func _ready() -> void:
 		var p: Vector2 = iso(tx, ty)
 		if abs(p.x) < 730.0 and abs(p.y) < 520.0:
 			continue
+		if p.distance_to(PinewoodForest.VILLAGE_ENTRANCE) < 185.0:
+			continue
 		if ForestLayout.near_route(p, ForestLayout.ROADS, ForestLayout.TRAIL_CLEARANCE) \
 		or ForestLayout.near_route(p, ForestLayout.TRAILS, ForestLayout.TRAIL_CLEARANCE) \
 		or not ForestLayout.has_trunk_clearance(p, trees):
@@ -43,6 +46,13 @@ func _ready() -> void:
 	_load_wilderness_terrain()
 	_load_wilderness_vegetation()
 	_make_collision()
+	var lettering := Node2D.new()
+	lettering.z_index = 3
+	lettering.draw.connect(func() -> void:
+		WayfindingArt.draw_sign(lettering, Vector2(58, -290), "ELDERWOOD VILLAGE")
+		WayfindingArt.draw_gate(lettering, PinewoodForest.VILLAGE_ENTRANCE, "PINEWOOD FOREST")
+	)
+	add_child(lettering)
 	queue_redraw()
 
 func _load_well_art() -> Texture2D:
@@ -64,17 +74,9 @@ func _make_collision() -> void:
 		Vector2(-2380, -1280), Vector2(2380, -1280),
 		Vector2(2380, 1280), Vector2(-2380, 1280)
 	])
-	var terrain := get_node_or_null("WildernessTerrain") as TileMapLayer
+	var terrain := get_node_or_null("WildernessTerrain") as WildernessTerrain
 	if terrain != null and terrain.tile_set != null:
-		var terrain_bounds := terrain.get_used_rect()
-		var first := terrain_bounds.position
-		var last := terrain_bounds.end - Vector2i.ONE
-		perimeter = PackedVector2Array([
-			terrain.map_to_local(first),
-			terrain.map_to_local(Vector2i(last.x, first.y)),
-			terrain.map_to_local(last),
-			terrain.map_to_local(Vector2i(first.x, last.y))
-		])
+		perimeter = terrain.village_playable_outline()
 	WorldCollision.polygon(obstacles, "VillageBoundary", perimeter, CollisionPolygon2D.BUILD_SEGMENTS)
 	if has_node("WayfarerInnArtwork"):
 		WorldCollision.polygon(obstacles, "WayfarerInn", PackedVector2Array([
@@ -111,6 +113,7 @@ func _load_wilderness_terrain() -> void:
 	var terrain := WildernessTerrain.new()
 	terrain.name = "WildernessTerrain"
 	terrain.z_index = -10
+	terrain.ground_bounds = Rect2(-2230, -1240, 4460, 2480)
 	add_child(terrain)
 
 func _load_wilderness_vegetation() -> void:
@@ -119,7 +122,10 @@ func _load_wilderness_vegetation() -> void:
 	var vegetation := WildernessVegetation.new()
 	vegetation.name = "WildernessVegetation"
 	vegetation.trunks = trees.duplicate()
+	vegetation.authored_trunks = trees
+	vegetation.keep_clear = [PinewoodForest.VILLAGE_ENTRANCE]
 	add_child(vegetation)
+	using_bundle_trees = vegetation.trees_placed == trees.size()
 
 func _load_wayfarer_art() -> void:
 	# Add the supplied PNG at res://art/wayfarer_inn.png to enable artwork.
@@ -170,8 +176,9 @@ func _draw() -> void:
 	if not has_node("WildernessTerrain"):
 		_draw_ground()
 		_draw_village_paths()
-	for tree_pos in trees:
-		_draw_tree(tree_pos)
+	if not using_bundle_trees:
+		for tree_pos in trees:
+			_draw_tree(tree_pos)
 	for building in buildings:
 		var art_node := ""
 		match str(building["kind"]):
@@ -192,12 +199,10 @@ func _draw() -> void:
 	_draw_lantern(Vector2(-180, -80))
 	_draw_lantern(Vector2(190, -110))
 	_draw_lantern(Vector2(-210, 230))
-	WayfindingArt.draw_sign(self, Vector2(58, -290), "ELDERWOOD VILLAGE")
-	WayfindingArt.draw_gate(self, PinewoodForest.VILLAGE_ENTRANCE, "PINEWOOD FOREST")
 
 func _draw_ground() -> void:
 	# Painterly layered earth and grass. No visible diamond grid.
-	draw_rect(Rect2(-2400, -1300, 4800, 2600), Color("#293e30"))
+	draw_rect(Rect2(-3050, -1680, 6100, 3360), Color("#293e30"))
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 41129
 	for i in range(3700):

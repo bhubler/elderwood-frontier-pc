@@ -19,6 +19,16 @@ var cobble_over_roads := false
 var cell_extent := EXTENT
 var ground_bounds := Rect2()
 
+func village_playable_outline() -> PackedVector2Array:
+	var first := Vector2i(-EXTENT, -EXTENT)
+	var last := Vector2i(EXTENT, EXTENT)
+	return PackedVector2Array([
+		map_to_local(first),
+		map_to_local(Vector2i(last.x, first.y)),
+		map_to_local(last),
+		map_to_local(Vector2i(first.x, last.y))
+	])
+
 func _ready() -> void:
 	if not ResourceLoader.exists(TILESET_PATH):
 		push_warning("Wilderness terrain pack not found; using prototype ground.")
@@ -30,8 +40,18 @@ func _ready() -> void:
 	var grass_cells: Array[Vector2i] = []
 	var trail_cells: Array[Vector2i] = []
 	var cobble_cells: Array[Vector2i] = []
-	for y in range(-cell_extent, cell_extent + 1):
-		for x in range(-cell_extent, cell_extent + 1):
+	var cell_bounds := Rect2i(-cell_extent, -cell_extent, cell_extent * 2 + 1, cell_extent * 2 + 1)
+	if ground_bounds.has_area():
+		var first := local_to_map(ground_bounds.position)
+		var area := Rect2i(first, Vector2i.ONE)
+		for corner in [
+			Vector2(ground_bounds.end.x, ground_bounds.position.y),
+			Vector2(ground_bounds.position.x, ground_bounds.end.y), ground_bounds.end
+		]:
+			area = area.expand(local_to_map(corner))
+		cell_bounds = area.grow(2)
+	for y in range(cell_bounds.position.y, cell_bounds.end.y):
+		for x in range(cell_bounds.position.x, cell_bounds.end.x):
 			var cell := Vector2i(x, y)
 			var pos := map_to_local(cell)
 			if ground_bounds.has_area() and not ground_bounds.has_point(pos):

@@ -37,6 +37,7 @@ const CLEARING := [
 var player: CharacterBody2D
 var wolves: Array[Wolf] = []
 var trees: Array[Vector2] = []
+var boundary_trees: Array[Vector2] = []
 var using_bundle_terrain := false
 var using_bundle_trees := false
 var health := MAX_HEALTH
@@ -72,7 +73,15 @@ func _ready() -> void:
 	swing_overlay.draw.connect(_draw_swing)
 	add_child(swing_overlay)
 	_place_trees()
+	_place_boundary_trees()
 	_load_wilderness_art()
+	var lettering := Node2D.new()
+	lettering.z_index = 3
+	lettering.draw.connect(func() -> void:
+		WayfindingArt.draw_gate(lettering, SOUTH_GATE, "ELDERWOOD VILLAGE")
+		WayfindingArt.draw_sign(lettering, Vector2(-226, 269), "STONEHAVEN ↑")
+	)
+	add_child(lettering)
 	_spawn_wolf(Vector2(-357, 127), 0)
 	_spawn_wolf(Vector2(170, -250), 1)
 
@@ -101,6 +110,20 @@ func _place_trees() -> void:
 		WorldCollision.circle(self, "PineTrunk", p, 12.0)
 	trees.sort_custom(func(a: Vector2, b: Vector2) -> bool: return a.y < b.y)
 
+func _place_boundary_trees() -> void:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 70221
+	for side in [-1, 1]:
+		# Bury the curtain-wall ends in the outer woods.
+		for x in [1120, 1232, 1320]:
+			for y in [-730, -605]:
+				boundary_trees.append(Vector2(side * (x + rng.randf_range(-22.0, 22.0)), y + rng.randf_range(-24.0, 24.0)))
+		for y in range(-1030, 1050, 77):
+			boundary_trees.append(Vector2(side * rng.randf_range(900.0, 974.0), y + rng.randf_range(-24.0, 24.0)))
+		for x in range(175, 890, 81):
+			boundary_trees.append(Vector2(side * x, rng.randf_range(-1060.0, -944.0)))
+			boundary_trees.append(Vector2(side * x, rng.randf_range(881.0, 982.0)))
+
 func _load_wilderness_art() -> void:
 	if ResourceLoader.exists(WildernessTerrain.TILESET_PATH):
 		var terrain := WildernessTerrain.new()
@@ -113,15 +136,14 @@ func _load_wilderness_art() -> void:
 		terrain.cobble_center = Vector2(0, -790)
 		terrain.cobble_radius = 132.0
 		terrain.cobble_over_roads = true
-		terrain.cell_extent = 54
-		terrain.ground_bounds = Rect2(-1180, -1130, 2360, 2220)
+		terrain.ground_bounds = Rect2(-1530, -1320, 3060, 2590)
 		add_child(terrain)
 		using_bundle_terrain = not terrain.get_used_cells().is_empty()
 	if DirAccess.dir_exists_absolute(WildernessVegetation.PACK_ROOT):
 		var vegetation := WildernessVegetation.new()
 		vegetation.name = "WildernessVegetation"
 		vegetation.use_authored_layout = true
-		vegetation.authored_trunks = trees
+		vegetation.authored_trunks.assign(trees + boundary_trees)
 		add_child(vegetation)
 		using_bundle_trees = vegetation.trees_placed > 0
 
@@ -372,12 +394,13 @@ func _draw() -> void:
 	if not using_bundle_trees:
 		for p in trees:
 			_draw_pine(p)
-	WayfindingArt.draw_gate(self, SOUTH_GATE, "ELDERWOOD VILLAGE")
-	WayfindingArt.draw_sign(self, Vector2(-226, 269), "STONEHAVEN ↑")
 	_draw_gate()
+	if not using_bundle_trees:
+		for p in boundary_trees:
+			_draw_pine(p)
 
 func _draw_placeholder_ground() -> void:
-	draw_rect(Rect2(-1010, -1020, 2020, 1990), Color("#243b33"))
+	draw_rect(Rect2(-1530, -1320, 3060, 2590), Color("#243b33"))
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 712
 	for i in range(2800):
@@ -443,6 +466,6 @@ func _draw_gate() -> void:
 				draw_rect(Rect2(p, Vector2(43, 26)), Color("#565957") if (row + column) % 3 == 0 else Color("#4d514f"))
 	# Set the stone foundations on the collision line, then layer the towers
 	# over the inner ends of the curtain walls. The arch itself is transparent.
-	for x in [-900, -549, 197, 548]:
+	for x in [-1251, -900, -549, 197, 548, 899]:
 		draw_texture_rect(STONEHAVEN_WALL, Rect2(x, -716, 352, 92), false)
 	draw_texture_rect(STONEHAVEN_GATEHOUSE, Rect2(-280, -962, 560, 338), false)

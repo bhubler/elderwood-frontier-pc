@@ -2,7 +2,9 @@ extends RefCounted
 
 const SIGN_PATH := "res://art/wayfinding/oak_sign.png"
 const GATE_PATH := "res://art/wayfinding/trail_gate.png"
-const LETTERING := Color("#f7dda4")
+const LETTERING := Color("#e9c582")
+const INK_SHADOW := Color("#231408")
+static var inscription_font: SystemFont
 
 static var textures: Dictionary = {}
 
@@ -24,15 +26,25 @@ static func draw_sign(canvas: CanvasItem, feet: Vector2, title: String) -> void:
 	var sign := _texture(SIGN_PATH)
 	if sign != null:
 		canvas.draw_texture(sign, feet - Vector2(71, 166))
-	var font_size := 13
-	if ThemeDB.fallback_font.get_string_size(title, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size).x > 120.0:
-		font_size = 10
-	canvas.draw_string(ThemeDB.fallback_font, feet + Vector2(-63, -109), title,
-		HORIZONTAL_ALIGNMENT_CENTER, 126, font_size, LETTERING)
+	_draw_inscription(canvas, feet + Vector2(0, -113), title, 105.0, 13)
 
 static func draw_gate(canvas: CanvasItem, feet: Vector2, title: String) -> void:
 	var gate := _texture(GATE_PATH)
 	if gate != null:
 		canvas.draw_texture(gate, feet - Vector2(114, 178))
-	canvas.draw_string(ThemeDB.fallback_font, feet + Vector2(-67, -137), title,
-		HORIZONTAL_ALIGNMENT_CENTER, 134, 12, LETTERING)
+	_draw_inscription(canvas, feet + Vector2(0, -142), title, 122.0, 13)
+
+static func _draw_inscription(canvas: CanvasItem, center: Vector2, title: String, width: float, font_size: int) -> void:
+	if inscription_font == null:
+		inscription_font = SystemFont.new()
+		inscription_font.font_names = PackedStringArray(["Georgia", "DejaVu Serif", "Times New Roman"])
+		inscription_font.font_weight = 700
+	while font_size > 1 and inscription_font.get_string_size(title, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size).x > width:
+		font_size -= 1
+	var ascent := inscription_font.get_ascent(font_size)
+	var descent := inscription_font.get_descent(font_size)
+	var baseline := center + Vector2(-width * 0.5, (ascent - descent) * 0.5)
+	canvas.draw_string_outline(inscription_font, baseline + Vector2(0, 1), title,
+		HORIZONTAL_ALIGNMENT_CENTER, width, font_size, 2, INK_SHADOW)
+	canvas.draw_string(inscription_font, baseline, title,
+		HORIZONTAL_ALIGNMENT_CENTER, width, font_size, LETTERING)

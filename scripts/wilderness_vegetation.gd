@@ -10,6 +10,7 @@ var trunks: Array[Vector2] = []
 var authored_trunks: Array[Vector2] = []
 var use_authored_layout := false
 var trees_placed := 0
+var keep_clear: Array[Vector2] = []
 var tree_scenes: Array[PackedScene] = []
 var bush_scenes: Array[PackedScene] = []
 
@@ -21,9 +22,8 @@ func _ready() -> void:
 	if tree_scenes.is_empty() and bush_scenes.is_empty():
 		push_warning("No standalone vegetation scenes found. Share the Trees_and_Bushes folder structure to wire exact assets.")
 		return
-	if use_authored_layout:
-		_populate_authored()
-	else:
+	_populate_authored()
+	if not use_authored_layout:
 		_populate()
 
 func _discover(path: String) -> void:
@@ -96,6 +96,9 @@ func _plant(scene: PackedScene, pos: Vector2) -> bool:
 	return true
 
 func _reserved(pos: Vector2) -> bool:
+	for landmark in keep_clear:
+		if pos.distance_to(landmark) < 185.0:
+			return true
 	# Wide open village square, inn entrance, merchant stand, hall and cottages.
 	if absf(pos.x) < 650.0 and absf(pos.y) < 475.0:
 		return true
