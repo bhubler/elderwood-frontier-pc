@@ -324,6 +324,24 @@ func _process(_delta: float) -> void:
         else:
             prompt.text = "WASD move | E interact | I inventory"
 
+func _unhandled_input(event: InputEvent) -> void:
+    if not event is InputEventMouseButton or not event.pressed:
+        return
+    if event.button_index not in [MOUSE_BUTTON_LEFT, MOUSE_BUTTON_RIGHT]:
+        return
+    if not is_instance_valid(forest) or not forest.active or inventory_open or conversation_open:
+        return
+    var cursor: Vector2 = forest.get_global_transform_with_canvas().affine_inverse() * event.position
+    var melee: bool = event.button_index == MOUSE_BUTTON_LEFT
+    _pinewood_combat_input(melee, forest.cursor_aim(cursor, melee), cursor)
+    get_viewport().set_input_as_handled()
+
+func _pinewood_combat_input(melee: bool, aim: Vector2, cursor := Vector2.INF) -> void:
+    if melee:
+        forest.attack(2 + player.attack_bonus, aim, cursor == Vector2.INF)
+    elif not forest.cast_fireball(aim, cursor) and not forest.in_stonehaven() and forest.mana < PinewoodForest.FIREBALL_COST:
+        _show_message("Not enough mana. Give it a moment to recover.", 3.0)
+
 func _unhandled_key_input(event: InputEvent) -> void:
     if not event is InputEventKey or not event.pressed or event.echo:
         return
@@ -346,10 +364,7 @@ func _unhandled_key_input(event: InputEvent) -> void:
         get_viewport().set_input_as_handled()
     elif event.keycode in [KEY_SPACE, KEY_F] and is_instance_valid(forest) and forest.active:
         if not inventory_open and not conversation_open:
-            if event.keycode == KEY_SPACE:
-                forest.attack(2 + player.attack_bonus, player.facing)
-            elif not forest.cast_fireball(player.facing) and not forest.in_stonehaven() and forest.mana < PinewoodForest.FIREBALL_COST:
-                _show_message("Not enough mana. Give it a moment to recover.", 3.0)
+            _pinewood_combat_input(event.keycode == KEY_SPACE, player.facing)
         get_viewport().set_input_as_handled()
     elif event.keycode == KEY_E:
         if inventory_open:
@@ -420,7 +435,7 @@ func _enter_pinewood() -> void:
     forest.show()
     forest.active = true
     forest.recover_at_trailhead()
-    _show_message("Pinewood Forest. Follow the road north to Stonehaven. Space strikes. F casts Fireball.", 5.0)
+    _show_message("Pinewood Forest. Follow the road north to Stonehaven. Left click to swing. Right click to cast Fireball.", 5.0)
 
 func _leave_pinewood() -> void:
     forest.active = false
@@ -442,7 +457,7 @@ func _on_wolf_defeated() -> void:
 func _pinewood_prompt() -> String:
     if forest.in_stonehaven():
         return "Stonehaven Gate | Follow the road south to Pinewood"
-    var status := "%d/%d HP | %d/%d mana | Space strike | F Fireball | I inventory" % [
+    var status := "%d/%d HP | %d/%d mana | LMB swing | RMB Fireball | I inventory" % [
         forest.health, PinewoodForest.MAX_HEALTH, int(forest.mana), int(PinewoodForest.MAX_MANA)
     ]
     if _near_forest_exit():

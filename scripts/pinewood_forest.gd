@@ -108,7 +108,8 @@ func _physics_process(delta: float) -> void:
 			swing_overlay.queue_redraw()
 		_set_preview_target(null)
 		return
-	_set_preview_target(_select_spell_target(player.facing))
+	var cursor := get_local_mouse_position()
+	_set_preview_target(_select_spell_target(cursor_aim(cursor), cursor))
 	mana = minf(MAX_MANA, mana + delta * 0.70)
 	cast_cooldown = maxf(0.0, cast_cooldown - delta)
 	if cast_windup > 0.0:
@@ -130,28 +131,32 @@ func _physics_process(delta: float) -> void:
 				player_fell.emit()
 				return
 
-func attack(damage: int, facing: Vector2) -> void:
+func attack(damage: int, facing: Vector2, auto_aim := true) -> void:
 	if not active or combat_paused or in_stonehaven() or swing_cooldown > 0.0 or cast_windup > 0.0:
 		return
 	swing_cooldown = 0.38
 	windup = STRIKE_WINDUP
 	pending_damage = damage
 	swing_direction = facing
-	var nearest := _nearby_wolf()
-	if nearest != null:
-		swing_direction = _player_feet().direction_to(nearest.position)
+	if auto_aim:
+		var nearest := _nearby_wolf()
+		if nearest != null:
+			swing_direction = _player_feet().direction_to(nearest.position)
 	player.play_strike(swing_direction)
 
 func _player_feet() -> Vector2:
 	return to_local(player.global_position) + Vector2(0, 16)
 
-func _nearby_wolf() -> Wolf:
+func _nearby_wolf(facing := Vector2.ZERO) -> Wolf:
 	var feet := _player_feet()
 	var nearest: Wolf
 	var reach := 91.0
 	for wolf in wolves:
 		var distance := feet.distance_to(wolf.position)
-		if distance < reach:
+		var direction := feet.direction_to(wolf.position)
+		if distance < reach and (facing == Vector2.ZERO or direction == Vector2.ZERO or direction.dot(facing) > 0.35):
+			if facing != Vector2.ZERO and not _wall_hit(feet, wolf.position).is_empty():
+				continue
 			nearest = wolf
 			reach = distance
 	return nearest
@@ -160,12 +165,9 @@ func _resolve_strike() -> void:
 	var damage := pending_damage
 	pending_damage = 0
 	swing_effect = 0.16
-	var nearest := _nearby_wolf()
+	var nearest := _nearby_wolf(swing_direction)
 	if nearest != null:
-		var direction := _player_feet().direction_to(nearest.position)
-		if (direction == Vector2.ZERO or direction.dot(swing_direction) > 0.35) \
-		and _wall_hit(_player_feet(), nearest.position).is_empty():
-			_damage_wolf(nearest, damage)
+		_damage_wolf(nearest, damage)
 	swing_overlay.queue_redraw()
 
 func _damage_wolf(wolf: Wolf, damage: int) -> void:
@@ -175,13 +177,13 @@ func _damage_wolf(wolf: Wolf, damage: int) -> void:
 		wolf.queue_free()
 		wolf_defeated.emit()
 
-func cast_fireball(facing: Vector2) -> bool:
+func cast_fireball(facing: Vector2, cursor := Vector2.INF) -> bool:
 	if not active or combat_paused or in_stonehaven() or cast_cooldown > 0.0 or pending_damage > 0:
 		return false
 	if mana < FIREBALL_COST:
 		return false
 	cast_direction = facing.normalized()
-	cast_target = _select_spell_target(cast_direction)
+	cast_target = _select_spell_target(cast_direction, cursor if cursor != Vector2.INF else get_local_mouse_position())
 	if is_instance_valid(cast_target):
 		cast_direction = _player_feet().direction_to(cast_target.position)
 	cast_windup = CAST_WINDUP_TIME
@@ -190,9 +192,21 @@ func cast_fireball(facing: Vector2) -> bool:
 	swing_overlay.queue_redraw()
 	return true
 
-func _select_spell_target(facing: Vector2) -> Wolf:
+func cursor_aim(cursor: Vector2, melee := false) -> Vector2:
 	var feet := _player_feet()
-	var cursor := get_local_mouse_position()
+	if melee:
+		for wolf in wolves:
+			if feet.distance_to(wolf.position) < 91.0 and _cursor_over_wolf(cursor, wolf):
+				cursor = wolf.position
+				break
+	var aim := feet.direction_to(cursor)
+	return player.facing if aim == Vector2.ZERO else aim
+
+func _cursor_over_wolf(cursor: Vector2, wolf: Wolf) -> bool:
+	return Rect2(wolf.position + Vector2(-37, -59), Vector2(74, 68)).has_point(cursor)
+
+func _select_spell_target(facing: Vector2, cursor: Vector2) -> Wolf:
+	var feet := _player_feet()
 	var best: Wolf
 	var best_score := -INF
 	for wolf in wolves:
@@ -200,7 +214,7 @@ func _select_spell_target(facing: Vector2) -> Wolf:
 		var distance := offset.length()
 		if distance > AIM_RANGE:
 			continue
-		var hovered := Rect2(wolf.position + Vector2(-37, -59), Vector2(74, 68)).has_point(cursor)
+		var hovered := _cursor_over_wolf(cursor, wolf)
 		var alignment := offset.normalized().dot(facing)
 		if not hovered and alignment < AIM_CONE:
 			continue
