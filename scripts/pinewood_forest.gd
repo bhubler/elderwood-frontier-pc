@@ -65,20 +65,35 @@ func _ready() -> void:
 	swing_overlay.z_index = 11
 	swing_overlay.draw.connect(_draw_swing)
 	add_child(swing_overlay)
+	_place_trees()
+	_load_wilderness_art()
+	_spawn_wolf(Vector2(-357, 127), 0)
+	_spawn_wolf(Vector2(170, -250), 1)
+
+func _place_trees() -> void:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 41072
+	var candidates: Array[Vector2] = []
+	var clear_of_trails: Array[Vector2] = []
+	var overhanging_trails: Array[Vector2] = []
 	for i in range(390):
 		var p := Vector2(rng.randf_range(-875.0, 875.0), rng.randf_range(-585.0, 852.0))
 		if Layout.near_route(p, [ROAD], 91.0) or Layout.near_route(p, [CLEARING], 74.0):
 			continue
-		if p.distance_to(Vector2(170, -250)) < 93.0 or not Layout.has_trunk_clearance(p, trees):
+		if p.distance_to(Vector2(170, -250)) < 93.0 or not Layout.has_trunk_clearance(p, candidates):
 			continue
-		trees.append(p)
+		candidates.append(p)
+		# Tall canopy artwork rises above the trunk and can cover the road behind it.
+		var canopy := p + Vector2(0, -105)
+		if Layout.near_route(canopy, [ROAD], 126.0) or Layout.near_route(canopy, [CLEARING], 105.0):
+			overhanging_trails.append(p)
+		else:
+			clear_of_trails.append(p)
+	var ranked := clear_of_trails + overhanging_trails
+	trees.assign(ranked.slice(0, roundi(candidates.size() * 0.5)))
+	for p in trees:
 		WorldCollision.circle(self, "PineTrunk", p, 12.0)
 	trees.sort_custom(func(a: Vector2, b: Vector2) -> bool: return a.y < b.y)
-	_load_wilderness_art()
-	_spawn_wolf(Vector2(-357, 127), 0)
-	_spawn_wolf(Vector2(170, -250), 1)
 
 func _load_wilderness_art() -> void:
 	if ResourceLoader.exists(WildernessTerrain.TILESET_PATH):
@@ -171,7 +186,7 @@ func attack(damage: int, facing: Vector2, auto_aim := true) -> void:
 		var nearest := _nearby_wolf()
 		if nearest != null:
 			swing_direction = _player_feet().direction_to(nearest.position)
-	player.play_strike(swing_direction)
+	player.play_strike(swing_direction, true)
 
 func _player_feet() -> Vector2:
 	return to_local(player.global_position) + Vector2(0, 16)
@@ -381,7 +396,7 @@ func _draw_swing() -> void:
 		var radius := lerpf(11.0, 4.0, cast_windup / CAST_WINDUP_TIME)
 		swing_overlay.draw_circle(orb, radius, Color(1.0, 0.38, 0.08, 0.6))
 		swing_overlay.draw_circle(orb, radius * 0.45, Color("#ffd68c"))
-	if swing_effect > 0.0:
+	if swing_effect > 0.0 and not player.is_showing_sword_strike():
 		var angle := swing_direction.angle()
 		var opacity := swing_effect / 0.16
 		var armed: bool = not player.equipped_weapon.is_empty()

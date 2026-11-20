@@ -13,6 +13,10 @@ var route: PackedVector2Array
 var walk_speed := 45.0
 var pause_time := 0.0
 var talking := false
+var quest_available := false:
+    set(value):
+        quest_available = value
+        queue_redraw()
 
 var artwork: Sprite2D
 var next_stop := 0
@@ -77,6 +81,17 @@ func _face_horizontally(horizontal: float) -> void:
 
 func _draw() -> void:
     draw_ellipse_shadow()
+    if quest_available:
+        var center := Vector2(0, 15.0 - artwork_height - 21.0)
+        var diamond := PackedVector2Array([
+            center + Vector2(0, -13), center + Vector2(10, 0),
+            center + Vector2(0, 13), center + Vector2(-10, 0)
+        ])
+        draw_colored_polygon(diamond, Color("#38271a"))
+        diamond.append(diamond[0])
+        draw_polyline(diamond, Color("#f2bb59"), 2.0, true)
+        draw_line(center + Vector2(0, -6), center + Vector2(0, 1), Color("#ffe793"), 3.0, true)
+        draw_circle(center + Vector2(0, 5), 1.5, Color("#ffe793"))
     if ART.has(name):
         return
     draw_circle(Vector2(0, -19), 11.0, Color("#c99a71"))

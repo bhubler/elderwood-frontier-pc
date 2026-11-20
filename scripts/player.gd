@@ -16,7 +16,13 @@ var stride: float = 0.0
 var equipped_weapon := ""
 var equipped_armor := "cloak"
 const STRIKE_DURATION := 0.34
+const SWORD_SWING_ART := preload("res://art/characters/original/human_sword_swing.png")
+const SWORD_FRAME_SIZE := 112
+const SWORD_ART_BODY_HEIGHT := 88.0
+const SWORD_ART_FEET := 101.0
 var strike_time := 0.0
+var sword_strike := false
+var sword_sprite: Sprite2D
 var hurt_time := 0.0
 var strike_direction := Vector2.DOWN
 var attack_bonus := 0
@@ -131,6 +137,15 @@ func _ready() -> void:
     race_sprite.name = "OriginalRaceArtwork"
     race_sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
     add_child(race_sprite)
+    sword_sprite = Sprite2D.new()
+    sword_sprite.name = "HumanSwordSwing"
+    sword_sprite.texture = SWORD_SWING_ART
+    sword_sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+    sword_sprite.region_enabled = true
+    sword_sprite.region_filter_clip_enabled = true
+    sword_sprite.centered = false
+    sword_sprite.hide()
+    add_child(sword_sprite)
     _refresh_character_appearance()
     _build_race_selection()
 
@@ -268,9 +283,38 @@ func _choose_race(chosen: String) -> void:
     selection_layer.hide()
     _refresh_character_appearance()
 
-func play_strike(direction: Vector2) -> void:
+func play_strike(direction: Vector2, melee := false) -> void:
     strike_direction = direction
     strike_time = STRIKE_DURATION
+    sword_strike = melee and equipped_weapon == "rusty_sword"
+    _update_sword_sprite()
+
+func is_showing_sword_strike() -> bool:
+    return strike_time > 0.0 and sword_strike and race == "Human" and race_sprite.visible
+
+func _update_sword_sprite() -> void:
+    sword_sprite.visible = is_showing_sword_strike()
+    if not sword_sprite.visible:
+        return
+    var elapsed := STRIKE_DURATION - strike_time
+    # Show the contact frame as melee damage resolves, then follow through and recover.
+    var frame := 0
+    if elapsed >= 0.25:
+        frame = 3
+    elif elapsed >= 0.17:
+        frame = 2
+    elif elapsed >= 0.10:
+        frame = 1
+    var row := 1 if strike_direction.y < -0.32 else 0
+    sword_sprite.region_rect = Rect2(frame * SWORD_FRAME_SIZE, row * SWORD_FRAME_SIZE,
+        SWORD_FRAME_SIZE, SWORD_FRAME_SIZE)
+    var scale_factor := character_art_height / SWORD_ART_BODY_HEIGHT
+    sword_sprite.scale = Vector2.ONE * scale_factor
+    sword_sprite.position = Vector2(-SWORD_FRAME_SIZE * 0.5 * scale_factor,
+        RACE_ART_FEET_Y - SWORD_ART_FEET * scale_factor)
+    sword_sprite.flip_h = strike_direction.x < 0.0
+    sword_sprite.self_modulate = Color("#ff9e92") if hurt_time > 0.0 else Color.WHITE
+    race_sprite.self_modulate.a = 0.0
 
 func play_hurt() -> void:
     hurt_time = 0.22
@@ -335,6 +379,7 @@ func _physics_process(delta: float) -> void:
     _animate_race_art(moving)
     _animate_necromancer(delta, moving)
     _animate_combat_pose()
+    _update_sword_sprite()
     queue_redraw()
 
 func _draw() -> void:

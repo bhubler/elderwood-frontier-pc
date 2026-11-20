@@ -155,6 +155,8 @@ func _accept_road_quest() -> void:
     if not quest_offer.visible or road_quest != RoadQuest.OFFERED:
         return
     road_quest = RoadQuest.ACTIVE
+    if is_instance_valid(speaker):
+        speaker.quest_available = false
     _close_quest_offer()
     var already_clear := is_instance_valid(forest) and forest.wolves.is_empty()
     var objective := "Talk to Pip to collect your reward." if already_clear else "Take the north trail into Pinewood Forest."
@@ -332,6 +334,7 @@ func _make_villagers() -> void:
     for person in people:
         var npc := VillageNPC.new()
         npc.name = str(person["name"])
+        npc.quest_available = npc.name == &"Pip" and road_quest == RoadQuest.OFFERED
         npc.position = person["pos"]
         npc.z_index = 8
         npc.artwork_height = player.character_art_height
