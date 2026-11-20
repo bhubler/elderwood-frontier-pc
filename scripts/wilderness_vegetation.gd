@@ -1,10 +1,12 @@
 extends Node2D
 ## Places licensed Wilderness Bundle scenes locally without committing their assets.
 ## Looks for standalone tree/bush scenes. Demo scenes are deliberately excluded.
+const ForestLayout := preload("res://scripts/forest_layout.gd")
 const WorldCollision := preload("res://scripts/world_collision.gd")
 const PACK_ROOT := "res://art/10_Wilderness_Bundle/Trees_and_Bushes"
 const SEED := 77139
 
+var trunks: Array[Vector2] = []
 var tree_scenes: Array[PackedScene] = []
 var bush_scenes: Array[PackedScene] = []
 
@@ -57,6 +59,10 @@ func _populate() -> void:
 		if candidates.is_empty():
 			continue
 		var scene := candidates[rng.randi_range(0, candidates.size() - 1)]
+		if ForestLayout.near_route(pos, ForestLayout.TRAILS, ForestLayout.TRAIL_CLEARANCE):
+			continue
+		if is_tree and not ForestLayout.has_trunk_clearance(pos, trunks):
+			continue
 		var instance := scene.instantiate()
 		if not (instance is Node2D):
 			instance.queue_free()
@@ -66,6 +72,8 @@ func _populate() -> void:
 		decoration.z_index = 0
 		add_child(decoration)
 		if is_tree:
+			trunks.append(pos)
+			# The sprite can sway independently of its grounded trunk.
 			WorldCollision.circle(self, "TreeTrunk", pos, 10.0)
 
 func _reserved(pos: Vector2) -> bool:
@@ -78,20 +86,5 @@ func _reserved(pos: Vector2) -> bool:
 		return true
 	if pos.distance_to(Vector2(210, -15)) < 200.0:
 		return true
-	# Keep roads and approaches traversable.
-	var paths: Array[PackedVector2Array] = [
-		PackedVector2Array([Vector2(-760, 50), Vector2(640, 65)]),
-		PackedVector2Array([Vector2(0, -610), Vector2(-40, 720)]),
-		PackedVector2Array([Vector2(-95, 35), Vector2(-480, 225)]),
-		PackedVector2Array([Vector2(80, 30), Vector2(380, -230)]),
-		PackedVector2Array([Vector2(80, 65), Vector2(410, 280)])
-	]
-	for path in paths:
-		if _distance_to_segment(pos, path[0], path[1]) < 110.0:
-			return true
-	return false
-
-func _distance_to_segment(point: Vector2, a: Vector2, b: Vector2) -> float:
-	var delta := b - a
-	var t := clampf((point - a).dot(delta) / delta.length_squared(), 0.0, 1.0)
-	return point.distance_to(a + delta * t)
+	# Keep roads and approaches clear as they transition into the forest.
+	return ForestLayout.near_route(pos, ForestLayout.ROADS, 110.0)

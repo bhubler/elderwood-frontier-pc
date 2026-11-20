@@ -1,6 +1,7 @@
 extends Node2D
 ## Elderwood Frontier: a modest wilderness settlement with room to grow.
 ## The inn is an authored sprite; the other buildings are temporary placeholders.
+const ForestLayout := preload("res://scripts/forest_layout.gd")
 const WorldCollision := preload("res://scripts/world_collision.gd")
 const TILE_W: float = 96.0
 const TILE_H: float = 48.0
@@ -23,6 +24,10 @@ func _ready() -> void:
 		var ty: int = rng.randi_range(-EXTENT + 2, EXTENT - 2)
 		var p: Vector2 = iso(tx, ty)
 		if abs(p.x) < 730.0 and abs(p.y) < 520.0:
+			continue
+		if ForestLayout.near_route(p, ForestLayout.ROADS, ForestLayout.TRAIL_CLEARANCE) \
+		or ForestLayout.near_route(p, ForestLayout.TRAILS, ForestLayout.TRAIL_CLEARANCE) \
+		or not ForestLayout.has_trunk_clearance(p, trees):
 			continue
 		trees.append(p)
 	_load_wayfarer_art()
@@ -61,8 +66,13 @@ func _make_collision() -> void:
 		]))
 	for building in buildings:
 		var pos: Vector2 = building["pos"]
-		WorldCollision.box(obstacles, str(building["name"]).to_pascal_case(),
-			Rect2(pos + Vector2(-92, -50), Vector2(184, 94)))
+		# Follow the shoulders of the building so approaching from the rear stops
+		# above the walls, while players can still round the upper corners.
+		WorldCollision.polygon(obstacles, str(building["name"]).to_pascal_case(), PackedVector2Array([
+			pos + Vector2(-92, 44), pos + Vector2(-92, -67),
+			pos + Vector2(-48, -111), pos + Vector2(38, -119),
+			pos + Vector2(92, -74), pos + Vector2(92, 44)
+		]))
 	var stall_bounds := Rect2(202, -27, 156, 56)
 	if has_node("GeneralGoodsArtwork"):
 		stall_bounds = Rect2(202, -45, 156, 56)
@@ -91,6 +101,7 @@ func _load_wilderness_vegetation() -> void:
 	var vegetation := Node2D.new()
 	vegetation.name = "WildernessVegetation"
 	vegetation.set_script(load("res://scripts/wilderness_vegetation.gd"))
+	vegetation.trunks = trees.duplicate()
 	add_child(vegetation)
 
 func _load_wayfarer_art() -> void:
@@ -188,18 +199,11 @@ func _draw_ground() -> void:
 
 func _draw_village_paths() -> void:
 	# Earth tracks: irregular soft edges, packed dirt, embedded pebbles.
-	var routes: Array[PackedVector2Array] = [
-		PackedVector2Array([Vector2(-760, 50), Vector2(-370, 55), Vector2(-100, 40), Vector2(170, 20), Vector2(640, 65)]),
-		PackedVector2Array([Vector2(0, -610), Vector2(-10, -280), Vector2(0, 40), Vector2(-20, 480), Vector2(-40, 720)]),
-		PackedVector2Array([Vector2(-95, 35), Vector2(-290, 130), Vector2(-480, 225)]),
-		PackedVector2Array([Vector2(80, 30), Vector2(260, -110), Vector2(380, -230)]),
-		PackedVector2Array([Vector2(80, 65), Vector2(230, 200), Vector2(410, 280)])
-	]
-	for route in routes:
-		draw_polyline(route, Color("#4d4933"), 70.0, true)
-		draw_polyline(route, Color("#65573b"), 60.0, true)
-		draw_polyline(route, Color("#82704d"), 42.0, true)
-		draw_polyline(route, Color("#9b8055", 0.25), 20.0, true)
+	for route in ForestLayout.ROADS:
+		_draw_dirt_track(PackedVector2Array(route), ForestLayout.ROAD_HALF_WIDTH)
+	for route in ForestLayout.TRAILS:
+		_draw_dirt_track(PackedVector2Array(route), ForestLayout.TRAIL_HALF_WIDTH)
+	var routes := ForestLayout.ROADS + ForestLayout.TRAILS
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 7183
 	for route in routes:
@@ -220,6 +224,13 @@ func _draw_village_paths() -> void:
 		var p := Vector2(rng.randf_range(-730.0, 730.0), rng.randf_range(-500.0, 500.0))
 		var c := Color("#687451") if i % 3 == 0 else Color("#536d42")
 		draw_line(p, p + Vector2(3.0, -rng.randf_range(4.0, 11.0)), Color(c, 0.75), 1.5)
+
+func _draw_dirt_track(route: PackedVector2Array, half_width: float) -> void:
+	var width := half_width * 2.0
+	draw_polyline(route, Color("#4d4933"), width, true)
+	draw_polyline(route, Color("#65573b"), width * 0.86, true)
+	draw_polyline(route, Color("#82704d"), width * 0.60, true)
+	draw_polyline(route, Color("#9b8055", 0.25), width * 0.28, true)
 
 func _draw_well(p: Vector2) -> void:
 	draw_ellipse_placeholder(p + Vector2(0, 10), 48.0, 22.0, Color(0, 0, 0, 0.25))

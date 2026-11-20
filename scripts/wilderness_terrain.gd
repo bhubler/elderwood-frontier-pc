@@ -1,6 +1,7 @@
 extends TileMapLayer
 ## Optional Wilderness Bundle terrain for the starting village.
 ## This script is project code; the separately purchased assets stay local.
+const ForestLayout := preload("res://scripts/forest_layout.gd")
 const TILESET_PATH := "res://art/10_Wilderness_Bundle/Terrain_and_Nature/godot/terrain_tileset.tres"
 const TERRAIN_SET := 0
 const GRASS := 6 # shallow_green_grass
@@ -24,11 +25,8 @@ func _ready() -> void:
 			var cell := Vector2i(x, y)
 			var pos := map_to_local(cell)
 			# Path widths are measured in the same world coordinates as the village.
-			if _near_segment(pos, Vector2(-760, 50), Vector2(640, 65), 40.0) \
-			or _near_segment(pos, Vector2(0, -610), Vector2(-40, 720), 36.0) \
-			or _near_segment(pos, Vector2(-95, 35), Vector2(-480, 225), 36.0) \
-			or _near_segment(pos, Vector2(80, 30), Vector2(380, -230), 36.0) \
-			or _near_segment(pos, Vector2(80, 65), Vector2(410, 280), 36.0):
+			if ForestLayout.near_route(pos, ForestLayout.ROADS, ForestLayout.ROAD_HALF_WIDTH) \
+			or ForestLayout.near_route(pos, ForestLayout.TRAILS, ForestLayout.TRAIL_HALF_WIDTH):
 				trail_cells.append(cell)
 			elif pos.length() < 78.0:
 				cobble_cells.append(cell)
@@ -37,8 +35,3 @@ func _ready() -> void:
 	set_cells_terrain_connect(grass_cells, TERRAIN_SET, GRASS, false)
 	set_cells_terrain_connect(trail_cells, TERRAIN_SET, TRAIL, false)
 	set_cells_terrain_connect(cobble_cells, TERRAIN_SET, COBBLE, false)
-
-func _near_segment(point: Vector2, a: Vector2, b: Vector2, width: float) -> bool:
-	var delta := b - a
-	var t := clampf((point - a).dot(delta) / delta.length_squared(), 0.0, 1.0)
-	return point.distance_to(a + delta * t) <= width
