@@ -12,3 +12,7 @@
 - Define what a new player character, NPC, or enemy needs to do in its first playable encounter. Create and wire the matching animations as part of that work. Cover the relevant actions, such as idle, movement, interaction, attack or cast, hit reaction, and defeat. Match the animation and behavior to the role and equipment.
 - A melee bandit, for example, should already idle or patrol, notice and pursue the player, visibly wind up and swing, deal damage at contact, react to hits, and play its defeat animation. A merchant needs the movement and interaction their gameplay calls for.
 - Verify new content through its normal in-game entry point. Check animation transitions and timing, silhouettes at gameplay scale, and alignment with terrain and collision. A character is ready for playtesting when its expected actions work in the game.
+
+## Show public routes in the game
+
+- Give public destinations a visible sign, door, gate, or other landmark in Elderwood's art style. Make the landmark clickable from a comfortable interaction distance, with a readable destination and a keyboard interaction. Keep intentionally hidden areas discoverable through their own clues.

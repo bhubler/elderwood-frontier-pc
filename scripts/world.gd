@@ -3,6 +3,8 @@ extends Node2D
 ## The inn is an authored sprite; the other buildings are temporary placeholders.
 const WELL_ART_PATH := "res://art/village_well.png"
 const WELL_POSITION := Vector2(0, 35)
+const WayfindingArt := preload("res://scripts/wayfinding_art.gd")
+const PinewoodForest := preload("res://scripts/pinewood_forest.gd")
 const ForestLayout := preload("res://scripts/forest_layout.gd")
 const WorldCollision := preload("res://scripts/world_collision.gd")
 const WildernessTerrain := preload("res://scripts/wilderness_terrain.gd")
@@ -96,7 +98,10 @@ func _make_collision() -> void:
 	WorldCollision.circle(obstacles, "Well", WELL_POSITION, 32.0)
 	for p in [Vector2(-180, -80), Vector2(190, -110), Vector2(-210, 230)]:
 		WorldCollision.circle(obstacles, "LanternPost", p, 4.0)
-	WorldCollision.circle(obstacles, "VillageSign", Vector2(10, -290), 5.0)
+	WorldCollision.circle(obstacles, "VillageSign", Vector2(58, -290), 9.0)
+	for offset in [-85, 85]:
+		WorldCollision.circle(obstacles, "TrailGatePost",
+			PinewoodForest.VILLAGE_ENTRANCE + Vector2(offset, 0), 14.0)
 	for tree_pos in trees:
 		WorldCollision.circle(obstacles, "TreeTrunk", tree_pos, 8.0)
 
@@ -187,8 +192,8 @@ func _draw() -> void:
 	_draw_lantern(Vector2(-180, -80))
 	_draw_lantern(Vector2(190, -110))
 	_draw_lantern(Vector2(-210, 230))
-	_draw_sign(Vector2(10, -290))
-	_draw_sign(Vector2(94, -672), "PINEWOOD FOREST")
+	WayfindingArt.draw_sign(self, Vector2(58, -290), "ELDERWOOD VILLAGE")
+	WayfindingArt.draw_gate(self, PinewoodForest.VILLAGE_ENTRANCE, "PINEWOOD FOREST")
 
 func _draw_ground() -> void:
 	# Painterly layered earth and grass. No visible diamond grid.
@@ -318,12 +323,6 @@ func _draw_lantern(p: Vector2) -> void:
 	draw_circle(p + Vector2(0, -75), 19.0, Color(0.98, 0.68, 0.27, 0.16))
 	draw_rect(Rect2(p + Vector2(-8, -84), Vector2(16, 18)), Color("#e5ac53"))
 	draw_rect(Rect2(p + Vector2(-10, -86), Vector2(20, 22)), Color("#423b30"), false, 3.0)
-
-func _draw_sign(p: Vector2, title := "ELDERWOOD VILLAGE") -> void:
-	draw_line(p, p + Vector2(0, -65), Color("#594431"), 7.0)
-	draw_rect(Rect2(p + Vector2(-95, -108), Vector2(190, 43)), Color("#4c382b"))
-	draw_rect(Rect2(p + Vector2(-95, -108), Vector2(190, 43)), Color("#b89561"), false, 3.0)
-	draw_string(ThemeDB.fallback_font, p + Vector2(-90, -79), title, HORIZONTAL_ALIGNMENT_CENTER, 180, 16, Color("#f2dba7"))
 
 func _draw_fountain(p: Vector2) -> void:
 	draw_circle(p + Vector2(0, 8), 44.0, Color("#484f51"))

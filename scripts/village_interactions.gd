@@ -2,7 +2,7 @@ extends CanvasLayer
 ## Frontier village interactions: NPCs, inn interior, dialogue, and starter inventory.
 const INTERACT_DISTANCE := 115.0
 const PinewoodForest := preload("res://scripts/pinewood_forest.gd")
-const PINEWOOD_ENTRY_DISTANCE := 75.0
+const PINEWOOD_ENTRY_DISTANCE := 175.0
 const ROAD_REWARD := 20
 enum RoadQuest { OFFERED, ACTIVE, COMPLETE }
 
@@ -12,6 +12,16 @@ var ui: PanelContainer
 var message: Label
 var quest_offer: CenterContainer
 var accept_quest: Button
+var quest_title: Label
+var quest_details: Label
+var decline_quest: Button
+var turning_in_quest := false
+var health_bar: ProgressBar
+var mana_bar: ProgressBar
+var health_text: Label
+var mana_text: Label
+var travel_button: Button
+var offered_route: Dictionary = {}
 var inventory_panel: PanelContainer
 var notice_timer: Timer
 var inventory_grid: GridContainer
@@ -67,6 +77,7 @@ func _ready() -> void:
         player.set_equipment(equipment)
     _make_interior()
     _make_villagers()
+    _prepare_pinewood_early()
     _show_message("Welcome to Elderwood Village. WASD to move, E to interact, I for inventory.", 5.0)
 
 func _make_interface() -> void:
@@ -102,11 +113,51 @@ func _make_interface() -> void:
     message.add_theme_color_override("font_color", Color("#f4e8ce"))
     ui.add_child(message)
     ui.hide()
+    _make_status_bars(holder, style)
+    travel_button = Button.new()
+    travel_button.focus_mode = Control.FOCUS_NONE
+    travel_button.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+    travel_button.pressed.connect(_activate_offered_route)
+    holder.add_child(travel_button)
+    travel_button.hide()
     _make_quest_offer(holder, style)
     notice_timer = Timer.new()
     notice_timer.one_shot = true
     notice_timer.timeout.connect(_on_notice_timeout)
     add_child(notice_timer)
+
+func _make_status_bars(holder: Control, style: StyleBoxFlat) -> void:
+    var panel := PanelContainer.new()
+    holder.add_child(panel)
+    panel.set_anchors_and_offsets_preset(Control.PRESET_TOP_RIGHT)
+    panel.offset_left = -248
+    panel.offset_right = -24
+    panel.offset_top = 18
+    panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+    panel.add_theme_stylebox_override("panel", style)
+    var bars := VBoxContainer.new()
+    bars.mouse_filter = Control.MOUSE_FILTER_IGNORE
+    panel.add_child(bars)
+    health_text = Label.new()
+    bars.add_child(health_text)
+    health_bar = _make_bar(bars, Color("#a84144"), PinewoodForest.MAX_HEALTH)
+    mana_text = Label.new()
+    bars.add_child(mana_text)
+    mana_bar = _make_bar(bars, Color("#486dbb"), PinewoodForest.MAX_MANA)
+
+func _make_bar(parent: Control, color: Color, maximum: float) -> ProgressBar:
+    var bar := ProgressBar.new()
+    bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
+    bar.max_value = maximum
+    bar.step = 0
+    bar.show_percentage = false
+    bar.custom_minimum_size.y = 10
+    var fill := StyleBoxFlat.new()
+    fill.bg_color = color
+    fill.set_corner_radius_all(3)
+    bar.add_theme_stylebox_override("fill", fill)
+    parent.add_child(bar)
+    return bar
 
 func _make_quest_offer(holder: Control, style: StyleBoxFlat) -> void:
     quest_offer = CenterContainer.new()
@@ -119,29 +170,32 @@ func _make_quest_offer(holder: Control, style: StyleBoxFlat) -> void:
     var content := VBoxContainer.new()
     content.add_theme_constant_override("separation", 14)
     panel.add_child(content)
-    var title := Label.new()
-    title.text = "Clear the Pinewood Road"
-    title.add_theme_font_size_override("font_size", 24)
-    title.add_theme_color_override("font_color", Color("#ffe5ad"))
-    content.add_child(title)
-    var details := Label.new()
-    details.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-    details.text = "Pip needs help clearing two briar wolves from the road to Stonehaven. Take the north trail into Pinewood Forest. Look for one wolf in the clearing at the fork and the other farther north along the main road. Return to Pip when the road is clear.\n\nReward  ·  %d gold" % ROAD_REWARD
-    content.add_child(details)
+    quest_title = Label.new()
+    quest_title.add_theme_font_size_override("font_size", 26)
+    quest_title.add_theme_color_override("font_color", Color("#ffe5ad"))
+    content.add_child(quest_title)
+    quest_details = Label.new()
+    quest_details.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+    quest_details.add_theme_font_size_override("font_size", 18)
+    content.add_child(quest_details)
     var actions := HBoxContainer.new()
     actions.alignment = BoxContainer.ALIGNMENT_END
     content.add_child(actions)
-    var decline := Button.new()
-    decline.text = "Decline"
-    decline.pressed.connect(_close_quest_offer)
-    actions.add_child(decline)
+    decline_quest = Button.new()
+    decline_quest.pressed.connect(_close_quest_offer)
+    actions.add_child(decline_quest)
     accept_quest = Button.new()
-    accept_quest.text = "Accept quest"
-    accept_quest.pressed.connect(_accept_road_quest)
+    accept_quest.custom_minimum_size.y = 36
+    accept_quest.pressed.connect(_confirm_road_quest)
     actions.add_child(accept_quest)
     quest_offer.hide()
 
-func _show_quest_offer() -> void:
+func _show_quest_offer(turn_in := false) -> void:
+    turning_in_quest = turn_in
+    quest_title.text = "The Pinewood Road Is Clear" if turn_in else "Clear the Pinewood Road"
+    quest_details.text = ("Pip: The road is open again. Merchants can make the trip to Stonehaven safely. Here’s what I promised you.\n\nReward  ·  %d gold" if turn_in else "Pip needs help clearing two briar wolves from the road to Stonehaven. Take the north trail into Pinewood Forest. Look for one wolf at the fork and the other farther north. Return to Pip when the road is clear.\n\nReward  ·  %d gold") % ROAD_REWARD
+    accept_quest.text = "Claim reward" if turn_in else "Accept quest"
+    decline_quest.text = "Later" if turn_in else "Decline"
     notice_timer.stop()
     ui.hide()
     quest_offer.show()
@@ -151,12 +205,22 @@ func _close_quest_offer() -> void:
     quest_offer.hide()
     conversation_open = false
 
+func _confirm_road_quest() -> void:
+    if not turning_in_quest:
+        _accept_road_quest()
+    elif quest_offer.visible and _road_ready_to_turn_in():
+        road_quest = RoadQuest.COMPLETE
+        gold += ROAD_REWARD
+        _refresh_inventory()
+        _update_pip_marker()
+        _close_quest_offer()
+        _show_message("Quest completed — Clear the Pinewood Road\nReceived %d gold." % ROAD_REWARD, 5.0)
+
 func _accept_road_quest() -> void:
     if not quest_offer.visible or road_quest != RoadQuest.OFFERED:
         return
     road_quest = RoadQuest.ACTIVE
-    if is_instance_valid(speaker):
-        speaker.quest_available = false
+    _update_pip_marker()
     _close_quest_offer()
     var already_clear := is_instance_valid(forest) and forest.wolves.is_empty()
     var objective := "Talk to Pip to collect your reward." if already_clear else "Take the north trail into Pinewood Forest."
@@ -366,6 +430,12 @@ func _process(_delta: float) -> void:
         forest.combat_paused = inventory_open or conversation_open
         forest.armor = player.defense_bonus
 
+    health_bar.value = forest.health if in_forest else PinewoodForest.MAX_HEALTH
+    mana_bar.value = forest.mana if in_forest else PinewoodForest.MAX_MANA
+    health_text.text = "Health   %d / %d" % [health_bar.value, health_bar.max_value]
+    mana_text.text = "Mana     %d / %d" % [mana_bar.value, mana_bar.max_value]
+    _update_travel_button()
+
     if inventory_open:
         prompt.text = "Inventory open — press I to close"
     elif quest_offer.visible:
@@ -379,7 +449,7 @@ func _process(_delta: float) -> void:
     else:
         var nearby := _nearest_person()
         if _near_pinewood_entrance():
-            prompt.text = "E — Follow the road into Pinewood Forest | I inventory"
+            prompt.text = "Click the gate or press E — Pinewood Forest | I inventory"
         elif player.position.distance_to(Vector2(-390, -190)) < 105.0:
             prompt.text = "E — Enter the Wayfarer Inn | I inventory"
         elif nearby >= 0:
@@ -389,11 +459,65 @@ func _process(_delta: float) -> void:
         else:
             prompt.text = "WASD move | E interact | I inventory"
 
+func _route(anchor: Vector2, hit: Rect2, destination: String, action: Callable) -> Dictionary:
+    return {"anchor": anchor, "hit": hit, "destination": destination, "action": action}
+
+func _nearby_route() -> Dictionary:
+    if player.choosing_race or inventory_open or conversation_open:
+        return {}
+    if is_instance_valid(forest) and forest.active:
+        if _near_forest_exit():
+            return _route(forest.to_global(PinewoodForest.SOUTH_GATE),
+                Rect2(forest.to_global(PinewoodForest.SOUTH_GATE - Vector2(114, 178)), Vector2(228, 178)), "Elderwood Village", _leave_pinewood)
+        if forest.to_local(player.global_position).distance_to(Vector2(0, -666)) < 178.0:
+            return _route(forest.to_global(Vector2(0, -624)),
+                Rect2(forest.to_global(Vector2(-280, -962)), Vector2(560, 338)),
+                "Pinewood Forest" if forest.in_stonehaven() else "Stonehaven", _cross_stonehaven_gate)
+    elif inside_inn:
+        if player.position.distance_to(Vector2(4200, 120)) < 190.0:
+            return _route(Vector2(4200, 205), Rect2(4125, 156, 150, 75), "Elderwood Village", _leave_inn)
+    elif _near_pinewood_entrance():
+        return _route(PinewoodForest.VILLAGE_ENTRANCE, Rect2(PinewoodForest.VILLAGE_ENTRANCE - Vector2(114, 178), Vector2(228, 178)), "Pinewood Forest", _enter_pinewood)
+    elif player.position.distance_to(Vector2(-390, -190)) < 155.0:
+        return _route(Vector2(-390, -145), Rect2(-443, -263, 111, 122), "Wayfarer Inn", _enter_inn)
+    return {}
+
+func _update_travel_button() -> void:
+    offered_route = _nearby_route()
+    travel_button.visible = not offered_route.is_empty()
+    if not travel_button.visible:
+        return
+    var keyboard_hint := "   [E]"
+    if offered_route.destination == "Wayfarer Inn" and _nearest_person() >= 0 \
+            and player.position.distance_to(Vector2(-390, -190)) >= 105.0:
+        keyboard_hint = ""
+    travel_button.text = "➜  %s%s" % [offered_route.destination, keyboard_hint]
+    travel_button.reset_size()
+    var screen_position: Vector2 = player.get_canvas_transform() * offered_route.anchor
+    travel_button.position = screen_position + Vector2(-travel_button.size.x * 0.5, 13)
+
+func _activate_offered_route() -> void:
+    var route := _nearby_route()
+    if not route.is_empty():
+        route.action.call()
+
+func _cross_stonehaven_gate() -> void:
+    var crossing_south := forest.in_stonehaven()
+    player.global_position = forest.to_global(Vector2(0, -552 if crossing_south else -789))
+    player.get_node("Camera2D").reset_smoothing()
+
 func _unhandled_input(event: InputEvent) -> void:
     if not event is InputEventMouseButton or not event.pressed:
         return
     if event.button_index not in [MOUSE_BUTTON_LEFT, MOUSE_BUTTON_RIGHT]:
         return
+    if event.button_index == MOUSE_BUTTON_LEFT:
+        var route := _nearby_route()
+        var world_cursor: Vector2 = player.get_canvas_transform().affine_inverse() * event.position
+        if not route.is_empty() and route.hit.has_point(world_cursor):
+            route.action.call()
+            get_viewport().set_input_as_handled()
+            return
     if not is_instance_valid(forest) or not forest.active or inventory_open or conversation_open:
         return
     var cursor: Vector2 = forest.get_global_transform_with_canvas().affine_inverse() * event.position
@@ -444,8 +568,7 @@ func _unhandled_key_input(event: InputEvent) -> void:
             conversation_open = false
             ui.hide()
         elif is_instance_valid(forest) and forest.active:
-            if _near_forest_exit():
-                _leave_pinewood()
+            _activate_offered_route()
         elif inside_inn:
             if player.position.distance_to(Vector2(4200, 120)) < 190.0:
                 _leave_inn()
@@ -464,8 +587,8 @@ func _unhandled_key_input(event: InputEvent) -> void:
                 conversation_open = true
                 var words: String = people[nearest]["words"]
                 var road_dialogue := speaker.name == &"Pip" and road_quest != RoadQuest.COMPLETE
-                if road_dialogue and road_quest == RoadQuest.OFFERED:
-                    _show_quest_offer()
+                if road_dialogue and (road_quest == RoadQuest.OFFERED or _road_ready_to_turn_in()):
+                    _show_quest_offer(_road_ready_to_turn_in())
                     get_viewport().set_input_as_handled()
                     return
                 if road_dialogue:
@@ -477,13 +600,18 @@ func _unhandled_key_input(event: InputEvent) -> void:
                 _enter_inn()
         get_viewport().set_input_as_handled()
 
+func _road_ready_to_turn_in() -> bool:
+    return road_quest == RoadQuest.ACTIVE and is_instance_valid(forest) and forest.wolves.is_empty()
+
+func _update_pip_marker() -> void:
+    for npc in villagers:
+        if npc.name == &"Pip":
+            npc.quest_available = road_quest == RoadQuest.OFFERED
+            npc.quest_ready = _road_ready_to_turn_in()
+            return
+
 func _pip_road_dialogue() -> String:
     var remaining := forest.wolves.size() if is_instance_valid(forest) else 2
-    if remaining == 0:
-        road_quest = RoadQuest.COMPLETE
-        gold += ROAD_REWARD
-        _refresh_inventory()
-        return "The road is open again. Here’s %d gold for your trouble. Follow the road north to Stonehaven." % ROAD_REWARD
     return "%d briar %s still on the Pinewood road. I’ll be here when the road is clear." % [
         remaining, "wolf is" if remaining == 1 else "wolves are"
     ]
@@ -492,17 +620,28 @@ func _near_pinewood_entrance() -> bool:
     return player.position.distance_to(PinewoodForest.VILLAGE_ENTRANCE) < PINEWOOD_ENTRY_DISTANCE
 
 func _near_forest_exit() -> bool:
-    return forest.to_local(player.global_position).distance_to(PinewoodForest.SOUTH_EXIT) < 79.0
+    return forest.to_local(player.global_position).distance_to(PinewoodForest.SOUTH_EXIT) < 135.0
+
+func _prepare_pinewood_early() -> void:
+    # Let the character selection screen render before building the forest.
+    await get_tree().process_frame
+    await get_tree().process_frame
+    _prepare_pinewood()
+
+func _prepare_pinewood() -> void:
+    if is_instance_valid(forest):
+        return
+    forest = PinewoodForest.new()
+    forest.name = "PinewoodForest"
+    forest.position = Vector2(7800, 0)
+    forest.player = player
+    forest.hide()
+    forest.player_fell.connect(_on_pinewood_fall)
+    forest.wolf_defeated.connect(_on_wolf_defeated)
+    get_parent().add_child(forest)
 
 func _enter_pinewood() -> void:
-    if not is_instance_valid(forest):
-        forest = PinewoodForest.new()
-        forest.name = "PinewoodForest"
-        forest.position = Vector2(7800, 0)
-        forest.player = player
-        forest.player_fell.connect(_on_pinewood_fall)
-        forest.wolf_defeated.connect(_on_wolf_defeated)
-        get_parent().add_child(forest)
+    _prepare_pinewood()
     forest.show()
     forest.active = true
     forest.recover_at_trailhead()
@@ -520,19 +659,20 @@ func _on_pinewood_fall() -> void:
     _show_message("You recover at the trailhead. Defeated wolves stay down.", 5.0)
 
 func _on_wolf_defeated() -> void:
-    if road_quest == RoadQuest.ACTIVE and forest.wolves.is_empty():
+    _update_pip_marker()
+    if _road_ready_to_turn_in():
         _show_message("Clear the Pinewood Road — return to Pip for your reward.", 5.0)
     else:
         _show_message("Briar wolf defeated.", 3.0)
 
 func _pinewood_prompt() -> String:
     if forest.in_stonehaven():
-        return "Stonehaven Gate | Follow the road south to Pinewood"
-    var status := "%d/%d HP | %d/%d mana | LMB swing | RMB Fireball | I inventory" % [
-        forest.health, PinewoodForest.MAX_HEALTH, int(forest.mana), int(PinewoodForest.MAX_MANA)
-    ]
+        return "Stonehaven Gate | Click the gate or press E to return to Pinewood"
+    var status := "LMB swing | RMB Fireball | I inventory"
     if _near_forest_exit():
-        return "E — Return to Elderwood Village | " + status
+        return "Click the gate or press E — Elderwood Village | " + status
+    if forest.to_local(player.global_position).distance_to(Vector2(0, -666)) < 178.0:
+        return "Click the gate, press E, or walk through — Stonehaven"
     if road_quest == RoadQuest.ACTIVE:
         if forest.wolves.is_empty():
             return "Return to Pip | " + status

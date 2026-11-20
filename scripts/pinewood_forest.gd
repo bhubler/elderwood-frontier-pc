@@ -3,6 +3,7 @@ extends Node2D
 signal player_fell
 signal wolf_defeated
 
+const WayfindingArt := preload("res://scripts/wayfinding_art.gd")
 const WorldCollision := preload("res://scripts/world_collision.gd")
 const Wolf := preload("res://scripts/pinewood_wolf.gd")
 const Fireball := preload("res://scripts/pinewood_fireball.gd")
@@ -15,6 +16,7 @@ const MONSTER_ART := "res://art/pinewood/briar_wolves.png"
 const VILLAGE_ENTRANCE := Vector2(4, -670)
 const SOUTH_ENTRY := Vector2(0, 704)
 const SOUTH_EXIT := Vector2(0, 795)
+const SOUTH_GATE := Vector2(0, 835)
 const MAX_HEALTH := 14
 const MAX_MANA := 6.0
 const FIREBALL_COST := 2.0
@@ -60,6 +62,8 @@ func _ready() -> void:
 	WorldCollision.polygon(self, "ForestEdge", PackedVector2Array([
 		Vector2(-900, -920), Vector2(900, -920), Vector2(900, 870), Vector2(-900, 870)
 	]), CollisionPolygon2D.BUILD_SEGMENTS)
+	for offset in [-85, 85]:
+		WorldCollision.circle(self, "TrailGatePost", SOUTH_GATE + Vector2(offset, 0), 14.0)
 	WorldCollision.box(self, "StonehavenWestWall", Rect2(-900, -666, 800, 42))
 	WorldCollision.box(self, "StonehavenEastWall", Rect2(100, -666, 800, 42))
 	swing_overlay = Node2D.new()
@@ -368,8 +372,8 @@ func _draw() -> void:
 	if not using_bundle_trees:
 		for p in trees:
 			_draw_pine(p)
-	_draw_waypost(Vector2(86, 731), "PINEWOOD FOREST")
-	_draw_waypost(Vector2(-226, 269), "STONEHAVEN ↑")
+	WayfindingArt.draw_gate(self, SOUTH_GATE, "ELDERWOOD VILLAGE")
+	WayfindingArt.draw_sign(self, Vector2(-226, 269), "STONEHAVEN ↑")
 	_draw_gate()
 
 func _draw_placeholder_ground() -> void:
@@ -429,12 +433,6 @@ func _draw_pine(p: Vector2) -> void:
 			Vector2(width, y), Vector2(0, y + 8.0)
 		]), [Color("#1b3833"), Color("#23443a"), Color("#315241")][i])
 	draw_set_transform(Vector2.ZERO)
-
-func _draw_waypost(p: Vector2, title: String) -> void:
-	draw_rect(Rect2(p + Vector2(-4, -74), Vector2(8, 74)), Color("#614a33"))
-	draw_rect(Rect2(p + Vector2(-79, -72), Vector2(158, 26)), Color("#483626"))
-	draw_string(ThemeDB.fallback_font, p + Vector2(-71, -54), title,
-		HORIZONTAL_ALIGNMENT_CENTER, 142, 14, Color("#ffe1a5"))
 
 func _draw_gate() -> void:
 	if not using_bundle_terrain:
