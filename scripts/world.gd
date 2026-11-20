@@ -1,6 +1,8 @@
 extends Node2D
 ## Elderwood Frontier: a modest wilderness settlement with room to grow.
 ## The inn is an authored sprite; the other buildings are temporary placeholders.
+const WELL_ART := preload("res://art/village_well.png")
+const WELL_POSITION := Vector2(0, 35)
 const ForestLayout := preload("res://scripts/forest_layout.gd")
 const WorldCollision := preload("res://scripts/world_collision.gd")
 const TILE_W: float = 96.0
@@ -77,7 +79,7 @@ func _make_collision() -> void:
 	if has_node("GeneralGoodsArtwork"):
 		stall_bounds = Rect2(202, -45, 156, 56)
 	WorldCollision.box(obstacles, "GeneralGoods", stall_bounds)
-	WorldCollision.circle(obstacles, "Well", Vector2(0, 35), 32.0)
+	WorldCollision.circle(obstacles, "Well", WELL_POSITION, 32.0)
 	for p in [Vector2(-180, -80), Vector2(190, -110), Vector2(-210, 230)]:
 		WorldCollision.circle(obstacles, "LanternPost", p, 4.0)
 	WorldCollision.circle(obstacles, "VillageSign", Vector2(10, -290), 5.0)
@@ -171,7 +173,7 @@ func _draw() -> void:
 			_draw_building(building)
 	if not has_node("GeneralGoodsArtwork"):
 		_draw_general_goods_stand(Vector2(280, -15))
-	_draw_well(Vector2(0, 35))
+	_draw_well(WELL_POSITION)
 	_draw_lantern(Vector2(-180, -80))
 	_draw_lantern(Vector2(190, -110))
 	_draw_lantern(Vector2(-210, 230))
@@ -234,13 +236,8 @@ func _draw_dirt_track(route: PackedVector2Array, half_width: float) -> void:
 
 func _draw_well(p: Vector2) -> void:
 	draw_ellipse_placeholder(p + Vector2(0, 10), 48.0, 22.0, Color(0, 0, 0, 0.25))
-	draw_circle(p, 32.0, Color("#524f46"))
-	draw_circle(p, 23.0, Color("#8c8878"))
-	draw_circle(p, 17.0, Color("#253b42"))
-	draw_line(p + Vector2(-25, -8), p + Vector2(-25, -60), Color("#594532"), 7.0)
-	draw_line(p + Vector2(25, -8), p + Vector2(25, -60), Color("#594532"), 7.0)
-	draw_line(p + Vector2(-32, -60), p + Vector2(32, -60), Color("#44372d"), 9.0)
-	draw_line(p + Vector2(0, -60), p + Vector2(0, -23), Color("#a58a62"), 2.0)
+	# Center the stone base on the collision footprint with the crank rising above it.
+	draw_texture(WELL_ART, p + Vector2(-40, -68))
 
 func draw_ellipse_placeholder(p: Vector2, rx: float, ry: float, tint: Color) -> void:
 	draw_set_transform(p, 0.0, Vector2(1.0, ry / rx))
