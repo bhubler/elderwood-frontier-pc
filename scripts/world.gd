@@ -49,8 +49,8 @@ func _ready() -> void:
 	var lettering := Node2D.new()
 	lettering.z_index = 3
 	lettering.draw.connect(func() -> void:
-		WayfindingArt.draw_sign(lettering, Vector2(58, -290), "ELDERWOOD VILLAGE")
-		WayfindingArt.draw_gate(lettering, PinewoodForest.VILLAGE_ENTRANCE, "PINEWOOD FOREST")
+		WayfindingArt.draw_landmark(lettering, Vector2(58, -290), WayfindingArt.ELDERWOOD_SIGN)
+		WayfindingArt.draw_landmark(lettering, PinewoodForest.VILLAGE_ENTRANCE, WayfindingArt.PINEWOOD_GATE)
 	)
 	add_child(lettering)
 	queue_redraw()

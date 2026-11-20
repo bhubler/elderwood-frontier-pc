@@ -78,8 +78,8 @@ func _ready() -> void:
 	var lettering := Node2D.new()
 	lettering.z_index = 3
 	lettering.draw.connect(func() -> void:
-		WayfindingArt.draw_gate(lettering, SOUTH_GATE, "ELDERWOOD VILLAGE")
-		WayfindingArt.draw_sign(lettering, Vector2(-226, 269), "STONEHAVEN ↑")
+		WayfindingArt.draw_landmark(lettering, SOUTH_GATE, WayfindingArt.ELDERWOOD_GATE)
+		WayfindingArt.draw_landmark(lettering, Vector2(-226, 269), WayfindingArt.STONEHAVEN_SIGN)
 	)
 	add_child(lettering)
 	_spawn_wolf(Vector2(-357, 127), 0)
