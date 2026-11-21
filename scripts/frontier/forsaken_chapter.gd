@@ -8,6 +8,7 @@ const State = preload("res://scripts/frontier/adventure_state.gd")
 const Layouts = preload("res://scripts/frontier/chapter_regions.gd")
 const Overworld := preload("res://scripts/frontier/overworld_layout.gd")
 const ForestLayout := preload("res://scripts/forest_layout.gd")
+const WildernessTerrain := preload("res://scripts/wilderness_terrain.gd")
 const Floor = preload("res://scripts/frontier/region_floor.gd")
 const Point = preload("res://scripts/frontier/interaction_point.gd")
 const Enemy = preload("res://scripts/frontier/encounter_enemy.gd")
@@ -30,6 +31,8 @@ const MAX_HEALTH := 100
 
 var state := State.new()
 var region := ""
+var outdoor_terrain: WildernessTerrain
+var terrain_window := Rect2()
 var points: Array[Point] = []
 var enemy: Enemy
 var emissary: Point
@@ -92,7 +95,6 @@ func _load_region(destination: String) -> void:
     floor_art.ground = Color(layout["ground"])
     floor_art.region_id = region
     floor_art.queue_redraw()
-    _dress_region()
     player.position = Vector2(0, 145)
     for definition in layout["points"]:
         var action: String = definition[0]
@@ -108,6 +110,11 @@ func _load_region(destination: String) -> void:
             player.position = Vector2(0, 397)
     if region == "east_pinewood" and previous.is_empty():
         player.position = Overworld.FOREST_WEST + Vector2(105, 0)
+    _dress_region()
+    _load_outdoor_terrain()
+    if region == "east_pinewood" and "blackbriar_bandit" not in state.defeated:
+        _add_enemy(["blackbriar_bandit", "Blackbriar Bandit", 33, 11, 24, "#bd8061", "bandit"],
+            Overworld.CARAVAN + Vector2(125, 135))
     if layout.has("enemy"):
         var definition: Array = layout["enemy"]
         if definition[0] not in state.defeated and not (region == "cellar_gate" and state.entry_method == "grimoire"):
@@ -116,6 +123,41 @@ func _load_region(destination: String) -> void:
         _bring_emissary()
     summon.position = player.position + Vector2(34, 24)
     player.get_node("Camera2D").reset_smoothing()
+
+func _load_outdoor_terrain() -> void:
+    outdoor_terrain = null
+    terrain_window = Rect2()
+    floor_art.show()
+    if region not in ["stonehaven", "east_pinewood"] or not ResourceLoader.exists(WildernessTerrain.TILESET_PATH):
+        return
+    var city := region == "stonehaven"
+    var terrain := WildernessTerrain.new()
+    terrain.name = "WildernessTerrain"
+    terrain.z_index = -10
+    terrain.roads = Overworld.CITY_ROADS if city else Overworld.FOREST_ROADS
+    terrain.trails = []
+    terrain.road_half_width = 55.0
+    terrain.cobble_radius = 0.0
+    terrain.paved_roads = city
+    terrain.populate_on_ready = city
+    terrain.ground_bounds = Overworld.CITY.grow(740) if city else Rect2()
+    props.add_child(terrain)
+    if terrain.tile_set == null:
+        terrain.queue_free()
+        return
+    outdoor_terrain = terrain
+    if not city:
+        _update_forest_terrain()
+    if not terrain.get_used_cells().is_empty():
+        floor_art.hide()
+
+func _update_forest_terrain() -> void:
+    var snapped := (Vector2(player.position) / 360.0).floor() * 360.0
+    var bounds := Rect2(snapped - Vector2(940, 720), Vector2(2240, 1800))
+    if bounds == terrain_window:
+        return
+    outdoor_terrain.paint_ground(bounds, terrain_window)
+    terrain_window = bounds
 
 func _add_point(action: String, title: String, where: Vector2) -> Point:
     var point := POINT_SCENE.instantiate() as Point
@@ -153,9 +195,6 @@ func _dress_region() -> void:
             _add_local_npc("noble", Vector2(-104, -50))
         "northern_watch":
             _add_landmark("watchtower", Vector2(0, -96), 180)
-        "raided_caravan":
-            _add_landmark("caravan", Vector2(22, -57), 290)
-            _add_landmark("way_shrine", Vector2(-340, 50), 85)
         "old_cabin":
             _add_landmark("cabin", Vector2(-60, -91), 226)
             _add_landmark("smugglers_door", Vector2(319, -87), 163)
@@ -287,8 +326,9 @@ func _unhandled_input(event: InputEvent) -> void:
             get_viewport().set_input_as_handled()
             return
 
-func _add_enemy(definition: Array) -> void:
+func _add_enemy(definition: Array, where := Vector2.ZERO) -> void:
     enemy = ENEMY_SCENE.instantiate() as Enemy
+    enemy.position = where
     enemy.encounter_id = definition[0]
     enemy.title = definition[1]
     enemy.max_health = definition[2]
@@ -313,6 +353,8 @@ func _bring_emissary() -> void:
     emissary.radius = 96
 
 func _process(_delta: float) -> void:
+    if region == "east_pinewood" and is_instance_valid(outdoor_terrain):
+        _update_forest_terrain()
     if inventory.inventory_open:
         journal_panel.hide()
     var blocked: bool = player.choosing_race or inventory.inventory_open or journal_panel.visible
@@ -424,6 +466,8 @@ func _interact(action: String) -> void:
     match action:
         "main_gate":
             return_to_gate.emit()
+        "inspect_caravan":
+            notice = "Broken crates and a snapped axle litter the road. Tracks lead toward the raider camp."
         "woodland_shrine":
             notice = "Travelers have left pine cones and copper coins at the shrine."
         "grave_marker":

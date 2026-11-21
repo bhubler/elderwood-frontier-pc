@@ -40,7 +40,8 @@ const REGIONS := {
         "title": "Pinewood Forest", "ground": "#293b30",
         "points": [
             ["stonehaven", "Stonehaven · East Gate", Overworld.FOREST_WEST],
-            ["raided_caravan", "Search the raided caravan", Overworld.CARAVAN + Vector2(0, 100)],
+            ["inspect_caravan", "Inspect the raided caravan", Overworld.CARAVAN + Vector2(0, 100)],
+            ["bandit_camp", "Raider camp trail", Overworld.CARAVAN + Vector2(-265, -85)],
             ["northern_watch", "Watchtower approach", Overworld.WATCH + Vector2(0, 120)],
             ["graveyard", "Enter Forsaken Graveyard", Overworld.CRYPT + Vector2(0, 123)],
             ["old_cabin", "Explore the old cabin", Overworld.CABIN + Vector2(0, 112)],
@@ -54,22 +55,17 @@ const REGIONS := {
     },
     "northern_watch": {
         "title": "Northern Frontier Watchtower", "ground": "#32372d",
-        "points": [["east_pinewood", "East Pinewood Forest", Vector2(344, 225)], ["town_court", "Road to Stonehaven", EXIT]],
+        "points": [["east_pinewood", "Back outside the watchtower", EXIT]],
     },
     "bandit_camp": {
         "title": "Blackbriar Raider Camp", "ground": "#38312b",
-        "points": [["raided_caravan", "Back to the caravan", EXIT]],
+        "points": [["east_pinewood", "Back to the caravan trail", EXIT]],
         "enemy": ["blackbriar_chief", "Blackbriar Chief", 66, 18, 55, "#b07b55", "bandit_chief"],
     },
     "goblin_hollow": {
         "title": "Goblin Hollow", "ground": "#303522",
         "points": [["old_cabin", "Back to the cabin", EXIT]],
         "enemy": ["goblin_chief", "Goblin Chief", 60, 16, 48, "#738857", "goblin_chief"],
-    },
-    "raided_caravan": {
-        "title": "Blackbriar Caravan Wreck", "ground": "#373228",
-        "points": [["east_pinewood", "East Pinewood Forest", Vector2(344, 225)], ["stonehaven", "Road to Stonehaven", EXIT], ["bandit_camp", "Raider camp trail", Vector2(-425, -136)]],
-        "enemy": ["blackbriar_bandit", "Blackbriar Bandit", 33, 11, 24, "#bd8061", "bandit"],
     },
     "old_cabin": {
         "title": "Old Cabin in the Woods", "ground": "#2c3428",

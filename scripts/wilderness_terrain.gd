@@ -18,6 +18,8 @@ var cobble_radius := 78.0
 var cobble_over_roads := false
 var cell_extent := EXTENT
 var ground_bounds := Rect2()
+var paved_roads := false
+var populate_on_ready := true
 
 func village_playable_outline() -> PackedVector2Array:
 	var first := Vector2i(-EXTENT, -EXTENT)
@@ -36,17 +38,22 @@ func _ready() -> void:
 	tile_set = load(TILESET_PATH) as TileSet
 	if tile_set == null:
 		return
-	# The supplied TileSet uses 64x32 isometric cells.
+	if populate_on_ready:
+		paint_ground(ground_bounds)
+
+func paint_ground(bounds: Rect2, previous := Rect2()) -> void:
+	if tile_set == null:
+		return
 	var grass_cells: Array[Vector2i] = []
 	var trail_cells: Array[Vector2i] = []
 	var cobble_cells: Array[Vector2i] = []
 	var cell_bounds := Rect2i(-cell_extent, -cell_extent, cell_extent * 2 + 1, cell_extent * 2 + 1)
-	if ground_bounds.has_area():
-		var first := local_to_map(ground_bounds.position)
+	if bounds.has_area():
+		var first := local_to_map(bounds.position)
 		var area := Rect2i(first, Vector2i.ONE)
 		for corner in [
-			Vector2(ground_bounds.end.x, ground_bounds.position.y),
-			Vector2(ground_bounds.position.x, ground_bounds.end.y), ground_bounds.end
+			Vector2(bounds.end.x, bounds.position.y),
+			Vector2(bounds.position.x, bounds.end.y), bounds.end
 		]:
 			area = area.expand(local_to_map(corner))
 		cell_bounds = area.grow(2)
@@ -54,14 +61,19 @@ func _ready() -> void:
 		for x in range(cell_bounds.position.x, cell_bounds.end.x):
 			var cell := Vector2i(x, y)
 			var pos := map_to_local(cell)
-			if ground_bounds.has_area() and not ground_bounds.has_point(pos):
+			if bounds.has_area() and not bounds.has_point(pos):
+				continue
+			if previous.has_area() and previous.grow(-64).has_point(pos) and get_cell_source_id(cell) >= 0:
 				continue
 			var cobbled := pos.distance_to(cobble_center) < cobble_radius
 			if cobble_over_roads and cobbled:
 				cobble_cells.append(cell)
 			elif ForestLayout.near_route(pos, roads, road_half_width) \
 			or ForestLayout.near_route(pos, trails, trail_half_width):
-				trail_cells.append(cell)
+				if paved_roads:
+					cobble_cells.append(cell)
+				else:
+					trail_cells.append(cell)
 			elif cobbled:
 				cobble_cells.append(cell)
 			else:
@@ -69,3 +81,7 @@ func _ready() -> void:
 	set_cells_terrain_connect(grass_cells, TERRAIN_SET, GRASS, false)
 	set_cells_terrain_connect(trail_cells, TERRAIN_SET, TRAIL, false)
 	set_cells_terrain_connect(cobble_cells, TERRAIN_SET, COBBLE, false)
+	if previous.has_area():
+		for cell in get_used_cells():
+			if not bounds.has_point(map_to_local(cell)):
+				erase_cell(cell)

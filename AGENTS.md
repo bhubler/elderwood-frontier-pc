@@ -16,3 +16,8 @@
 ## Show public routes in the game
 
 - Give public destinations a visible sign, door, gate, or other landmark in Elderwood's art style. Make the landmark clickable from a comfortable interaction distance, with a readable destination and a keyboard interaction. Keep intentionally hidden areas discoverable through their own clues.
+
+## Keep outdoor regions consistent
+
+- Use the existing Godot Wilderness Bundle tilemap for new outdoor terrain, dirt roads, and cobbled streets, and reuse its tree scenes for woodland. Keep the licensed pack local.
+- Put outdoor landmarks and encounters on their regional map. Use scene changes for interiors such as crypts, and return the player to the entrance they used.

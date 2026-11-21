@@ -110,3 +110,15 @@ func _reserved(pos: Vector2) -> bool:
 		return true
 	# Keep roads and approaches clear as they transition into the forest.
 	return ForestLayout.near_route(pos, ForestLayout.ROADS, 110.0)
+
+func place_tree(parent: Node2D, pos: Vector2, selection: int) -> bool:
+	if tree_scenes.is_empty():
+		return false
+	var instance := tree_scenes[posmod(selection, tree_scenes.size())].instantiate()
+	if not instance is Node2D:
+		instance.free()
+		return false
+	var tree := instance as Node2D
+	tree.position = pos
+	parent.add_child(tree)
+	return true

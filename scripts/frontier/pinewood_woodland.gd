@@ -3,16 +3,22 @@ extends Node2D
 const Layout := preload("res://scripts/frontier/overworld_layout.gd")
 const ForestLayout := preload("res://scripts/forest_layout.gd")
 const WorldCollision := preload("res://scripts/world_collision.gd")
+const Vegetation := preload("res://scripts/wilderness_vegetation.gd")
 const CHUNK_SIZE := 880
 const LANDMARKS := [Layout.CARAVAN, Layout.WATCH, Layout.CRYPT, Layout.CABIN, Layout.SHRINE]
 const GROVE_PATH := "res://art/landmarks/pine_grove.png"
 
 var player: Node2D
 var grove: Texture2D
+var vegetation: Vegetation
 var chunks: Dictionary = {}
 var center := Vector2i(9999, 9999)
 
 func _ready() -> void:
+    if DirAccess.dir_exists_absolute(Vegetation.PACK_ROOT):
+        vegetation = Vegetation.new()
+        vegetation.use_authored_layout = true
+        add_child(vegetation)
     grove = load(GROVE_PATH)
     _update_chunks()
 
@@ -55,17 +61,20 @@ func _add_chunk(key: Vector2i) -> void:
             if ForestLayout.near_route(world_point, Layout.FOREST_ROADS, 112.0) \
             or ForestLayout.near_route(world_point - Vector2(0, 90), Layout.FOREST_ROADS, 113.0):
                 continue
-            var sprite := Sprite2D.new()
-            sprite.texture = grove
-            sprite.position = p
-            sprite.scale = Vector2.ONE * rng.randf_range(0.75, 1.22)
-            sprite.offset.y = -grove.get_height() * 0.5
-            sprite.flip_h = rng.randf() < 0.5
-            sprite.modulate = Color(0.84, 0.92, 0.84).lerp(Color.WHITE, rng.randf())
-            sprite.z_index = -2
-            chunk.add_child(sprite)
+            var selection := rng.randi()
+            var bundled := is_instance_valid(vegetation) and vegetation.place_tree(chunk, p, selection)
+            if not bundled:
+                var sprite := Sprite2D.new()
+                sprite.texture = grove
+                sprite.position = p
+                sprite.offset.y = -grove.get_height() * 0.5
+                sprite.z_index = -2
+                chunk.add_child(sprite)
             if Layout.FOREST.has_point(world_point):
-                WorldCollision.box(chunk, "Roots", Rect2(p - Vector2(45, 30), Vector2(90, 25)))
+                if bundled:
+                    WorldCollision.circle(chunk, "TreeTrunk", p, 12.0)
+                else:
+                    WorldCollision.box(chunk, "Roots", Rect2(p - Vector2(45, 30), Vector2(90, 25)))
 
 func _near_landmark(where: Vector2) -> bool:
     for landmark in LANDMARKS:
