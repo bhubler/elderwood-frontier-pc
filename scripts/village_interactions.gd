@@ -32,6 +32,7 @@ var mana_text: Label
 var travel_button: Button
 var offered_route: Dictionary = {}
 var inventory_panel: PanelContainer
+var pinewood_script: GDScript
 var notice_timer: Timer
 var inventory_grid: GridContainer
 var equipment_grid: GridContainer
@@ -226,7 +227,7 @@ func _confirm_road_quest() -> void:
     elif quest_offer.visible and _road_ready_to_turn_in():
         road_quest = RoadQuest.COMPLETE
         gold += ROAD_REWARD
-        _refresh_inventory()
+        gold_label.text = "%d GOLD" % gold
         _update_pip_marker()
         _close_quest_offer()
         _show_message("Quest completed — Clear the Pinewood Road\nReceived %d gold." % ROAD_REWARD, 5.0)
@@ -340,35 +341,36 @@ func _slot_style() -> StyleBoxFlat:
 
 func _refresh_inventory() -> void:
     gold_label.text = "%d GOLD" % gold
-    for child in equipment_grid.get_children():
-        equipment_grid.remove_child(child)
-        child.queue_free()
-    for kind in ["weapon", "armor", "accessory"]:
+    var kinds := ["weapon", "armor", "accessory"]
+    if equipment_grid.get_child_count() == 0:
+        for kind in kinds:
+            var slot := Button.new()
+            slot.custom_minimum_size = Vector2(320, 84)
+            slot.add_theme_stylebox_override("normal", _slot_style())
+            slot.add_theme_font_size_override("font_size", 16)
+            slot.add_theme_color_override("font_color", Color("#e7d2a7"))
+            slot.clip_text = true
+            slot.pressed.connect(_unequip.bind(kind))
+            equipment_grid.add_child(slot)
+    for i in range(kinds.size()):
+        var kind: String = kinds[i]
         var item_id: String = equipment[kind]
-        var button := Button.new()
-        button.custom_minimum_size = Vector2(320, 84)
-        button.add_theme_stylebox_override("normal", _slot_style())
-        button.add_theme_font_size_override("font_size", 16)
-        button.add_theme_color_override("font_color", Color("#e7d2a7"))
+        var slot := equipment_grid.get_child(i) as Button
         var slot_label := "EMPTY SLOT" if item_id == "" else str(item_data[item_id]["icon"]) + "  " + str(item_data[item_id]["name"])
-        button.text = kind.to_upper() + "     /     " + slot_label
-        button.clip_text = true
-        button.pressed.connect(_unequip.bind(kind))
-        equipment_grid.add_child(button)
-    for child in inventory_grid.get_children():
-        inventory_grid.remove_child(child)
-        child.queue_free()
+        slot.text = kind.to_upper() + "     /     " + slot_label
+    if inventory_grid.get_child_count() == 0:
+        for i in range(BACKPACK_CAPACITY):
+            var button := Button.new()
+            button.custom_minimum_size = Vector2(63, 61)
+            button.add_theme_stylebox_override("normal", _slot_style())
+            button.add_theme_font_size_override("font_size", 22)
+            button.pressed.connect(_select_backpack_slot.bind(i))
+            inventory_grid.add_child(button)
     for i in range(BACKPACK_CAPACITY):
-        var button := Button.new()
-        button.custom_minimum_size = Vector2(63, 61)
-        button.add_theme_stylebox_override("normal", _slot_style())
-        button.add_theme_font_size_override("font_size", 22)
-        if i < backpack.size():
-            var item_id: String = backpack[i]
-            button.text = str(item_data[item_id]["icon"])
-            button.tooltip_text = str(item_data[item_id]["name"])
-            button.pressed.connect(_select_item.bind(item_id))
-        inventory_grid.add_child(button)
+        var button := inventory_grid.get_child(i) as Button
+        var item_id := backpack[i] if i < backpack.size() else ""
+        button.text = str(item_data[item_id]["icon"]) if not item_id.is_empty() else ""
+        button.tooltip_text = str(item_data[item_id]["name"]) if not item_id.is_empty() else ""
     item_details.text = "SELECT AN ITEM\nInspect its properties and equip weapons or armor."
 
 func grant_item(item_id: String, definition: Dictionary) -> bool:
@@ -385,6 +387,10 @@ func remove_item(item_id: String) -> void:
     if item_id in backpack:
         backpack.erase(item_id)
         _refresh_inventory()
+
+func _select_backpack_slot(index: int) -> void:
+    if index < backpack.size():
+        _select_item(backpack[index])
 
 func _select_item(item_id: String) -> void:
     var data: Dictionary = item_data[item_id]
@@ -460,6 +466,9 @@ func _process(_delta: float) -> void:
     if in_forest:
         forest.combat_paused = inventory_open or conversation_open
         forest.armor = player.defense_bonus
+        var gate_position: Vector2 = forest.to_local(player.global_position)
+        if not forest.combat_paused and gate_position.y < -846.0 and absf(gate_position.x) < 95.0:
+            _enter_stonehaven_district()
 
     health_bar.value = forest.health if in_forest else PINEWOOD_MAX_HEALTH
     mana_bar.value = forest.mana if in_forest else PINEWOOD_MAX_MANA
@@ -497,17 +506,19 @@ func _nearby_route() -> Dictionary:
     if player.choosing_race or inventory_open or conversation_open:
         return {}
     if is_instance_valid(forest) and forest.active:
-        var district_sign: Vector2 = forest.to_global(forest.STONEHAVEN_DISTRICT_SIGN)
-        if forest.in_stonehaven() and player.global_position.distance_to(district_sign) < 126.0:
-            return _route(district_sign, Rect2(district_sign - Vector2(55, 158), Vector2(110, 167)),
-                "Stonehaven", _enter_stonehaven_district)
+        if forest.in_stonehaven():
+            var district_sign: Vector2 = forest.to_global(forest.STONEHAVEN_DISTRICT_SIGN)
+            return _route(forest.to_global(Vector2(0, -826)),
+                Rect2(forest.to_global(Vector2(-280, -988)), Vector2(560, 364)).merge(
+                    Rect2(district_sign - Vector2(55, 158), Vector2(110, 167))),
+                "Enter Stonehaven", _enter_stonehaven_district)
         if _near_forest_exit():
             return _route(forest.to_global(forest.SOUTH_GATE),
                 Rect2(forest.to_global(forest.SOUTH_GATE - Vector2(114, 178)), Vector2(228, 178)), "Elderwood Village", _leave_pinewood)
         if forest.to_local(player.global_position).distance_to(Vector2(0, -666)) < 178.0:
             return _route(forest.to_global(Vector2(0, -624)),
                 Rect2(forest.to_global(Vector2(-280, -962)), Vector2(560, 338)),
-                "Pinewood Forest" if forest.in_stonehaven() else "Stonehaven", _cross_stonehaven_gate)
+                "Enter Stonehaven", _enter_stonehaven_district)
     elif inside_inn:
         if player.position.distance_to(Vector2(4200, 120)) < 190.0:
             return _route(Vector2(4200, 205), Rect2(4125, 156, 150, 75), "Elderwood Village", _leave_inn)
@@ -577,11 +588,6 @@ func _restore_stonehaven_gate() -> void:
     var camera := player.get_node("Camera2D") as Camera2D
     camera.make_current()
     camera.reset_smoothing()
-
-func _cross_stonehaven_gate() -> void:
-    var crossing_south: bool = forest.in_stonehaven()
-    player.global_position = forest.to_global(Vector2(0, -552 if crossing_south else -789))
-    player.get_node("Camera2D").reset_smoothing()
 
 func _unhandled_input(event: InputEvent) -> void:
     if inventory_only or not event is InputEventMouseButton or not event.pressed:
@@ -709,7 +715,7 @@ func _update_pinewood_loading() -> void:
         forest.queue_free()
         forest = null
     if distance < PINEWOOD_APPROACH_DISTANCE and not inside_inn and not player.choosing_race \
-            and not is_instance_valid(forest) and not pinewood_requested:
+            and not is_instance_valid(forest) and pinewood_script == null and not pinewood_requested:
         pinewood_requested = ResourceLoader.load_threaded_request(PINEWOOD_SCRIPT, "GDScript") == OK
     if not pinewood_requested:
         return
@@ -718,9 +724,7 @@ func _update_pinewood_loading() -> void:
         return
     pinewood_requested = false
     if status == ResourceLoader.THREAD_LOAD_LOADED:
-        var script := ResourceLoader.load_threaded_get(PINEWOOD_SCRIPT) as GDScript
-        if distance < PINEWOOD_RELEASE_DISTANCE and not inside_inn:
-            _prepare_pinewood(script)
+        pinewood_script = ResourceLoader.load_threaded_get(PINEWOOD_SCRIPT) as GDScript
     if pinewood_entry_pending:
         pinewood_entry_pending = false
         if _near_pinewood_entrance():
@@ -743,11 +747,12 @@ func _enter_pinewood() -> void:
             pinewood_entry_pending = true
             _show_message("Preparing Pinewood Forest…", 2.0)
             return
-        var script := load(PINEWOOD_SCRIPT) as GDScript
-        if script == null:
+        if pinewood_script == null:
+            pinewood_script = load(PINEWOOD_SCRIPT) as GDScript
+        if pinewood_script == null:
             _show_message("Pinewood Forest could not be loaded.", 3.0)
             return
-        _prepare_pinewood(script)
+        _prepare_pinewood(pinewood_script)
     forest.show()
     forest.active = true
     forest.recover_at_trailhead()
@@ -775,7 +780,7 @@ func _on_wolf_defeated(variant: int) -> void:
 
 func _pinewood_prompt() -> String:
     if forest.in_stonehaven():
-        return "Stonehaven Gate | Follow the Stonehaven sign into the Eastward Quarter"
+        return "Stonehaven Gate | Walk north, click the gate, or press E to enter"
     var status := "LMB swing | RMB Fireball | I inventory"
     if _near_forest_exit():
         return "Click the gate or press E — Elderwood Village | " + status
