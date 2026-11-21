@@ -47,8 +47,10 @@ func _draw() -> void:
     if region_id == "northern_watch":
         _draw_watch_room()
     elif region_id == "crypt_ritual":
-        draw_arc(Vector2(0, -55), 110, 0, TAU, 64, Color("#695077"), 3, true)
-        draw_arc(Vector2(0, -55), 91, 0, TAU, 64, Color("#51425b"), 2, true)
+        var seal := load("res://art/landmarks/bonecaller_seal.png") as Texture2D
+        if seal != null:
+            draw_texture_rect(seal, Rect2(-132, -141, 264, 172), false)
+
 
 func _draw_room_walls() -> void:
     for x in [-510.0, -170.0, 170.0]:

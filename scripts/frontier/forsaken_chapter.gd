@@ -128,8 +128,6 @@ func _load_region(destination: String) -> void:
             player.position = marker_position.move_toward(Vector2.ZERO, 100)
         if action == "cellar_gate" and region == "stonehaven" and not _cellar_known():
             continue
-        if action == "grimoire" and not state.grimoire_choice.is_empty():
-            continue
         _add_point(action, definition[1], marker_position)
     if linked_from_gate and region == "stonehaven":
         _add_point("main_gate", "South Gate · Pinewood road", Vector2(0, 448))
@@ -288,13 +286,16 @@ func _dress_region() -> void:
             _add_local_npc("noble", Vector2(-104, -50))
         "crypt_ritual":
             _add_art(LANDMARK_ROOT + "ritual_altar.png", Vector2(0, -166), 112.0)
-            if state.grimoire_choice.is_empty():
-                var book := Sprite2D.new()
-                book.texture = load(LANDMARK_ROOT + "forbidden_grimoire.png")
-                book.position = Vector2(0, -238)
-                book.z_index = 1
-                props.add_child(book)
-                grimoire_art = book
+            var book := Sprite2D.new()
+            book.texture = load(LANDMARK_ROOT + "forbidden_grimoire.png")
+            book.position = Vector2(0, -245)
+            book.scale = Vector2.ONE * 1.17
+            book.z_index = 1
+            if state.grimoire_choice in ["take", "destroy"]:
+                # Replayed encounters show a magical imprint of a book that is gone.
+                book.modulate = Color(0.83, 0.64, 1.0, 0.72)
+            props.add_child(book)
+            grimoire_art = book
             WorldCollision.box(props, "RitualAltar", Rect2(-55, -210, 110, 45))
         "northern_watch":
             WorldCollision.box(props, "WatchTable", Floor.WATCH_TABLE)
@@ -672,7 +673,15 @@ func _interact(action: String) -> void:
             if is_instance_valid(enemy) or "bonecaller" not in state.defeated:
                 notice = "The Bonecaller bars the way to the lectern."
             else:
-                _show_grimoire_dialog(false)
+                match state.grimoire_choice:
+                    "study":
+                        notice = "You already studied these rites. Summon Skeleton is available with Q."
+                    "take":
+                        notice = "The altar holds an imprint. The unread grimoire is in your backpack."
+                    "destroy":
+                        notice = "Only a magical imprint remains. You destroyed the grimoire."
+                    _:
+                        _show_grimoire_dialog(false)
         "ledger":
             if "vault_warden" not in state.defeated:
                 notice = "The Warden guards the ledger."
@@ -805,13 +814,14 @@ func _choose_grimoire(choice: String) -> void:
             _learn_spell()
         _:
             return
-    if is_instance_valid(grimoire_art):
-        grimoire_art.queue_free()
-    for point in points:
-        if point.action_id == "grimoire":
-            points.erase(point)
-            point.queue_free()
-            break
+    if choice != "study":
+        if is_instance_valid(grimoire_art):
+            grimoire_art.queue_free()
+        for point in points:
+            if point.action_id == "grimoire":
+                points.erase(point)
+                point.queue_free()
+                break
     grimoire_dialog.hide()
     _save()
 
