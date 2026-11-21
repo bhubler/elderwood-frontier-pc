@@ -41,7 +41,7 @@ func _ready() -> void:
 	if populate_on_ready:
 		paint_ground(ground_bounds)
 
-func paint_ground(bounds: Rect2, previous := Rect2()) -> void:
+func paint_ground(bounds: Rect2, fill_missing_only := false) -> void:
 	if tile_set == null:
 		return
 	var grass_cells: Array[Vector2i] = []
@@ -63,7 +63,7 @@ func paint_ground(bounds: Rect2, previous := Rect2()) -> void:
 			var pos := map_to_local(cell)
 			if bounds.has_area() and not bounds.has_point(pos):
 				continue
-			if previous.has_area() and previous.grow(-64).has_point(pos) and get_cell_source_id(cell) >= 0:
+			if fill_missing_only and get_cell_source_id(cell) >= 0:
 				continue
 			var cobbled := pos.distance_to(cobble_center) < cobble_radius
 			if cobble_over_roads and cobbled:
@@ -78,10 +78,9 @@ func paint_ground(bounds: Rect2, previous := Rect2()) -> void:
 				cobble_cells.append(cell)
 			else:
 				grass_cells.append(cell)
-	set_cells_terrain_connect(grass_cells, TERRAIN_SET, GRASS, false)
-	set_cells_terrain_connect(trail_cells, TERRAIN_SET, TRAIL, false)
-	set_cells_terrain_connect(cobble_cells, TERRAIN_SET, COBBLE, false)
-	if previous.has_area():
-		for cell in get_used_cells():
-			if not bounds.has_point(map_to_local(cell)):
-				erase_cell(cell)
+	if not grass_cells.is_empty():
+		set_cells_terrain_connect(grass_cells, TERRAIN_SET, GRASS, false)
+	if not trail_cells.is_empty():
+		set_cells_terrain_connect(trail_cells, TERRAIN_SET, TRAIL, false)
+	if not cobble_cells.is_empty():
+		set_cells_terrain_connect(cobble_cells, TERRAIN_SET, COBBLE, false)

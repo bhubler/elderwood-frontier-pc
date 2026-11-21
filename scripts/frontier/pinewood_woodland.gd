@@ -27,9 +27,16 @@ func _process(_delta: float) -> void:
 
 func _update_chunks() -> void:
     var current := Vector2i((player.position / CHUNK_SIZE).floor())
-    if center == current:
-        return
+    var first_load := chunks.is_empty()
     center = current
+    # Populate near the player first and spread scene instantiation across frames.
+    for offset in [Vector2i.ZERO, Vector2i.LEFT, Vector2i.RIGHT, Vector2i.UP, Vector2i.DOWN,
+        Vector2i(-1, -1), Vector2i(1, -1), Vector2i(-1, 1), Vector2i(1, 1)]:
+        var key: Vector2i = center + offset
+        if not chunks.has(key):
+            _add_chunk(key)
+            if not first_load:
+                return
     for key in chunks.keys():
         var offset: Vector2i = key - center
         if absi(offset.x) > 1 or absi(offset.y) > 1:
@@ -37,11 +44,7 @@ func _update_chunks() -> void:
             remove_child(chunk)
             chunk.queue_free()
             chunks.erase(key)
-    for x in range(center.x - 1, center.x + 2):
-        for y in range(center.y - 1, center.y + 2):
-            var key := Vector2i(x, y)
-            if not chunks.has(key):
-                _add_chunk(key)
+            return
 
 func _add_chunk(key: Vector2i) -> void:
     var chunk := Node2D.new()

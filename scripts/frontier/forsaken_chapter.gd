@@ -33,6 +33,10 @@ var state := State.new()
 var region := ""
 var outdoor_terrain: WildernessTerrain
 var terrain_window := Rect2()
+var terrain_patches: Array[Rect2] = []
+var retired_tiles: Array[Vector2i] = []
+const TERRAIN_PATCH_SIZE := Vector2(240, 144)
+const STONEHAVEN_BUILDING_SCALE := 1.32
 var points: Array[Point] = []
 var enemy: Enemy
 var emissary: Point
@@ -127,6 +131,8 @@ func _load_region(destination: String) -> void:
 func _load_outdoor_terrain() -> void:
     outdoor_terrain = null
     terrain_window = Rect2()
+    terrain_patches.clear()
+    retired_tiles.clear()
     floor_art.show()
     if region not in ["stonehaven", "east_pinewood"] or not ResourceLoader.exists(WildernessTerrain.TILESET_PATH):
         return
@@ -147,17 +153,40 @@ func _load_outdoor_terrain() -> void:
         return
     outdoor_terrain = terrain
     if not city:
-        _update_forest_terrain()
+        terrain_window = _forest_terrain_bounds()
+        terrain.paint_ground(terrain_window)
     if not terrain.get_used_cells().is_empty():
         floor_art.hide()
 
-func _update_forest_terrain() -> void:
+func _forest_terrain_bounds() -> Rect2:
     var snapped := (Vector2(player.position) / 360.0).floor() * 360.0
-    var bounds := Rect2(snapped - Vector2(940, 720), Vector2(2240, 1800))
-    if bounds == terrain_window:
-        return
-    outdoor_terrain.paint_ground(bounds, terrain_window)
-    terrain_window = bounds
+    return Rect2(snapped - Vector2(960, 720), Vector2(2400, 1872))
+
+func _update_forest_terrain() -> void:
+    var bounds := _forest_terrain_bounds()
+    if bounds != terrain_window:
+        # Keep overlap visible and schedule the approaching edge in small patches.
+        var previous := terrain_window if terrain_patches.is_empty() else Rect2()
+        terrain_window = bounds
+        terrain_patches.clear()
+        var columns := int(bounds.size.x / TERRAIN_PATCH_SIZE.x)
+        var rows := int(bounds.size.y / TERRAIN_PATCH_SIZE.y)
+        for x in range(columns):
+            for y in range(rows):
+                var patch := Rect2(bounds.position + Vector2(x, y) * TERRAIN_PATCH_SIZE, TERRAIN_PATCH_SIZE)
+                if not previous.encloses(patch):
+                    terrain_patches.append(patch)
+        var player_position: Vector2 = player.position
+        terrain_patches.sort_custom(func(a: Rect2, b: Rect2) -> bool:
+            return a.get_center().distance_squared_to(player_position) > b.get_center().distance_squared_to(player_position))
+        retired_tiles.clear()
+        for cell in outdoor_terrain.get_used_cells():
+            if not bounds.has_point(outdoor_terrain.map_to_local(cell)):
+                retired_tiles.append(cell)
+    for i in range(mini(2, terrain_patches.size())):
+        outdoor_terrain.paint_ground(terrain_patches.pop_back(), true)
+    for i in range(mini(96, retired_tiles.size())):
+        outdoor_terrain.erase_cell(retired_tiles.pop_back())
 
 func _add_point(action: String, title: String, where: Vector2) -> Point:
     var point := POINT_SCENE.instantiate() as Point
@@ -284,7 +313,11 @@ func _add_local_npc(key: String, where: Vector2, wardrobe := 0, title := "", lin
     point.radius = 76.0
 
 func _add_landmark(key: String, where: Vector2, width: float) -> void:
-    if _add_art(LANDMARK_ROOT + key + ".png", where, width) and key not in ["grave_markers", "pine_grove"]:
+    var city_building := region == "stonehaven" and key in [
+        "forge", "alch_shop", "goods_shop", "mage_shop", "barracks", "civic", "temple", "residence"
+    ]
+    var art_width := width * STONEHAVEN_BUILDING_SCALE if city_building else width
+    if _add_art(LANDMARK_ROOT + key + ".png", where, art_width) and key not in ["grave_markers", "pine_grove"]:
         var footprint := Vector2(width * 0.62, 25.0)
         WorldCollision.box(props, key, Rect2(where - Vector2(footprint.x * 0.5, 25.0), footprint))
 
