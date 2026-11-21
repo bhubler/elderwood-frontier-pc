@@ -161,6 +161,14 @@ func _make_status_bars(holder: Control, style: StyleBoxFlat) -> void:
     bars.add_child(mana_text)
     mana_bar = _make_bar(bars, Color("#486dbb"), PINEWOOD_MAX_MANA)
 
+func update_resource_bars(health: float, max_health: float, mana: float, max_mana: float) -> void:
+    health_bar.max_value = max_health
+    mana_bar.max_value = max_mana
+    health_bar.value = health
+    mana_bar.value = mana
+    health_text.text = "Health   %d / %d" % [health, max_health]
+    mana_text.text = "Mana     %d / %d" % [mana, max_mana]
+
 func _make_bar(parent: Control, color: Color, maximum: float) -> ProgressBar:
     var bar := ProgressBar.new()
     bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -470,10 +478,8 @@ func _process(_delta: float) -> void:
         if not forest.combat_paused and gate_position.y < -846.0 and absf(gate_position.x) < 95.0:
             _enter_stonehaven_district()
 
-    health_bar.value = forest.health if in_forest else PINEWOOD_MAX_HEALTH
-    mana_bar.value = forest.mana if in_forest else PINEWOOD_MAX_MANA
-    health_text.text = "Health   %d / %d" % [health_bar.value, health_bar.max_value]
-    mana_text.text = "Mana     %d / %d" % [mana_bar.value, mana_bar.max_value]
+    update_resource_bars(forest.health if in_forest else PINEWOOD_MAX_HEALTH, PINEWOOD_MAX_HEALTH,
+        forest.mana if in_forest else PINEWOOD_MAX_MANA, PINEWOOD_MAX_MANA)
     _update_travel_button()
 
     if inventory_open:

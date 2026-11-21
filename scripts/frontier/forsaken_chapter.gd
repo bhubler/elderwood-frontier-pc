@@ -3,6 +3,8 @@ extends Node2D
 signal return_to_gate
 var linked_from_gate := false
 
+const Fireball := preload("res://scripts/pinewood_fireball.gd")
+const FIREBALL_COST := 30.0
 const AreaTransition := preload("res://scripts/area_transition.gd")
 const WorldCollision := preload("res://scripts/world_collision.gd")
 const State = preload("res://scripts/frontier/adventure_state.gd")
@@ -65,6 +67,7 @@ var summon_attack_wait := 0.0
 var health := MAX_HEALTH
 var mana := float(State.MAX_MANA)
 var attack_wait := 0.0
+var fireball: Fireball
 var notice := "The old road ends at the Forsaken Graveyard."
 var can_save := true
 var save_path := SAVE_PATH
@@ -93,6 +96,7 @@ func _load_region(destination: String) -> void:
     local_npcs.clear()
     local_dialogue.clear()
     enemy = null
+    fireball = null
     emissary = null
     veiled_agent = null
 
@@ -159,7 +163,7 @@ func _load_outdoor_terrain() -> void:
     terrain.trails = []
     terrain.road_half_width = 55.0
     terrain.cobble_radius = 650.0 if interior else 0.0
-    terrain.paved_roads = city
+    terrain.paved_roads = city or region == "graveyard"
     terrain.populate_on_ready = not forest
     terrain.streamed = forest
     if city:
@@ -167,6 +171,8 @@ func _load_outdoor_terrain() -> void:
     elif not forest:
         terrain.ground_bounds = Floor.BOUNDS if interior else Floor.BOUNDS.grow(590)
         terrain.modulate = Color("#bbb2a6") if interior else Color.WHITE
+    if region == "graveyard":
+        terrain.modulate = Color("#8f9c97")
     props.add_child(terrain)
     if terrain.tile_set == null:
         terrain.queue_free()
@@ -238,6 +244,8 @@ func _dress_region() -> void:
             _add_landmark("crypt", Layouts.NORTH + Vector2(-38, 5), 230.0)
             for where in [Vector2(-290, -112), Vector2(210, -110), Vector2(-161, 99), Vector2(253, 26), Vector2(345, 188)]:
                 _add_landmark("grave_markers", where, 118)
+            for where in [Vector2(-490, -105), Vector2(477, -124), Vector2(-460, 255), Vector2(500, 245)]:
+                _add_landmark("pine_grove", where, 175)
         "stonehaven":
             _dress_stonehaven()
         "east_pinewood":
@@ -410,11 +418,17 @@ func _add_npc(key: String, where: Vector2, wardrobe := 0) -> Node2D:
     return npc
 
 func _unhandled_input(event: InputEvent) -> void:
-    if not event is InputEventMouseButton or not event.pressed or event.button_index != MOUSE_BUTTON_LEFT:
+    if not event is InputEventMouseButton or not event.pressed:
         return
-    if player.choosing_race or inventory.inventory_open or journal_panel.visible:
+    if player.choosing_race or inventory.inventory_open or journal_panel.visible or health <= 0:
         return
-    var cursor := get_local_mouse_position()
+    var cursor: Vector2 = get_global_transform_with_canvas().affine_inverse() * event.position
+    if event.button_index == MOUSE_BUTTON_RIGHT:
+        _cast_fireball(cursor)
+        get_viewport().set_input_as_handled()
+        return
+    if event.button_index != MOUSE_BUTTON_LEFT:
+        return
     for point in points:
         if player.position.distance_to(point.position) > point.radius:
             continue
@@ -425,6 +439,8 @@ func _unhandled_input(event: InputEvent) -> void:
             _interact(point.action_id)
             get_viewport().set_input_as_handled()
             return
+    _attack(cursor)
+    get_viewport().set_input_as_handled()
 
 func _add_enemy(definition: Array, where := Vector2.ZERO) -> void:
     enemy = ENEMY_SCENE.instantiate() as Enemy
@@ -461,9 +477,10 @@ func _process(_delta: float) -> void:
     player.set_physics_process(not blocked)
     if is_instance_valid(enemy):
         enemy.target = null if blocked or health <= 0 else player
+    inventory.update_resource_bars(health, MAX_HEALTH, mana, State.MAX_MANA)
     var point := _nearest_point()
     var prompt := "Move to a marker and press E." if point == null else "E  %s" % point.title
-    hud.text = "%s  |  HP %d/%d  |  Mana %d/%d  |  Level %d\n%s\nSpace attack  ·  L study  ·  Q summon  ·  J journal  ·  I inventory\n%s" % [
+    hud.text = "%s  |  HP %d/%d  |  Mana %d/%d  |  Level %d\n%s\nLMB / Space attack  ·  RMB / F Fireball  ·  L study  ·  Q summon  ·  J journal  ·  I inventory\n%s" % [
         Layouts.REGIONS[region]["title"], health, MAX_HEALTH, floori(mana), State.MAX_MANA, state.level(), prompt, notice
     ]
     journal_text.text = "%s\n\n%s\n%d XP  ·  %d unspent character points  ·  Conjuration rank %d (%d casts)\nBlack Hand reputation %d%s\n\nJ or Esc to close" % [
@@ -478,6 +495,7 @@ func _physics_process(delta: float) -> void:
         return
     mana = minf(State.MAX_MANA, mana + 8.0 * delta)
     attack_wait = maxf(0.0, attack_wait - delta)
+    _update_fireball(delta)
     if summon_remaining <= 0.0:
         return
     if summon_windup > 0.0:
@@ -532,6 +550,8 @@ func _unhandled_key_input(event: InputEvent) -> void:
                 _interact(point.action_id)
         KEY_SPACE:
             _attack()
+        KEY_F:
+            _cast_fireball(player.position + player.facing * 100.0)
         KEY_L:
             _learn_spell()
         KEY_Q:
@@ -700,16 +720,67 @@ func _cast_summon() -> void:
 func _summon_effect(clip: StringName, where: Vector2) -> void:
     SpellEffects.play(props, "summon", clip, where)
 
-func _attack() -> void:
+func _attack(cursor := Vector2.INF) -> void:
     if attack_wait > 0.0:
         return
     attack_wait = 0.32
+    var aim: Vector2 = player.facing if cursor == Vector2.INF else player.position.direction_to(cursor)
+    if is_instance_valid(enemy) and enemy.position.distance_to(player.position) <= 84:
+        aim = player.position.direction_to(enemy.position)
+    player.play_strike(aim, true)
     if is_instance_valid(enemy) and enemy.position.distance_to(player.position) <= 72:
         enemy.take_hit(9 + player.attack_bonus)
         if is_instance_valid(enemy):
             notice = "You strike %s." % enemy.title
     else:
         notice = "Move closer to your target."
+
+func _cast_fireball(cursor: Vector2) -> void:
+    if is_instance_valid(fireball):
+        return
+    if mana < FIREBALL_COST:
+        notice = "Fireball needs %d mana." % FIREBALL_COST
+        return
+    var direction: Vector2 = player.position.direction_to(cursor)
+    if direction == Vector2.ZERO:
+        direction = player.facing
+    if is_instance_valid(enemy) and player.position.distance_to(enemy.position) < 460:
+        var target_direction: Vector2 = player.position.direction_to(enemy.position)
+        if direction.dot(target_direction) > 0.8:
+            direction = target_direction
+    mana -= FIREBALL_COST
+    player.play_cast(direction, 0.20)
+    fireball = Fireball.new()
+    fireball.position = player.position
+    fireball.direction = direction
+    fireball.z_index = 11
+    props.add_child(fireball)
+
+func _update_fireball(delta: float) -> void:
+    if not is_instance_valid(fireball):
+        return
+    if fireball.burst > 0.0:
+        fireball.burst -= delta
+        if fireball.burst <= 0.0:
+            fireball.queue_free()
+            fireball = null
+        return
+    fireball.remaining -= delta
+    var start: Vector2 = fireball.global_position
+    var finish := start + fireball.direction * Fireball.SPEED * delta
+    var ray := PhysicsRayQueryParameters2D.create(start, finish, 1, [player.get_rid()])
+    var wall := get_world_2d().direct_space_state.intersect_ray(ray)
+    if not wall.is_empty():
+        finish = wall.position
+    fireball.global_position = finish
+    if is_instance_valid(enemy):
+        var closest := Geometry2D.get_closest_point_to_segment(enemy.global_position, start, finish)
+        if closest.distance_to(enemy.global_position) <= 22.0 and (wall.is_empty() or closest != finish):
+            enemy.take_hit(17)
+            fireball.detonate()
+            return
+    if not wall.is_empty() or fireball.remaining <= 0.0:
+        fireball.detonate()
 
 func _on_victory(encounter_id: String, reward_xp: int) -> void:
     notice = "%s defeated. +%d XP" % [enemy.title, reward_xp]

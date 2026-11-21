@@ -20,7 +20,7 @@ const REGIONS := {
     "crypt_ossuary": {
         "title": "Crypt of the Bonecaller — Ossuary", "ground": "#302c2b",
         "points": [["crypt_approach", "Antechamber", EXIT], ["crypt_ritual", "Ritual chamber", NORTH]],
-        "enemy": ["ossuary_skeleton", "Restless Skeleton", 32, 11, 25, "#b9b298"],
+        "enemy": ["ossuary_skeleton", "Restless Skeleton", 32, 11, 25, "#b9b298", "skeleton"],
     },
     "crypt_ritual": {
         "title": "Crypt of the Bonecaller — Ritual Chamber", "ground": "#302734",
