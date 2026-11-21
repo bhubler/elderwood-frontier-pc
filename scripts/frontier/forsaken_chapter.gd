@@ -99,7 +99,6 @@ func _load_region(destination: String) -> void:
     var layout: Dictionary = Layouts.REGIONS[region]
     floor_art.ground = Color(layout["ground"])
     floor_art.region_id = region
-    floor_art.queue_redraw()
     player.position = Vector2(0, 145)
     for definition in layout["points"]:
         var action: String = definition[0]
@@ -117,6 +116,7 @@ func _load_region(destination: String) -> void:
         player.position = Overworld.FOREST_WEST + Vector2(105, 0)
     _dress_region()
     _load_outdoor_terrain()
+    floor_art.queue_redraw()
     if region == "east_pinewood" and "blackbriar_bandit" not in state.defeated:
         _add_enemy(["blackbriar_bandit", "Blackbriar Bandit", 33, 11, 24, "#bd8061", "bandit"],
             Overworld.CARAVAN + Vector2(125, 135))
@@ -136,35 +136,54 @@ func _load_outdoor_terrain() -> void:
     retired_tiles.clear()
     floor_art.show()
     floor_art.grass_backing = false
+    floor_art.tiled_ground = false
     floor_art.z_index = -10
-    if region not in ["stonehaven", "east_pinewood"] or not ResourceLoader.exists(WildernessTerrain.TILESET_PATH):
+    if not ResourceLoader.exists(WildernessTerrain.TILESET_PATH):
         return
     var city := region == "stonehaven"
+    var forest := region == "east_pinewood"
+    var interior := Floor.is_interior(region)
     var terrain := WildernessTerrain.new()
     terrain.name = "WildernessTerrain"
     terrain.z_index = -10
-    terrain.roads = Overworld.CITY_ROADS if city else Overworld.FOREST_ROADS
+    if city:
+        terrain.roads = Overworld.CITY_ROADS
+    elif forest:
+        terrain.roads = Overworld.FOREST_ROADS
+    elif region == "graveyard":
+        terrain.roads = Floor.GRAVEYARD_ROADS
+    elif interior:
+        terrain.roads = []
+    else:
+        terrain.roads = [[Vector2(0, 300), Vector2(0, -110)]]
     terrain.trails = []
     terrain.road_half_width = 55.0
-    terrain.cobble_radius = 0.0
+    terrain.cobble_radius = 650.0 if interior else 0.0
     terrain.paved_roads = city
-    terrain.populate_on_ready = city
-    terrain.streamed = not city
-    terrain.ground_bounds = Overworld.CITY.grow(740) if city else Rect2()
+    terrain.populate_on_ready = not forest
+    terrain.streamed = forest
+    if city:
+        terrain.ground_bounds = Overworld.CITY.grow(740)
+    elif not forest:
+        terrain.ground_bounds = Floor.BOUNDS if interior else Floor.BOUNDS.grow(590)
+        terrain.modulate = Color("#bbb2a6") if interior else Color.WHITE
     props.add_child(terrain)
     if terrain.tile_set == null:
         terrain.queue_free()
         return
     outdoor_terrain = terrain
-    if not city:
+    if forest:
         terrain_window = _forest_terrain_bounds()
         terrain.paint_ground(terrain_window)
     if not terrain.ground_cells().is_empty():
         if city:
             floor_art.hide()
-        else:
+        elif forest:
             floor_art.grass_backing = true
             floor_art.z_index = -12
+        else:
+            floor_art.tiled_ground = true
+            floor_art.z_index = -9
     else:
         floor_art.z_index = -10
 
@@ -234,7 +253,9 @@ func _dress_region() -> void:
             _add_local_npc("monk", Vector2(373, -31), 2)
             _add_local_npc("noble", Vector2(-104, -50))
         "northern_watch":
-            _add_landmark("watchtower", Vector2(0, -96), 180)
+            WorldCollision.box(props, "WatchTable", Floor.WATCH_TABLE)
+            for bounds in Floor.WATCH_CRATES:
+                WorldCollision.box(props, "WatchCrates", bounds)
         "old_cabin":
             _add_landmark("cabin", Vector2(-60, -91), 226)
             _add_landmark("smugglers_door", Vector2(319, -87), 163)

@@ -1,11 +1,26 @@
 extends Node2D
-## Temporary geometry for a bounded chapter room.
+## Floor backing and room details for the Forsaken chapter.
 const Overworld := preload("res://scripts/frontier/overworld_layout.gd")
 const OverworldGround := preload("res://scripts/frontier/overworld_ground.gd")
 const BOUNDS := Rect2(-510, -290, 1020, 580)
 var ground := Color("#282f2b")
 var region_id := ""
 var grass_backing := false
+var tiled_ground := false
+const OUTDOOR_ROOMS := ["graveyard", "town_court", "old_cabin", "bandit_camp", "goblin_hollow"]
+const GRAVEYARD_ROADS := [
+    [Vector2(0, 290), Vector2(-60, 170), Vector2(-36, 50), Vector2(14, -90), Vector2(0, -260)],
+    [Vector2(-60, 170), Vector2(100, 155), Vector2(245, 95), Vector2(510, 120)],
+    [Vector2(-60, 170), Vector2(-240, 182), Vector2(-430, 193)],
+    [Vector2(100, 155), Vector2(344, 225)]
+]
+const ROOM_WALL := preload("res://art/stonehaven/curtain_wall.png")
+const WATCH_TABLE := Rect2(-128, -132, 256, 64)
+const WATCH_CRATES := [Rect2(-367, -92, 95, 70), Rect2(265, -111, 91, 67)]
+
+static func is_interior(id: String) -> bool:
+    return id not in OUTDOOR_ROOMS and id not in ["stonehaven", "east_pinewood"]
+
 
 func _draw() -> void:
     if region_id == "stonehaven" or region_id == "east_pinewood":
@@ -16,47 +31,48 @@ func _draw() -> void:
         var roads := Overworld.CITY_ROADS if urban else Overworld.FOREST_ROADS
         OverworldGround.draw_ground(self, Overworld.bounds(region_id, BOUNDS).grow(770), roads, urban)
         return
-    draw_rect(BOUNDS, ground)
-    draw_rect(BOUNDS, ground.lightened(0.23), false, 4)
-    var outdoors := region_id in ["graveyard", "stonehaven", "town_court", "raided_caravan", "old_cabin", "northern_watch", "bandit_camp", "goblin_hollow"]
-    for x in range(-480, 500, 48):
-        for y in range(-265, 285, 48):
-            var point := Vector2(x, y)
-            if outdoors:
-                draw_line(point, point + Vector2(4, -7), ground.lightened(0.14), 2)
-            else:
-                draw_line(point, point + Vector2(33, 0), ground.lightened(0.09), 2)
-    match region_id:
-        "graveyard":
-            _draw_graveyard()
-        "stonehaven", "town_court":
-            draw_rect(Rect2(-485, -156, 970, 225), Color("#48433d"))
-            for row in range(10):
-                for column in range(34):
-                    var p := Vector2(-477 + column * 28 + 9 * (row % 2), -148 + row * 21)
-                    var tile := Color("#655c50") if (column + row) % 5 == 0 else Color("#56514a")
-                    draw_rect(Rect2(p, Vector2(24, 17)), tile)
-        "raided_caravan", "old_cabin", "northern_watch", "bandit_camp", "goblin_hollow":
-            draw_line(Vector2(0, 286), Vector2(0, -92), Color("#514738"), 82.0, true)
-        _:
-            for x in [-335, 335]:
-                for y in [-175, 105]:
-                    _draw_stonework(Vector2(x, y), Vector2(45, 36))
-                    draw_circle(Vector2(x, y - 36), 17, Color(0.88, 0.53, 0.24, 0.25))
-                    draw_circle(Vector2(x, y - 36), 5, Color("#e4a45d"))
-            if region_id == "crypt_ritual":
-                draw_arc(Vector2(0, -55), 110, 0, TAU, 64, Color("#695077"), 3, true)
-                draw_arc(Vector2(0, -55), 91, 0, TAU, 64, Color("#51425b"), 2, true)
+    if not is_interior(region_id):
+        if not tiled_ground:
+            var roads := GRAVEYARD_ROADS if region_id == "graveyard" else [[Vector2(0, 300), Vector2(0, -110)]]
+            OverworldGround.draw_ground(self, BOUNDS.grow(590), roads, region_id == "town_court")
+        return
+    if not tiled_ground:
+        draw_rect(BOUNDS, ground)
+        for y in range(-286, 289, 23):
+            var stagger := 17 if floori((y + 286) / 23.0) % 2 == 0 else 0
+            for x in range(-510, 490, 35):
+                var stone := ground.lightened(0.07 + float(posmod(x * 13 + y * 17, 7)) * 0.012)
+                draw_rect(Rect2(x + stagger, y, 33, 21), stone)
+    _draw_room_walls()
+    if region_id == "northern_watch":
+        _draw_watch_room()
+    elif region_id == "crypt_ritual":
+        draw_arc(Vector2(0, -55), 110, 0, TAU, 64, Color("#695077"), 3, true)
+        draw_arc(Vector2(0, -55), 91, 0, TAU, 64, Color("#51425b"), 2, true)
 
-func _draw_graveyard() -> void:
-    draw_polyline(PackedVector2Array([
-        Vector2(0, 290), Vector2(-60, 170), Vector2(-36, 50),
-        Vector2(14, -90), Vector2(0, -260)
-    ]), Color("#494338"), 40, true)
-    draw_polyline(PackedVector2Array([
-        Vector2(-60, 170), Vector2(100, 155), Vector2(245, 95), Vector2(510, 120)
-    ]), Color("#494338"), 28, true)
-func _draw_stonework(at: Vector2, size: Vector2) -> void:
-    draw_rect(Rect2(at - size / 2 + Vector2(0, 10), size), ground.darkened(0.45))
-    draw_rect(Rect2(at - size / 2, size), ground.lightened(0.22))
-    draw_rect(Rect2(at - size / 2 + Vector2(5, 5), size - Vector2(10, 10)), ground.lightened(0.1))
+func _draw_room_walls() -> void:
+    for x in [-510.0, -170.0, 170.0]:
+        draw_texture_rect(ROOM_WALL, Rect2(x, -290, 340, 75), false, Color("#959080"))
+    draw_rect(Rect2(-510, -220, 19, 510), Color("#403b34"))
+    draw_rect(Rect2(491, -220, 19, 510), Color("#403b34"))
+    draw_rect(Rect2(-510, 269, 455, 21), Color("#403b34"))
+    draw_rect(Rect2(55, 269, 455, 21), Color("#403b34"))
+    for x in [-330, 330]:
+        var light := Vector2(x, -223)
+        draw_circle(light, 34, Color(0.94, 0.61, 0.21, 0.16))
+        draw_circle(light, 5, Color("#ffbd64"))
+
+func _draw_watch_room() -> void:
+    draw_rect(Rect2(-48, 227, 96, 46), Color("#5a4330"))
+    draw_rect(Rect2(-44, 231, 88, 37), Color("#78634b"))
+    for bounds in WATCH_CRATES:
+        draw_rect(bounds, Color("#302319"))
+        draw_rect(bounds.grow(-5), Color("#745439"))
+        for i in range(1, 4):
+            var x: float = bounds.position.x + bounds.size.x * i / 4.0
+            draw_line(Vector2(x, bounds.position.y + 4), Vector2(x, bounds.end.y - 4), Color("#493421"), 2)
+    draw_rect(WATCH_TABLE, Color("#3a2a22"))
+    draw_rect(WATCH_TABLE.grow(-5), Color("#775234"))
+    draw_rect(Rect2(-65, -119, 104, 35), Color("#b5a074"))
+    draw_polyline(PackedVector2Array([Vector2(-55, -112), Vector2(-27, -98), Vector2(0, -110), Vector2(31, -92)]),
+        Color("#68553b"), 2, true)

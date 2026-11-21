@@ -42,7 +42,7 @@ const REGIONS := {
             ["stonehaven", "Stonehaven · East Gate", Overworld.FOREST_WEST],
             ["inspect_caravan", "Inspect the raided caravan", Overworld.CARAVAN + Vector2(0, 100)],
             ["bandit_camp", "Raider camp trail", Overworld.CARAVAN + Vector2(-265, -85)],
-            ["northern_watch", "Watchtower approach", Overworld.WATCH + Vector2(0, 120)],
+            ["northern_watch", "Enter the watchtower", Overworld.WATCH + Vector2(0, 120)],
             ["graveyard", "Enter Forsaken Graveyard", Overworld.CRYPT + Vector2(0, 123)],
             ["old_cabin", "Explore the old cabin", Overworld.CABIN + Vector2(0, 112)],
             ["woodland_shrine", "Roadside shrine", Overworld.SHRINE + Vector2(0, 77)],
@@ -51,10 +51,10 @@ const REGIONS := {
     "town_court": {
         "title": "Stonehaven — Civic Court", "ground": "#41403d",
         "points": [["stonehaven", "Eastward Quarter", EXIT],
-            ["northern_watch", "Northern watch road", Vector2(416, 87)]],
+            ["northern_watch", "Enter the watchtower", Vector2(416, 87)]],
     },
     "northern_watch": {
-        "title": "Northern Frontier Watchtower", "ground": "#32372d",
+        "title": "Northern Frontier Watchtower — Interior", "ground": "#332e27",
         "points": [["east_pinewood", "Back outside the watchtower", EXIT]],
     },
     "bandit_camp": {
