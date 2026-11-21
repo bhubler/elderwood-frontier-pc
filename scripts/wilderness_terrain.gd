@@ -20,6 +20,9 @@ var cell_extent := EXTENT
 var ground_bounds := Rect2()
 var paved_roads := false
 var populate_on_ready := true
+var streamed := false
+var grass_source := -1
+var grass_atlas := Vector2i.ZERO
 
 func village_playable_outline() -> PackedVector2Array:
 	var first := Vector2i(-EXTENT, -EXTENT)
@@ -38,8 +41,31 @@ func _ready() -> void:
 	tile_set = load(TILESET_PATH) as TileSet
 	if tile_set == null:
 		return
+	if streamed:
+		_find_solid_grass()
 	if populate_on_ready:
 		paint_ground(ground_bounds)
+
+func _find_solid_grass() -> void:
+	var best := -1
+	for i in range(tile_set.get_source_count()):
+		var id := tile_set.get_source_id(i)
+		var source := tile_set.get_source(id) as TileSetAtlasSource
+		if source == null:
+			continue
+		for index in range(source.get_tiles_count()):
+			var atlas := source.get_tile_id(index)
+			var data := source.get_tile_data(atlas, 0)
+			if data.terrain_set != TERRAIN_SET or data.terrain != GRASS:
+				continue
+			var score := 0
+			for bit in range(16):
+				if data.is_valid_terrain_peering_bit(bit) and data.get_terrain_peering_bit(bit) == GRASS:
+					score += 1
+			if score > best:
+				best = score
+				grass_source = id
+				grass_atlas = atlas
 
 func paint_ground(bounds: Rect2, fill_missing_only := false) -> void:
 	if tile_set == null:
@@ -65,6 +91,8 @@ func paint_ground(bounds: Rect2, fill_missing_only := false) -> void:
 				continue
 			if fill_missing_only and get_cell_source_id(cell) >= 0:
 				continue
+			if streamed and grass_source >= 0:
+				set_cell(cell, grass_source, grass_atlas)
 			var cobbled := pos.distance_to(cobble_center) < cobble_radius
 			if cobble_over_roads and cobbled:
 				cobble_cells.append(cell)
@@ -79,8 +107,8 @@ func paint_ground(bounds: Rect2, fill_missing_only := false) -> void:
 			else:
 				grass_cells.append(cell)
 	if not grass_cells.is_empty():
-		set_cells_terrain_connect(grass_cells, TERRAIN_SET, GRASS, false)
+		set_cells_terrain_connect(grass_cells, TERRAIN_SET, GRASS, streamed)
 	if not trail_cells.is_empty():
-		set_cells_terrain_connect(trail_cells, TERRAIN_SET, TRAIL, false)
+		set_cells_terrain_connect(trail_cells, TERRAIN_SET, TRAIL, streamed)
 	if not cobble_cells.is_empty():
 		set_cells_terrain_connect(cobble_cells, TERRAIN_SET, COBBLE, false)

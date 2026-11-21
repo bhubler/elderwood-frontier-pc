@@ -146,6 +146,7 @@ func _load_outdoor_terrain() -> void:
     terrain.cobble_radius = 0.0
     terrain.paved_roads = city
     terrain.populate_on_ready = city
+    terrain.streamed = not city
     terrain.ground_bounds = Overworld.CITY.grow(740) if city else Rect2()
     props.add_child(terrain)
     if terrain.tile_set == null:
@@ -236,10 +237,10 @@ func _dress_stonehaven() -> void:
     _add_local_vendor("blacksmith", "forge", Vector2(-708, 14))
     _add_local_vendor("alchemist", "alch_shop", Vector2(-270, 14))
     _add_local_vendor("shopkeeper", "goods_shop", Vector2(247, 14))
-    _add_local_vendor("merchant_mage", "mage_shop", Vector2(700, 14))
+    _add_local_vendor("merchant_mage", "mage_shop", Vector2(650, 14))
     _add_landmark("barracks", Vector2(-686, -243), 205)
-    _add_landmark("civic", Vector2(-264, -243), 255)
-    _add_landmark("temple", Vector2(232, -243), 249)
+    _add_landmark("civic", Vector2(-264, -243), 326)
+    _add_landmark("temple", Vector2(232, -243), 314)
     _add_landmark("residence", Vector2(698, -243), 195)
     _add_landmark("residence", Vector2(-258, 285), 201)
     _add_landmark("residence", Vector2(252, 285), 196)
@@ -264,23 +265,55 @@ func _dress_stonehaven() -> void:
     var wall := "res://art/stonehaven/curtain_wall.png"
     var gate := "res://art/stonehaven/gatehouse.png"
     for x in [-710, -355, 0, 355, 710]:
-        _add_art(wall, Vector2(x, -451), 357)
+        _add_art(wall, Vector2(x, -451), 360, -3)
     for x in [-710, -354, 354, 710]:
         _add_art(wall, Vector2(x, 493), 357)
     _add_art(gate, Vector2(0, 503), 355)
-    _add_art(gate, Vector2(826, 113), 285)
+    _add_east_rampart(wall, gate)
     for x in [-955, 952]:
         for y in range(-430, 470, 112):
             if x > 0 and absi(y - 80) < 166:
                 continue
             _add_landmark("pine_grove", Vector2(x, y), 196)
-    for x in [744, 907]:
-        WorldCollision.circle(props, "EastGateTower", Vector2(x, 99), 22.0)
     for x in [-104, 104]:
         WorldCollision.circle(props, "SouthGateTower", Vector2(x, 484), 18.0)
     WorldCollision.box(props, "NorthRampart", Rect2(-900, -470, 1800, 28))
     for x in [-900, 66]:
         WorldCollision.box(props, "SouthRampart", Rect2(x, 470, 834, 29))
+
+func _add_east_rampart(wall: String, gate: String) -> void:
+    # Turn the ground axis along the east edge and keep the masonry upright.
+    var wall_texture := load(wall) as Texture2D
+    var gate_texture := load(gate) as Texture2D
+    if wall_texture == null or gate_texture == null:
+        return
+    for section in [Vector2(-451, -13), Vector2(173, 493)]:
+        var count := ceili((section.y - section.x) / 150.0)
+        var length: float = (section.y - section.x) / count
+        for i in range(count):
+            _add_side_masonry(wall_texture, section.x + (i + 0.5) * length, length + 2.0, 68.0, -3)
+    _add_side_masonry(gate_texture, 80.0, 195.0, 125.0, -2)
+    for section in [Vector2(-451, 45), Vector2(115, 493)]:
+        var upper := _east_wall_base(section.x)
+        var lower := _east_wall_base(section.y)
+        WorldCollision.polygon(props, "EastRampart", PackedVector2Array([
+            upper - Vector2(12, 0), upper + Vector2(12, 0),
+            lower + Vector2(12, 0), lower - Vector2(12, 0)
+        ]))
+
+func _east_wall_base(y: float) -> Vector2:
+    return Vector2(864.0 + (y - 80.0) * 0.055, y)
+
+func _add_side_masonry(texture: Texture2D, y: float, length: float, height: float, layer: int) -> void:
+    var sprite := Sprite2D.new()
+    sprite.texture = texture
+    sprite.offset.y = -float(texture.get_height()) * 0.5
+    var along := length / texture.get_width()
+    # A slight diagonal exposes the front face of the side-on arch.
+    sprite.transform = Transform2D(Vector2(along * 0.055, along),
+        Vector2(-0.32, 1.0) * (height / texture.get_height()), _east_wall_base(y))
+    sprite.z_index = layer
+    props.add_child(sprite)
 
 func _dress_east_pinewood() -> void:
     _add_art("res://art/wayfinding/trail_gate.png", Overworld.FOREST_WEST + Vector2(0, 27), 225)
@@ -317,11 +350,14 @@ func _add_landmark(key: String, where: Vector2, width: float) -> void:
         "forge", "alch_shop", "goods_shop", "mage_shop", "barracks", "civic", "temple", "residence"
     ]
     var art_width := width * STONEHAVEN_BUILDING_SCALE if city_building else width
+    var footprint_width := 255.0 if region == "stonehaven" and key == "civic" else width
+    if region == "stonehaven" and key == "temple":
+        footprint_width = 249.0
     if _add_art(LANDMARK_ROOT + key + ".png", where, art_width) and key not in ["grave_markers", "pine_grove"]:
-        var footprint := Vector2(width * 0.62, 25.0)
+        var footprint := Vector2(footprint_width * 0.62, 25.0)
         WorldCollision.box(props, key, Rect2(where - Vector2(footprint.x * 0.5, 25.0), footprint))
 
-func _add_art(path: String, where: Vector2, width: float) -> bool:
+func _add_art(path: String, where: Vector2, width: float, layer := -1) -> bool:
     var texture: Texture2D = load(path) if ResourceLoader.exists(path) else null
     if texture == null:
         return false
@@ -330,7 +366,7 @@ func _add_art(path: String, where: Vector2, width: float) -> bool:
     art.scale = Vector2.ONE * (width / float(texture.get_width()))
     art.offset.y = -texture.get_height() * 0.5
     art.position = where
-    art.z_index = -1
+    art.z_index = layer
     props.add_child(art)
     return true
 
