@@ -2,6 +2,7 @@ extends CanvasLayer
 ## Frontier village interactions: NPCs, inn interior, dialogue, and starter inventory.
 @export var inventory_only := false
 
+const PanelHeader := preload("res://scripts/panel_header.gd")
 const AreaTransition := preload("res://scripts/area_transition.gd")
 const BACKPACK_CAPACITY := 24
 const INTERACT_DISTANCE := 115.0
@@ -197,7 +198,7 @@ func _make_quest_offer(holder: Control, style: StyleBoxFlat) -> void:
     quest_title = Label.new()
     quest_title.add_theme_font_size_override("font_size", 26)
     quest_title.add_theme_color_override("font_color", Color("#ffe5ad"))
-    content.add_child(quest_title)
+    PanelHeader.add_title(content, quest_title, _close_quest_offer)
     quest_details = Label.new()
     quest_details.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
     quest_details.add_theme_font_size_override("font_size", 18)
@@ -277,6 +278,7 @@ func _make_inventory_window() -> void:
     gold_label = Label.new()
     gold_label.add_theme_color_override("font_color", Color("#e7c589"))
     top.add_child(gold_label)
+    PanelHeader.add_close_button(top, _close_inventory)
     var rule := HSeparator.new()
     layout.add_child(rule)
     var columns := HBoxContainer.new()
@@ -626,6 +628,10 @@ func _pinewood_combat_input(melee: bool, aim: Vector2, cursor := Vector2.INF) ->
     elif not forest.cast_fireball(aim, cursor) and not forest.in_stonehaven() and forest.mana < forest.FIREBALL_COST:
         _show_message("Not enough mana. Give it a moment to recover.", 3.0)
 
+func _close_inventory() -> void:
+    inventory_open = false
+    inventory_panel.hide()
+
 func _unhandled_key_input(event: InputEvent) -> void:
     if not event is InputEventKey or not event.pressed or event.echo:
         return
@@ -659,8 +665,7 @@ func _unhandled_key_input(event: InputEvent) -> void:
         get_viewport().set_input_as_handled()
     elif event.keycode == KEY_E:
         if inventory_open:
-            inventory_open = false
-            inventory_panel.hide()
+            _close_inventory()
         elif conversation_open:
             conversation_open = false
             ui.hide()

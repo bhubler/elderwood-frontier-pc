@@ -21,3 +21,10 @@
 
 - Use the existing Godot Wilderness Bundle tilemap for new outdoor terrain, dirt roads, and cobbled streets, and reuse its tree scenes for woodland. Keep the licensed pack local.
 - Put outdoor landmarks and encounters on their regional map. Use scene changes for interiors such as crypts, and return the player to the entrance they used.
+
+## Build and verify complete areas
+
+- Design flooring, terrain transitions, environmental props, lighting, and boundaries together before handing off a new area. Match nearby finished areas and use the established tilesets, palette, scale, and perspective.
+- Assign matching sprites to every visible character, enemy, landmark, and required interactable before marking a new area ready. Reuse existing artwork where it fits. Create and integrate matching artwork for missing pieces in the same update.
+- Check the area from its normal entrance, including encounter spawns, combat, object interactions, and exits. Verify both a fresh playthrough and returning with existing progress when saved state affects the area.
+- Give dismissible menus, tabs, and dialogs a clickable X in the upper-right corner. Route it through the same close behavior as the keyboard shortcut so focus, input, and state recover consistently.

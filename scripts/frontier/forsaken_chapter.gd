@@ -5,6 +5,7 @@ var linked_from_gate := false
 
 const Fireball := preload("res://scripts/pinewood_fireball.gd")
 const FIREBALL_COST := 30.0
+const PanelHeader := preload("res://scripts/panel_header.gd")
 const AreaTransition := preload("res://scripts/area_transition.gd")
 const WorldCollision := preload("res://scripts/world_collision.gd")
 const State = preload("res://scripts/frontier/adventure_state.gd")
@@ -42,6 +43,7 @@ const TERRAIN_PATCH_SIZE := Vector2(240, 144)
 const STONEHAVEN_BUILDING_SCALE := 1.32
 var points: Array[Point] = []
 var enemy: Enemy
+var crypt_defeated_this_visit: Array[String] = []
 var emissary: Point
 var emissary_actor: Node2D
 var grimoire_art: Sprite2D
@@ -85,6 +87,13 @@ func _ready() -> void:
     for item_id in state.quest_items:
         if Layouts.ITEMS.has(item_id):
             inventory.grant_item(item_id, Layouts.ITEMS[item_id])
+    var journal_content := VBoxContainer.new()
+    journal_panel.remove_child(journal_text)
+    journal_panel.add_child(journal_content)
+    var journal_title := Label.new()
+    journal_title.text = "Quest Journal"
+    PanelHeader.add_title(journal_content, journal_title, journal_panel.hide)
+    journal_content.add_child(journal_text)
     _build_grimoire_dialog()
     summon = Node2D.new()
     summon.z_index = 6
@@ -136,7 +145,11 @@ func _load_region(destination: String) -> void:
             Overworld.CARAVAN + Vector2(125, 135))
     if layout.has("enemy"):
         var definition: Array = layout["enemy"]
-        if definition[0] not in state.defeated and not (region == "cellar_gate" and state.entry_method == "grimoire"):
+        var encounter_id: String = definition[0]
+        var cleared := encounter_id in state.defeated
+        if encounter_id in ["ossuary_skeleton", "bonecaller"]:
+            cleared = encounter_id in crypt_defeated_this_visit
+        if not cleared and not (region == "cellar_gate" and state.entry_method == "grimoire"):
             _add_enemy(definition)
     if state.emissary_pending:
         _bring_emissary()
@@ -521,8 +534,8 @@ func _process(_delta: float) -> void:
     hud.text = "%s  |  HP %d/%d  |  Mana %d/%d  |  Level %d\n%s\nLMB / Space attack  ·  RMB / F Fireball  ·  L grimoire  ·  Q summon  ·  J journal  ·  I inventory\n%s" % [
         Layouts.REGIONS[region]["title"], health, MAX_HEALTH, floori(mana), State.MAX_MANA, state.level(), prompt, notice
     ]
-    journal_text.text = "%s\n\n%s\n%d XP  ·  %d unspent character points  ·  Conjuration rank %d (%d casts)\nBlack Hand reputation %d%s\n\nJ or Esc to close" % [
-        "Quest Journal", state.journal(), state.experience, state.training_points(),
+    journal_text.text = "%s\n%d XP  ·  %d unspent character points  ·  Conjuration rank %d (%d casts)\nBlack Hand reputation %d%s\n\nJ or Esc to close" % [
+        state.journal(), state.experience, state.training_points(),
         state.conjuration_rank(), state.conjuration_uses, state.black_hand_reputation(),
         "  ·  Entry by %s" % state.entry_method if not state.entry_method.is_empty() else ""
     ]
@@ -656,7 +669,7 @@ func _interact(action: String) -> void:
         "veiled_agent":
             _speak_to_agent()
         "grimoire":
-            if "bonecaller" not in state.defeated:
+            if is_instance_valid(enemy) or "bonecaller" not in state.defeated:
                 notice = "The Bonecaller bars the way to the lectern."
             else:
                 _show_grimoire_dialog(false)
@@ -682,7 +695,7 @@ func _cellar_marker_visible() -> bool:
 func _try_travel(destination: String) -> void:
     if not Layouts.REGIONS.has(destination):
         return
-    if destination == "crypt_ritual" and "ossuary_skeleton" not in state.defeated:
+    if destination == "crypt_ritual" and (is_instance_valid(enemy) or "ossuary_skeleton" not in state.defeated):
         notice = "Defeat the Restless Skeleton to reach the ritual chamber."
     elif destination == "hideout" and region == "cellar_gate" and state.entry_method.is_empty():
         notice = "The Black Hand Guard bars the way. Defeat him to enter."
@@ -747,7 +760,7 @@ func _build_grimoire_dialog() -> void:
     panel.add_child(content)
     grimoire_heading = Label.new()
     grimoire_heading.add_theme_font_size_override("font_size", 25)
-    content.add_child(grimoire_heading)
+    PanelHeader.add_title(content, grimoire_heading, grimoire_dialog.hide)
     grimoire_details = Label.new()
     grimoire_details.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
     content.add_child(grimoire_details)
@@ -898,8 +911,13 @@ func _update_fireball(delta: float) -> void:
         fireball.detonate()
 
 func _on_victory(encounter_id: String, reward_xp: int) -> void:
-    notice = "%s defeated. +%d XP" % [enemy.title, reward_xp]
+    var already_rewarded := encounter_id in state.defeated
+    notice = "%s defeated." % enemy.title
+    if not already_rewarded:
+        notice += " +%d XP" % reward_xp
     enemy = null
+    if encounter_id in ["ossuary_skeleton", "bonecaller"]:
+        crypt_defeated_this_visit.append(encounter_id)
     state.record_victory(encounter_id, reward_xp)
     if encounter_id == "bonecaller":
         _show_grimoire_dialog(true)
