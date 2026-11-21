@@ -500,7 +500,7 @@ func _nearby_route() -> Dictionary:
         var district_sign: Vector2 = forest.to_global(forest.STONEHAVEN_DISTRICT_SIGN)
         if forest.in_stonehaven() and player.global_position.distance_to(district_sign) < 126.0:
             return _route(district_sign, Rect2(district_sign - Vector2(55, 158), Vector2(110, 167)),
-                "Stonehaven Eastward Quarter", _enter_stonehaven_district)
+                "Stonehaven", _enter_stonehaven_district)
         if _near_forest_exit():
             return _route(forest.to_global(forest.SOUTH_GATE),
                 Rect2(forest.to_global(forest.SOUTH_GATE - Vector2(114, 178)), Vector2(228, 178)), "Elderwood Village", _leave_pinewood)

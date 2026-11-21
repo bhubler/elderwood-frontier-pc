@@ -6,6 +6,8 @@ var linked_from_gate := false
 const WorldCollision := preload("res://scripts/world_collision.gd")
 const State = preload("res://scripts/frontier/adventure_state.gd")
 const Layouts = preload("res://scripts/frontier/chapter_regions.gd")
+const Overworld := preload("res://scripts/frontier/overworld_layout.gd")
+const ForestLayout := preload("res://scripts/forest_layout.gd")
 const Floor = preload("res://scripts/frontier/region_floor.gd")
 const Point = preload("res://scripts/frontier/interaction_point.gd")
 const Enemy = preload("res://scripts/frontier/encounter_enemy.gd")
@@ -33,6 +35,7 @@ var enemy: Enemy
 var emissary: Point
 var veiled_agent: Node2D
 var local_npcs: Dictionary = {}
+var local_dialogue: Dictionary = {}
 const LOCAL_DIALOGUE := {
     "blacksmith": ["Garrik — Blacksmith", "Mind the sparks. I'm drawing the last of the heat out of this iron."],
     "shopkeeper": ["General Goods Merchant", "The dry supplies came in this morning. Here, check this parcel."],
@@ -80,6 +83,7 @@ func _load_region(destination: String) -> void:
         child.queue_free()
     points.clear()
     local_npcs.clear()
+    local_dialogue.clear()
     enemy = null
     emissary = null
     veiled_agent = null
@@ -99,7 +103,11 @@ func _load_region(destination: String) -> void:
             continue
         _add_point(action, definition[1], marker_position)
     if linked_from_gate and region == "stonehaven":
-        _add_point("main_gate", "Stonehaven Gate — Pinewood", Vector2(-416, 200))
+        _add_point("main_gate", "South Gate · Pinewood road", Vector2(0, 448))
+        if previous.is_empty():
+            player.position = Vector2(0, 397)
+    if region == "east_pinewood" and previous.is_empty():
+        player.position = Overworld.FOREST_WEST + Vector2(105, 0)
     if layout.has("enemy"):
         var definition: Array = layout["enemy"]
         if definition[0] not in state.defeated and not (region == "cellar_gate" and state.entry_method == "grimoire"):
@@ -130,12 +138,9 @@ func _dress_region() -> void:
             for where in [Vector2(-290, -112), Vector2(210, -110), Vector2(-161, 99), Vector2(253, 26), Vector2(345, 188)]:
                 _add_landmark("grave_markers", where, 118)
         "stonehaven":
-            _add_local_vendor("blacksmith", "forge", Vector2(-327, -142))
-            _add_local_vendor("alchemist", "alch_shop", Vector2(-110, -142))
-            _add_local_vendor("shopkeeper", "goods_shop", Vector2(110, -142))
-            _add_local_vendor("merchant_mage", "mage_shop", Vector2(327, -142))
-            _add_local_npc("sweeper", Vector2(-212, 73), 2)
-            _add_local_npc("dockhand", Vector2(246, 54), 5)
+            _dress_stonehaven()
+        "east_pinewood":
+            _dress_east_pinewood()
         "town_court":
             _add_landmark("barracks", Vector2(-355, -124), 199)
             _add_landmark("civic", Vector2(-111, -124), 218)
@@ -159,33 +164,103 @@ func _dress_region() -> void:
             if is_instance_valid(veiled_agent):
                 veiled_agent.autonomous_patrol = false
 
+func _dress_stonehaven() -> void:
+    _add_local_vendor("blacksmith", "forge", Vector2(-708, 14))
+    _add_local_vendor("alchemist", "alch_shop", Vector2(-270, 14))
+    _add_local_vendor("shopkeeper", "goods_shop", Vector2(247, 14))
+    _add_local_vendor("merchant_mage", "mage_shop", Vector2(700, 14))
+    _add_landmark("barracks", Vector2(-686, -243), 205)
+    _add_landmark("civic", Vector2(-264, -243), 255)
+    _add_landmark("temple", Vector2(232, -243), 249)
+    _add_landmark("residence", Vector2(698, -243), 195)
+    _add_landmark("residence", Vector2(-258, 285), 201)
+    _add_landmark("residence", Vector2(252, 285), 196)
+    _add_landmark("residence", Vector2(694, 285), 187)
+    _add_landmark("way_shrine", Vector2(658, 440), 76)
+    _add_local_npc("guard_sword", Vector2(-610, -178))
+    _add_local_npc("guard_spear", Vector2(722, 115))
+    _add_local_npc("priest", Vector2(238, -178))
+    _add_local_npc("monk", Vector2(354, -118), 2)
+    _add_local_npc("noble", Vector2(-255, -178))
+    _add_local_npc("sweeper", Vector2(-212, 131), 2)
+    _add_local_npc("dockhand", Vector2(403, 145), 5)
+    for guest in [
+        ["townswoman", "Herb grower", "The chapel keeps a garden behind the square.", Vector2(438, -82), 2],
+        ["townsman", "Carter", "Wagons take the east entrance when the road is dry.", Vector2(623, 338), 4],
+        ["scribe", "Court scribe", "The court's records go back to the first wall.", Vector2(-391, -127), 1],
+        ["elder", "Retired mason", "The east arch still has the old stonemasons’ marks.", Vector2(550, -335), 3],
+        ["townswoman", "Stonehaven resident", "The forge opens early. You can hear it from here.", Vector2(-340, 348), 6],
+        ["townsman", "Stonehaven resident", "The houses here share a courtyard in the south.", Vector2(230, 350), 7],
+    ]:
+        _add_local_npc(guest[0], guest[3], guest[4], guest[1], guest[2])
+    var wall := "res://art/stonehaven/curtain_wall.png"
+    var gate := "res://art/stonehaven/gatehouse.png"
+    for x in [-710, -355, 0, 355, 710]:
+        _add_art(wall, Vector2(x, -451), 357)
+    for x in [-710, -354, 354, 710]:
+        _add_art(wall, Vector2(x, 493), 357)
+    _add_art(gate, Vector2(0, 503), 355)
+    _add_art(gate, Vector2(826, 113), 285)
+    for x in [-955, 952]:
+        for y in range(-430, 470, 112):
+            if x > 0 and absi(y - 80) < 166:
+                continue
+            _add_landmark("pine_grove", Vector2(x, y), 196)
+    for x in [744, 907]:
+        WorldCollision.circle(props, "EastGateTower", Vector2(x, 99), 22.0)
+    for x in [-104, 104]:
+        WorldCollision.circle(props, "SouthGateTower", Vector2(x, 484), 18.0)
+    WorldCollision.box(props, "NorthRampart", Rect2(-900, -470, 1800, 28))
+    for x in [-900, 66]:
+        WorldCollision.box(props, "SouthRampart", Rect2(x, 470, 834, 29))
+
+func _dress_east_pinewood() -> void:
+    _add_art("res://art/wayfinding/trail_gate.png", Overworld.FOREST_WEST + Vector2(0, 27), 225)
+    _add_art("res://art/wayfinding/stonehaven_sign.png", Overworld.FOREST_WEST + Vector2(-132, 53), 88)
+    _add_landmark("caravan", Overworld.CARAVAN, 350)
+    _add_landmark("watchtower", Overworld.WATCH, 229)
+    _add_landmark("crypt", Overworld.CRYPT, 260)
+    _add_landmark("cabin", Overworld.CABIN, 265)
+    _add_landmark("way_shrine", Overworld.SHRINE, 111)
+    for offset in [Vector2(-185, 31), Vector2(172, 23), Vector2(-222, -79), Vector2(158, -94)]:
+        _add_landmark("grave_markers", Overworld.CRYPT + offset, 125)
+    var woodland := load("res://scripts/frontier/pinewood_woodland.gd").new() as Node2D
+    woodland.player = player
+    props.add_child(woodland)
+
 func _add_local_vendor(key: String, shop: String, where: Vector2) -> void:
     _add_landmark(shop, where, 195)
     _add_local_npc(key, where + Vector2(0, 65))
 
-func _add_local_npc(key: String, where: Vector2, wardrobe := 0) -> void:
+func _add_local_npc(key: String, where: Vector2, wardrobe := 0, title := "", line := "") -> void:
     var npc := _add_npc(key, where, wardrobe)
     if npc == null:
         return
-    local_npcs[key] = npc
-    var point := _add_point(key, LOCAL_DIALOGUE[key][0], where)
+    var action := key if title.is_empty() else "%s_%d" % [key, wardrobe]
+    var dialogue: Array = LOCAL_DIALOGUE[key] if title.is_empty() else [title, line]
+    local_npcs[action] = npc
+    local_dialogue[action] = dialogue
+    var point := _add_point(action, dialogue[0], where)
     point.show_disc = false
     point.radius = 76.0
 
 func _add_landmark(key: String, where: Vector2, width: float) -> void:
-    var path := LANDMARK_ROOT + key + ".png"
-    if not ResourceLoader.exists(path):
-        return
+    if _add_art(LANDMARK_ROOT + key + ".png", where, width) and key not in ["grave_markers", "pine_grove"]:
+        var footprint := Vector2(width * 0.62, 25.0)
+        WorldCollision.box(props, key, Rect2(where - Vector2(footprint.x * 0.5, 25.0), footprint))
+
+func _add_art(path: String, where: Vector2, width: float) -> bool:
+    var texture: Texture2D = load(path) if ResourceLoader.exists(path) else null
+    if texture == null:
+        return false
     var art := Sprite2D.new()
-    art.texture = load(path)
-    art.scale = Vector2.ONE * (width / float(art.texture.get_width()))
-    art.offset.y = -art.texture.get_height() * 0.5
+    art.texture = texture
+    art.scale = Vector2.ONE * (width / float(texture.get_width()))
+    art.offset.y = -texture.get_height() * 0.5
     art.position = where
     art.z_index = -1
     props.add_child(art)
-    if key != "grave_markers":
-        var footprint := Vector2(width * 0.62, 25.0)
-        WorldCollision.box(props, key, Rect2(where - Vector2(footprint.x * 0.5, 25.0), footprint))
+    return true
 
 func _add_npc(key: String, where: Vector2, wardrobe := 0) -> Node2D:
     var npc := NpcLibrary.create(key, wardrobe)
@@ -293,7 +368,8 @@ func _on_summon_contact() -> void:
         enemy.take_hit(9)
 
 func _bounded(where: Vector2) -> Vector2:
-    return where.clamp(Floor.BOUNDS.position + Vector2(20, 28), Floor.BOUNDS.end - Vector2(20, 20))
+    var bounds := Overworld.bounds(region, Floor.BOUNDS)
+    return where.clamp(bounds.position + Vector2(20, 28), bounds.end - Vector2(20, 20))
 
 func _unhandled_key_input(event: InputEvent) -> void:
     if not event is InputEventKey or not event.pressed or event.echo:
@@ -343,11 +419,13 @@ func _interact(action: String) -> void:
             local_npcs[action].attack()
         else:
             local_npcs[action].interact()
-        notice = "%s — %s" % LOCAL_DIALOGUE[action]
+        notice = "%s — %s" % local_dialogue[action]
         return
     match action:
         "main_gate":
             return_to_gate.emit()
+        "woodland_shrine":
+            notice = "Travelers have left pine cones and copper coins at the shrine."
         "grave_marker":
             notice = "Someone has scratched a warning into the stone. The dead below answer to a caller."
         "quiet_finn":

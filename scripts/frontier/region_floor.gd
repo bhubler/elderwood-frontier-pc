@@ -1,10 +1,17 @@
 extends Node2D
 ## Temporary geometry for a bounded chapter room.
+const Overworld := preload("res://scripts/frontier/overworld_layout.gd")
+const OverworldGround := preload("res://scripts/frontier/overworld_ground.gd")
 const BOUNDS := Rect2(-510, -290, 1020, 580)
 var ground := Color("#282f2b")
 var region_id := ""
 
 func _draw() -> void:
+    if region_id == "stonehaven" or region_id == "east_pinewood":
+        var urban := region_id == "stonehaven"
+        var roads := Overworld.CITY_ROADS if urban else Overworld.FOREST_ROADS
+        OverworldGround.draw_ground(self, Overworld.bounds(region_id, BOUNDS).grow(770), roads, urban)
+        return
     draw_rect(BOUNDS, ground)
     draw_rect(BOUNDS, ground.lightened(0.23), false, 4)
     var outdoors := region_id in ["graveyard", "stonehaven", "town_court", "raided_caravan", "old_cabin", "northern_watch", "bandit_camp", "goblin_hollow"]

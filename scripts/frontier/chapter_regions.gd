@@ -1,12 +1,13 @@
 extends RefCounted
 ## Room layouts specify entrances, NPCs, encounter IDs and landmark positions.
+const Overworld := preload("res://scripts/frontier/overworld_layout.gd")
 const EXIT := Vector2(0, 236)
 const NORTH := Vector2(0, -225)
 const REGIONS := {
     "graveyard": {
         "title": "Forsaken Graveyard", "ground": "#282f2b",
         "points": [
-            ["crypt_approach", "Crypt of the Bonecaller", NORTH],
+            ["east_pinewood", "East Pinewood Forest", Vector2(344, 225)], ["crypt_approach", "Crypt of the Bonecaller", NORTH],
             ["stonehaven", "Road to Stonehaven", Vector2(408, 115)],
             ["grave_marker", "Weathered grave marker", Vector2(-352, 40)],
             ["old_cabin", "Old woodland trail", Vector2(-402, 193)],
@@ -27,13 +28,23 @@ const REGIONS := {
         "enemy": ["bonecaller", "The Bonecaller", 64, 17, 60, "#b58ccd"],
     },
     "stonehaven": {
-        "title": "Stonehaven — Eastward Quarter", "ground": "#34312c",
+        "title": "Stonehaven", "ground": "#3a3930",
         "points": [
-            ["graveyard", "Road to the graveyard", EXIT],
-            ["quiet_finn", "Quiet Finn", Vector2(-420, 39)],
-            ["raided_caravan", "Blackbriar caravan road", Vector2(408, 167)],
-            ["town_court", "Stonehaven civic court", Vector2(424, -180)],
+            ["graveyard", "Old cemetery road", Vector2(-770, -190)],
+            ["quiet_finn", "Quiet Finn", Vector2(-646, 390)],
+            ["east_pinewood", "East Gate · Pinewood Forest", Overworld.CITY_EAST],
             ["cellar_gate", "Hidden Drainage Door", NORTH],
+        ],
+    },
+    "east_pinewood": {
+        "title": "Pinewood Forest", "ground": "#293b30",
+        "points": [
+            ["stonehaven", "Stonehaven · East Gate", Overworld.FOREST_WEST],
+            ["raided_caravan", "Search the raided caravan", Overworld.CARAVAN + Vector2(0, 100)],
+            ["northern_watch", "Watchtower approach", Overworld.WATCH + Vector2(0, 120)],
+            ["graveyard", "Enter Forsaken Graveyard", Overworld.CRYPT + Vector2(0, 123)],
+            ["old_cabin", "Explore the old cabin", Overworld.CABIN + Vector2(0, 112)],
+            ["woodland_shrine", "Roadside shrine", Overworld.SHRINE + Vector2(0, 77)],
         ],
     },
     "town_court": {
@@ -43,7 +54,7 @@ const REGIONS := {
     },
     "northern_watch": {
         "title": "Northern Frontier Watchtower", "ground": "#32372d",
-        "points": [["town_court", "Road to Stonehaven", EXIT]],
+        "points": [["east_pinewood", "East Pinewood Forest", Vector2(344, 225)], ["town_court", "Road to Stonehaven", EXIT]],
     },
     "bandit_camp": {
         "title": "Blackbriar Raider Camp", "ground": "#38312b",
@@ -57,12 +68,12 @@ const REGIONS := {
     },
     "raided_caravan": {
         "title": "Blackbriar Caravan Wreck", "ground": "#373228",
-        "points": [["stonehaven", "Road to Stonehaven", EXIT], ["bandit_camp", "Raider camp trail", Vector2(-425, -136)]],
+        "points": [["east_pinewood", "East Pinewood Forest", Vector2(344, 225)], ["stonehaven", "Road to Stonehaven", EXIT], ["bandit_camp", "Raider camp trail", Vector2(-425, -136)]],
         "enemy": ["blackbriar_bandit", "Blackbriar Bandit", 33, 11, 24, "#bd8061", "bandit"],
     },
     "old_cabin": {
         "title": "Old Cabin in the Woods", "ground": "#2c3428",
-        "points": [["graveyard", "Forsaken Graveyard", EXIT], ["goblin_hollow", "Goblin Hollow trail", Vector2(390, -134)]],
+        "points": [["east_pinewood", "East Pinewood Forest", Vector2(344, 225)], ["graveyard", "Forsaken Graveyard", EXIT], ["goblin_hollow", "Goblin Hollow trail", Vector2(390, -134)]],
         "enemy": ["cabin_goblin", "Cabin Goblin", 27, 9, 21, "#849659", "goblin"],
     },
     "cellar_gate": {
