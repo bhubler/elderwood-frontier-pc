@@ -3,6 +3,7 @@ extends Node2D
 signal return_to_gate
 var linked_from_gate := false
 
+const AreaTransition := preload("res://scripts/area_transition.gd")
 const WorldCollision := preload("res://scripts/world_collision.gd")
 const State = preload("res://scripts/frontier/adventure_state.gd")
 const Layouts = preload("res://scripts/frontier/chapter_regions.gd")
@@ -134,6 +135,8 @@ func _load_outdoor_terrain() -> void:
     terrain_patches.clear()
     retired_tiles.clear()
     floor_art.show()
+    floor_art.grass_backing = false
+    floor_art.z_index = -10
     if region not in ["stonehaven", "east_pinewood"] or not ResourceLoader.exists(WildernessTerrain.TILESET_PATH):
         return
     var city := region == "stonehaven"
@@ -156,8 +159,14 @@ func _load_outdoor_terrain() -> void:
     if not city:
         terrain_window = _forest_terrain_bounds()
         terrain.paint_ground(terrain_window)
-    if not terrain.get_used_cells().is_empty():
-        floor_art.hide()
+    if not terrain.ground_cells().is_empty():
+        if city:
+            floor_art.hide()
+        else:
+            floor_art.grass_backing = true
+            floor_art.z_index = -12
+    else:
+        floor_art.z_index = -10
 
 func _forest_terrain_bounds() -> Rect2:
     var snapped := (Vector2(player.position) / 360.0).floor() * 360.0
@@ -181,18 +190,19 @@ func _update_forest_terrain() -> void:
         terrain_patches.sort_custom(func(a: Rect2, b: Rect2) -> bool:
             return a.get_center().distance_squared_to(player_position) > b.get_center().distance_squared_to(player_position))
         retired_tiles.clear()
-        for cell in outdoor_terrain.get_used_cells():
+        for cell in outdoor_terrain.ground_cells():
             if not bounds.has_point(outdoor_terrain.map_to_local(cell)):
                 retired_tiles.append(cell)
     for i in range(mini(2, terrain_patches.size())):
         outdoor_terrain.paint_ground(terrain_patches.pop_back(), true)
     for i in range(mini(96, retired_tiles.size())):
-        outdoor_terrain.erase_cell(retired_tiles.pop_back())
+        outdoor_terrain.erase_ground_cell(retired_tiles.pop_back())
 
-func _add_point(action: String, title: String, where: Vector2) -> Point:
+func _add_point(action: String, title: String, where: Vector2, show_caption := true) -> Point:
     var point := POINT_SCENE.instantiate() as Point
     point.action_id = action
     point.title = title
+    point.show_caption = show_caption and action not in ["veiled_agent", "quiet_finn", "emissary"]
     point.position = where
     if action == "crypt_approach" and region == "graveyard":
         point.show_disc = false
@@ -341,7 +351,7 @@ func _add_local_npc(key: String, where: Vector2, wardrobe := 0, title := "", lin
     var dialogue: Array = LOCAL_DIALOGUE[key] if title.is_empty() else [title, line]
     local_npcs[action] = npc
     local_dialogue[action] = dialogue
-    var point := _add_point(action, dialogue[0], where)
+    var point := _add_point(action, dialogue[0], where, false)
     point.show_disc = false
     point.radius = 76.0
 
@@ -599,7 +609,7 @@ func _try_travel(destination: String) -> void:
         notice = "You have yet to find a way into the cellar."
     else:
         notice = ""
-        _load_region(destination)
+        AreaTransition.run(get_tree(), _load_region.bind(destination))
 
 func _speak_to_agent() -> void:
     if is_instance_valid(veiled_agent):

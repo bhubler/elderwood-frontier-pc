@@ -3,10 +3,13 @@ extends Node2D
 @export var action_id := ""
 @export var title := ""
 @export var radius := 70.0
+@export var show_caption := true
 @export var show_disc := true
 @export var marker_color := Color("#d3b982")
 
 func _ready() -> void:
+    if not show_caption:
+        return
     var caption := Label.new()
     caption.text = title
     caption.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER

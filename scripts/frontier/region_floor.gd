@@ -5,10 +5,14 @@ const OverworldGround := preload("res://scripts/frontier/overworld_ground.gd")
 const BOUNDS := Rect2(-510, -290, 1020, 580)
 var ground := Color("#282f2b")
 var region_id := ""
+var grass_backing := false
 
 func _draw() -> void:
     if region_id == "stonehaven" or region_id == "east_pinewood":
         var urban := region_id == "stonehaven"
+        if grass_backing:
+            draw_rect(Overworld.FOREST.grow(900), Color("#344b2b"))
+            return
         var roads := Overworld.CITY_ROADS if urban else Overworld.FOREST_ROADS
         OverworldGround.draw_ground(self, Overworld.bounds(region_id, BOUNDS).grow(770), roads, urban)
         return

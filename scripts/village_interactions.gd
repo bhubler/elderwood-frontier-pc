@@ -2,6 +2,7 @@ extends CanvasLayer
 ## Frontier village interactions: NPCs, inn interior, dialogue, and starter inventory.
 @export var inventory_only := false
 
+const AreaTransition := preload("res://scripts/area_transition.gd")
 const BACKPACK_CAPACITY := 24
 const INTERACT_DISTANCE := 115.0
 const FORSAKEN_CHAPTER := "res://scenes/frontier/forsaken_chapter.tscn"
@@ -52,7 +53,6 @@ var forest: Node2D
 var pinewood_requested := false
 var chapter: Node2D
 var gate_resources := Vector2.ZERO
-var pinewood_entry_pending := false
 var defeated_wolves: Array[int] = []
 var road_quest := RoadQuest.OFFERED
 
@@ -548,13 +548,16 @@ func _activate_offered_route() -> void:
         route.action.call()
 
 func _enter_stonehaven_district() -> void:
+    AreaTransition.run(get_tree(), _enter_stonehaven_district_now)
+
+func _enter_stonehaven_district_now() -> void:
     if is_instance_valid(chapter):
         return
     var scene := load(FORSAKEN_CHAPTER) as PackedScene
     if scene == null:
         return
     chapter = scene.instantiate()
-    _mount_chapter.call_deferred()
+    _mount_chapter()
 
 func _mount_chapter() -> void:
     var world := get_parent() as Node2D
@@ -571,6 +574,9 @@ func _mount_chapter() -> void:
     chapter.player.get_node("Camera2D").make_current()
 
 func _restore_stonehaven_gate() -> void:
+    AreaTransition.run(get_tree(), _restore_stonehaven_gate_now)
+
+func _restore_stonehaven_gate_now() -> void:
     if not is_instance_valid(chapter):
         return
     chapter.queue_free()
@@ -725,10 +731,6 @@ func _update_pinewood_loading() -> void:
     pinewood_requested = false
     if status == ResourceLoader.THREAD_LOAD_LOADED:
         pinewood_script = ResourceLoader.load_threaded_get(PINEWOOD_SCRIPT) as GDScript
-    if pinewood_entry_pending:
-        pinewood_entry_pending = false
-        if _near_pinewood_entrance():
-            _enter_pinewood()
 
 func _prepare_pinewood(script: GDScript) -> void:
     forest = script.new()
@@ -742,11 +744,13 @@ func _prepare_pinewood(script: GDScript) -> void:
     get_parent().add_child(forest)
 
 func _enter_pinewood() -> void:
+    AreaTransition.run(get_tree(), _enter_pinewood_now)
+
+func _enter_pinewood_now() -> void:
     if not is_instance_valid(forest):
         if pinewood_requested:
-            pinewood_entry_pending = true
-            _show_message("Preparing Pinewood Forest…", 2.0)
-            return
+            pinewood_script = ResourceLoader.load_threaded_get(PINEWOOD_SCRIPT) as GDScript
+            pinewood_requested = false
         if pinewood_script == null:
             pinewood_script = load(PINEWOOD_SCRIPT) as GDScript
         if pinewood_script == null:
@@ -759,6 +763,9 @@ func _enter_pinewood() -> void:
     _show_message("Pinewood Forest. Follow the road north to Stonehaven. Left click to swing. Right click to cast Fireball.", 5.0)
 
 func _leave_pinewood() -> void:
+    AreaTransition.run(get_tree(), _leave_pinewood_now)
+
+func _leave_pinewood_now() -> void:
     forest.active = false
     forest.clear_fireballs()
     forest.hide()
@@ -805,12 +812,18 @@ func _nearest_person() -> int:
     return best
 
 func _enter_inn() -> void:
+    AreaTransition.run(get_tree(), _enter_inn_now)
+
+func _enter_inn_now() -> void:
     inside_inn = true
     return_position = player.position
     player.position = Vector2(4200, 105)
     _show_message("The Wayfarer Inn — a warm refuge on the frontier. Walk south to the doorway and press E to leave.", 5.0)
 
 func _leave_inn() -> void:
+    AreaTransition.run(get_tree(), _leave_inn_now)
+
+func _leave_inn_now() -> void:
     inside_inn = false
     player.position = Vector2(-390, -140)
     _show_message("You step back into Elderwood Village.", 3.0)

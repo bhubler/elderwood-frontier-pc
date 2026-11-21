@@ -23,6 +23,7 @@ var populate_on_ready := true
 var streamed := false
 var grass_source := -1
 var grass_atlas := Vector2i.ZERO
+var grass_underlay: TileMapLayer
 
 func village_playable_outline() -> PackedVector2Array:
 	var first := Vector2i(-EXTENT, -EXTENT)
@@ -43,6 +44,13 @@ func _ready() -> void:
 		return
 	if streamed:
 		_find_solid_grass()
+		grass_underlay = TileMapLayer.new()
+		grass_underlay.name = "GrassUnderlay"
+		grass_underlay.tile_set = tile_set
+		grass_underlay.collision_enabled = false
+		grass_underlay.navigation_enabled = false
+		grass_underlay.z_index = -1
+		add_child(grass_underlay)
 	if populate_on_ready:
 		paint_ground(ground_bounds)
 
@@ -89,10 +97,11 @@ func paint_ground(bounds: Rect2, fill_missing_only := false) -> void:
 			var pos := map_to_local(cell)
 			if bounds.has_area() and not bounds.has_point(pos):
 				continue
-			if fill_missing_only and get_cell_source_id(cell) >= 0:
+			var coverage := grass_underlay if streamed and grass_source >= 0 else self
+			if fill_missing_only and coverage.get_cell_source_id(cell) >= 0:
 				continue
 			if streamed and grass_source >= 0:
-				set_cell(cell, grass_source, grass_atlas)
+				grass_underlay.set_cell(cell, grass_source, grass_atlas)
 			var cobbled := pos.distance_to(cobble_center) < cobble_radius
 			if cobble_over_roads and cobbled:
 				cobble_cells.append(cell)
@@ -112,3 +121,14 @@ func paint_ground(bounds: Rect2, fill_missing_only := false) -> void:
 		set_cells_terrain_connect(trail_cells, TERRAIN_SET, TRAIL, streamed)
 	if not cobble_cells.is_empty():
 		set_cells_terrain_connect(cobble_cells, TERRAIN_SET, COBBLE, false)
+
+
+func erase_ground_cell(cell: Vector2i) -> void:
+	erase_cell(cell)
+	if is_instance_valid(grass_underlay):
+		grass_underlay.erase_cell(cell)
+
+func ground_cells() -> Array[Vector2i]:
+	if is_instance_valid(grass_underlay) and grass_source >= 0:
+		return grass_underlay.get_used_cells()
+	return get_used_cells()
