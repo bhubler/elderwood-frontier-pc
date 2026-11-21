@@ -15,6 +15,7 @@ var entry_method := ""
 var finn_contact := false
 var emissary_pending := false
 var spell_learned := false
+var grimoire_choice := ""
 var initiation := "locked"
 var experience := 0
 var conjuration_uses := 0
@@ -36,15 +37,15 @@ func enter_black_hand(method: String) -> bool:
     return true
 
 func learn_summon() -> bool:
-    if GRIMOIRE not in quest_items or spell_learned:
+    if spell_learned or not grimoire_choice.is_empty():
         return false
+    grimoire_choice = "study"
     spell_learned = true
+    emissary_pending = entry_method.is_empty()
     return true
 
 func record_summon() -> void:
     conjuration_uses += 1
-    if entry_method.is_empty():
-        emissary_pending = true
 
 func start_initiation() -> void:
     if initiation == "available":
@@ -72,7 +73,11 @@ func black_hand_reputation() -> int:
 
 func journal() -> String:
     var graveyard := "Search the Crypt of the Bonecaller in the Forsaken Graveyard."
-    if GRIMOIRE in quest_items:
+    if grimoire_choice == "destroy":
+        graveyard = "You destroyed the forbidden grimoire."
+    elif grimoire_choice == "take":
+        graveyard = "You took the grimoire without studying it."
+    elif GRIMOIRE in quest_items:
         graveyard = "Study the forbidden grimoire."
     if spell_learned:
         graveyard = "Cast Summon Skeleton to put the grimoire's teaching into practice."
@@ -80,7 +85,7 @@ func journal() -> String:
         graveyard = "Complete. Summon Skeleton has been cast."
     var hand := "Ask Quiet Finn about the cellar, or investigate forbidden magic."
     if emissary_pending:
-        hand = "Speak to the emissary who appeared after your first summon."
+        hand = "Speak to the emissary who appeared after your study of the grimoire."
     match initiation:
         "available":
             hand = "Speak with the Veiled Agent beneath Stonehaven."
@@ -101,6 +106,7 @@ func save_progress(path: String) -> Error:
     file.set_value("chapter", "finn_contact", finn_contact)
     file.set_value("chapter", "emissary_pending", emissary_pending)
     file.set_value("chapter", "spell_learned", spell_learned)
+    file.set_value("chapter", "grimoire_choice", grimoire_choice)
     file.set_value("chapter", INITIATION, initiation)
     file.set_value("chapter", "experience", experience)
     file.set_value("chapter", "conjuration_uses", conjuration_uses)
@@ -125,6 +131,9 @@ func load_progress(path: String) -> Error:
     finn_contact = file.get_value("chapter", "finn_contact", false)
     emissary_pending = file.get_value("chapter", "emissary_pending", false)
     spell_learned = file.get_value("chapter", "spell_learned", false)
+    grimoire_choice = file.get_value("chapter", "grimoire_choice", "study" if spell_learned else "")
+    if spell_learned and entry_method.is_empty():
+        emissary_pending = true
     initiation = file.get_value("chapter", INITIATION, "locked")
     experience = file.get_value("chapter", "experience", 0)
     conjuration_uses = file.get_value("chapter", "conjuration_uses", 0)

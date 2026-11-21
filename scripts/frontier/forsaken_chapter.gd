@@ -43,6 +43,11 @@ const STONEHAVEN_BUILDING_SCALE := 1.32
 var points: Array[Point] = []
 var enemy: Enemy
 var emissary: Point
+var emissary_actor: Node2D
+var grimoire_art: Sprite2D
+var grimoire_dialog: CenterContainer
+var grimoire_heading: Label
+var grimoire_details: Label
 var veiled_agent: Node2D
 var local_npcs: Dictionary = {}
 var local_dialogue: Dictionary = {}
@@ -80,6 +85,7 @@ func _ready() -> void:
     for item_id in state.quest_items:
         if Layouts.ITEMS.has(item_id):
             inventory.grant_item(item_id, Layouts.ITEMS[item_id])
+    _build_grimoire_dialog()
     summon = Node2D.new()
     summon.z_index = 6
     summon.hide()
@@ -98,6 +104,8 @@ func _load_region(destination: String) -> void:
     enemy = null
     fireball = null
     emissary = null
+    emissary_actor = null
+    grimoire_art = null
     veiled_agent = null
 
     var layout: Dictionary = Layouts.REGIONS[region]
@@ -110,6 +118,8 @@ func _load_region(destination: String) -> void:
         if action == previous:
             player.position = marker_position.move_toward(Vector2.ZERO, 100)
         if action == "cellar_gate" and region == "stonehaven" and not _cellar_known():
+            continue
+        if action == "grimoire" and not state.grimoire_choice.is_empty():
             continue
         _add_point(action, definition[1], marker_position)
     if linked_from_gate and region == "stonehaven":
@@ -229,7 +239,10 @@ func _add_point(action: String, title: String, where: Vector2, show_caption := t
     point.title = title
     point.show_caption = show_caption and action not in ["veiled_agent", "quiet_finn", "emissary"]
     point.position = where
-    if action == "crypt_approach" and region == "graveyard":
+    if action == "grimoire":
+        point.show_disc = false
+        point.radius = 120.0
+    elif action == "crypt_approach" and region == "graveyard":
         point.show_disc = false
         point.radius = 115.0
     elif action == "veiled_agent":
@@ -260,6 +273,16 @@ func _dress_region() -> void:
             _add_local_npc("priest", Vector2(118, -57))
             _add_local_npc("monk", Vector2(373, -31), 2)
             _add_local_npc("noble", Vector2(-104, -50))
+        "crypt_ritual":
+            _add_art(LANDMARK_ROOT + "ritual_altar.png", Vector2(0, -166), 112.0)
+            if state.grimoire_choice.is_empty():
+                var book := Sprite2D.new()
+                book.texture = load(LANDMARK_ROOT + "forbidden_grimoire.png")
+                book.position = Vector2(0, -238)
+                book.z_index = 1
+                props.add_child(book)
+                grimoire_art = book
+            WorldCollision.box(props, "RitualAltar", Rect2(-55, -210, 110, 45))
         "northern_watch":
             WorldCollision.box(props, "WatchTable", Floor.WATCH_TABLE)
             for bounds in Floor.WATCH_CRATES:
@@ -420,7 +443,7 @@ func _add_npc(key: String, where: Vector2, wardrobe := 0) -> Node2D:
 func _unhandled_input(event: InputEvent) -> void:
     if not event is InputEventMouseButton or not event.pressed:
         return
-    if player.choosing_race or inventory.inventory_open or journal_panel.visible or health <= 0:
+    if player.choosing_race or inventory.inventory_open or journal_panel.visible or grimoire_dialog.visible or health <= 0:
         return
     var cursor: Vector2 = get_global_transform_with_canvas().affine_inverse() * event.position
     if event.button_index == MOUSE_BUTTON_RIGHT:
@@ -435,6 +458,8 @@ func _unhandled_input(event: InputEvent) -> void:
         var hit := Rect2(point.position - Vector2(65, 54), Vector2(130, 66))
         if region == "graveyard" and point.action_id == "crypt_approach":
             hit = Rect2(point.position - Vector2(68, 105), Vector2(136, 116))
+        if point.action_id == "grimoire":
+            hit = Rect2(point.position - Vector2(76, 125), Vector2(152, 131))
         if hit.has_point(cursor):
             _interact(point.action_id)
             get_viewport().set_input_as_handled()
@@ -467,20 +492,33 @@ func _bring_emissary() -> void:
     var where: Vector2 = player.position.move_toward(Vector2.ZERO, 36) + Vector2(50, 0)
     emissary = _add_point("emissary", "Black Hand Emissary", _bounded(where))
     emissary.radius = 96
+    emissary.show_disc = false
+    emissary_actor = _add_npc("black_hand_duelist", emissary.position)
+    if is_instance_valid(emissary_actor):
+        emissary_actor.autonomous_patrol = false
+
+func _remove_emissary() -> void:
+    if is_instance_valid(emissary):
+        points.erase(emissary)
+        emissary.queue_free()
+        emissary = null
+    if is_instance_valid(emissary_actor):
+        emissary_actor.queue_free()
+        emissary_actor = null
 
 func _process(_delta: float) -> void:
     if region == "east_pinewood" and is_instance_valid(outdoor_terrain):
         _update_forest_terrain()
     if inventory.inventory_open:
         journal_panel.hide()
-    var blocked: bool = player.choosing_race or inventory.inventory_open or journal_panel.visible
+    var blocked: bool = player.choosing_race or inventory.inventory_open or journal_panel.visible or grimoire_dialog.visible
     player.set_physics_process(not blocked)
     if is_instance_valid(enemy):
         enemy.target = null if blocked or health <= 0 else player
     inventory.update_resource_bars(health, MAX_HEALTH, mana, State.MAX_MANA)
     var point := _nearest_point()
     var prompt := "Move to a marker and press E." if point == null else "E  %s" % point.title
-    hud.text = "%s  |  HP %d/%d  |  Mana %d/%d  |  Level %d\n%s\nLMB / Space attack  ·  RMB / F Fireball  ·  L study  ·  Q summon  ·  J journal  ·  I inventory\n%s" % [
+    hud.text = "%s  |  HP %d/%d  |  Mana %d/%d  |  Level %d\n%s\nLMB / Space attack  ·  RMB / F Fireball  ·  L grimoire  ·  Q summon  ·  J journal  ·  I inventory\n%s" % [
         Layouts.REGIONS[region]["title"], health, MAX_HEALTH, floori(mana), State.MAX_MANA, state.level(), prompt, notice
     ]
     journal_text.text = "%s\n\n%s\n%d XP  ·  %d unspent character points  ·  Conjuration rank %d (%d casts)\nBlack Hand reputation %d%s\n\nJ or Esc to close" % [
@@ -491,7 +529,7 @@ func _process(_delta: float) -> void:
 
 func _physics_process(delta: float) -> void:
     player.position = _bounded(player.position)
-    if player.choosing_race or inventory.inventory_open or journal_panel.visible or health <= 0:
+    if player.choosing_race or inventory.inventory_open or journal_panel.visible or grimoire_dialog.visible or health <= 0:
         return
     mana = minf(State.MAX_MANA, mana + 8.0 * delta)
     attack_wait = maxf(0.0, attack_wait - delta)
@@ -536,6 +574,11 @@ func _unhandled_key_input(event: InputEvent) -> void:
         return
     if player.choosing_race or inventory.inventory_open or health <= 0:
         return
+    if grimoire_dialog.visible:
+        if event.keycode == KEY_ESCAPE:
+            grimoire_dialog.hide()
+        get_viewport().set_input_as_handled()
+        return
     if journal_panel.visible:
         if event.keycode in [KEY_J, KEY_ESCAPE, KEY_I]:
             journal_panel.hide()
@@ -553,7 +596,8 @@ func _unhandled_key_input(event: InputEvent) -> void:
         KEY_F:
             _cast_fireball(player.position + player.facing * 100.0)
         KEY_L:
-            _learn_spell()
+            if State.GRIMOIRE in state.quest_items and state.grimoire_choice.is_empty():
+                _show_grimoire_dialog(false)
         KEY_Q:
             _cast_summon()
         KEY_J:
@@ -601,15 +645,13 @@ func _interact(action: String) -> void:
             notice = "Quiet Finn whispers about a scratched black hand on the drainage door north of here."
         "emissary":
             if state.enter_black_hand("grimoire"):
-                points.erase(emissary)
-                emissary.queue_free()
-                emissary = null
+                _remove_emissary()
                 if region == "stonehaven" and not _cellar_marker_visible():
                     _add_point("cellar_gate", "Hidden Drainage Door", Layouts.NORTH)
                 if region == "cellar_gate" and is_instance_valid(enemy):
                     enemy.queue_free()
                     enemy = null
-                notice = "Emissary — You dared to raise the dead. Find the drainage door in Stonehaven. You may pass."
+                notice = "Emissary — You dared to study the Bonecaller’s rites. Find the drainage door in Stonehaven. You may pass."
                 _save()
         "veiled_agent":
             _speak_to_agent()
@@ -617,7 +659,7 @@ func _interact(action: String) -> void:
             if "bonecaller" not in state.defeated:
                 notice = "The Bonecaller bars the way to the lectern."
             else:
-                _take_item(State.GRIMOIRE, "You recover the Forbidden Grimoire. Press L to study it.")
+                _show_grimoire_dialog(false)
         "ledger":
             if "vault_warden" not in state.defeated:
                 notice = "The Warden guards the ledger."
@@ -684,12 +726,88 @@ func _take_item(item_id: String, message: String) -> void:
     notice = message
     _save()
 
+func _build_grimoire_dialog() -> void:
+    grimoire_dialog = CenterContainer.new()
+    grimoire_dialog.visibility_changed.connect(func() -> void:
+        inventory.set_process_unhandled_key_input(not grimoire_dialog.visible)
+    )
+    $HUD.add_child(grimoire_dialog)
+    grimoire_dialog.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+    var panel := PanelContainer.new()
+    panel.custom_minimum_size.x = 600
+    var style := StyleBoxFlat.new()
+    style.bg_color = Color("#1c1721")
+    style.border_color = Color("#b09364")
+    style.set_border_width_all(2)
+    style.set_content_margin_all(18)
+    panel.add_theme_stylebox_override("panel", style)
+    grimoire_dialog.add_child(panel)
+    var content := VBoxContainer.new()
+    content.add_theme_constant_override("separation", 14)
+    panel.add_child(content)
+    grimoire_heading = Label.new()
+    grimoire_heading.add_theme_font_size_override("font_size", 25)
+    content.add_child(grimoire_heading)
+    grimoire_details = Label.new()
+    grimoire_details.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+    content.add_child(grimoire_details)
+    var actions := HBoxContainer.new()
+    content.add_child(actions)
+    for choice in [["Destroy", "destroy"], ["Take", "take"], ["Study", "study"], ["Decide later", "later"]]:
+        var button := Button.new()
+        button.text = choice[0]
+        button.custom_minimum_size.y = 35
+        button.pressed.connect(_choose_grimoire.bind(choice[1]))
+        actions.add_child(button)
+    grimoire_dialog.hide()
+
+func _show_grimoire_dialog(victory: bool) -> void:
+    if not state.grimoire_choice.is_empty():
+        return
+    grimoire_heading.text = "The Bonecaller is defeated" if victory else "The Forbidden Grimoire"
+    grimoire_details.text = "The Forbidden Grimoire lies open on the altar. Destroy it, take it without reading, or study its rites."
+    grimoire_dialog.show()
+
+func _choose_grimoire(choice: String) -> void:
+    if not grimoire_dialog.visible or not state.grimoire_choice.is_empty():
+        return
+    if choice == "later":
+        grimoire_dialog.hide()
+        return
+    match choice:
+        "take":
+            if State.GRIMOIRE not in state.quest_items:
+                if not inventory.grant_item(State.GRIMOIRE, Layouts.ITEMS[State.GRIMOIRE]):
+                    grimoire_details.text = "Your backpack is full. Make room before taking the book."
+                    return
+                state.quest_items.append(State.GRIMOIRE)
+            state.grimoire_choice = "take"
+            notice = "You put the unread grimoire in your backpack."
+        "destroy":
+            state.grimoire_choice = "destroy"
+            state.quest_items.erase(State.GRIMOIRE)
+            inventory.remove_item(State.GRIMOIRE)
+            notice = "You destroy the Forbidden Grimoire."
+        "study":
+            _learn_spell()
+        _:
+            return
+    if is_instance_valid(grimoire_art):
+        grimoire_art.queue_free()
+    for point in points:
+        if point.action_id == "grimoire":
+            points.erase(point)
+            point.queue_free()
+            break
+    grimoire_dialog.hide()
+    _save()
+
 func _learn_spell() -> void:
     if state.learn_summon():
         notice = "Learned Summon Skeleton. Press Q to cast for 45 mana."
-        _save()
-    else:
-        notice = "You already know Summon Skeleton." if state.spell_learned else "Find the Forbidden Grimoire first."
+        if state.emissary_pending:
+            _bring_emissary()
+            notice += " A Black Hand emissary approaches. Speak to them with E."
 
 func _cast_summon() -> void:
     if not state.spell_learned:
@@ -712,9 +830,6 @@ func _cast_summon() -> void:
         _summon_effect(&"windup", player.position + Vector2(0, -18))
         state.record_summon()
         notice = "A skeleton rises for 35 seconds."
-        if state.emissary_pending:
-            _bring_emissary()
-            notice += " A Black Hand emissary approaches. Speak to the emissary with E."
         _save()
 
 func _summon_effect(clip: StringName, where: Vector2) -> void:
@@ -786,12 +901,11 @@ func _on_victory(encounter_id: String, reward_xp: int) -> void:
     notice = "%s defeated. +%d XP" % [enemy.title, reward_xp]
     enemy = null
     state.record_victory(encounter_id, reward_xp)
+    if encounter_id == "bonecaller":
+        _show_grimoire_dialog(true)
     if encounter_id == "cellar_guard":
         state.enter_black_hand("guard")
-        if is_instance_valid(emissary):
-            points.erase(emissary)
-            emissary.queue_free()
-            emissary = null
+        _remove_emissary()
         notice += " The guard's defeat grants access to the cellar."
     _save()
 

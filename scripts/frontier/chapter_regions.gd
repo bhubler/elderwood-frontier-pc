@@ -24,8 +24,8 @@ const REGIONS := {
     },
     "crypt_ritual": {
         "title": "Crypt of the Bonecaller — Ritual Chamber", "ground": "#302734",
-        "points": [["crypt_ossuary", "Ossuary", EXIT], ["grimoire", "Ritual lectern", NORTH]],
-        "enemy": ["bonecaller", "The Bonecaller", 64, 17, 60, "#b58ccd"],
+        "points": [["crypt_ossuary", "Ossuary", EXIT], ["grimoire", "Forbidden Grimoire", Vector2(0, -168)]],
+        "enemy": ["bonecaller", "The Bonecaller", 64, 17, 60, "#b58ccd", "black_hand_weaver"],
     },
     "stonehaven": {
         "title": "Stonehaven", "ground": "#3a3930",
@@ -95,7 +95,7 @@ const REGIONS := {
 const ITEMS := {
     "forbidden_grimoire": {
         "name": "Forbidden Grimoire", "kind": "quest", "icon": "▤", "rarity": "Rare",
-        "description": "The Bonecaller's notes. Press L in the chapter to learn Summon Skeleton.",
+        "description": "The Bonecaller's notes. An unopened record of the Bonecaller’s rites.",
     },
     "sealed_ledger": {
         "name": "Sealed Ledger", "kind": "quest", "icon": "◇", "rarity": "Quest",
