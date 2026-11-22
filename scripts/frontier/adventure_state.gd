@@ -19,6 +19,34 @@ var grimoire_choice := ""
 var initiation := "locked"
 var experience := 0
 var conjuration_uses := 0
+var guild_rank := ""
+var guild_provisions := false
+var guild_caravan_inspected := false
+var guild_watch_supplied := false
+var guild_herbs := 0
+var lord_stage := "locked"
+var mentorship_faction := ""
+var mentorship_year := 0
+var mentorship_focus := ""
+var player_age := 15
+func guild_assignments_complete() -> bool:
+    return not guild_rank.is_empty() and guild_caravan_inspected and "blackbriar_bandit" in defeated and "blackbriar_chief" in defeated and guild_watch_supplied and guild_herbs >= 10
+
+func guild_journal() -> String:
+    if guild_rank.is_empty():
+        return "Register at Stonehaven's Adventurer's Guild as a D-rank adventurer."
+    if lord_stage == "locked":
+        return "D-rank assignments: caravan and bandits (%s); watchtower provisions (%s); herbs (%d/10)." % ["complete" if guild_caravan_inspected and "blackbriar_bandit" in defeated and "blackbriar_chief" in defeated else "active", "complete" if guild_watch_supplied else "active", guild_herbs]
+    if lord_stage == "summoned":
+        return "The Lord of Stonehaven requests your presence at his manor."
+    if lord_stage in ["ruin", "report"]:
+        return "Explore the mysterious ruin and report its ancient magic stone to the lord."
+    if lord_stage == "share":
+        return "Bring the prophecy to the church or a Black Hand contact and choose your mentor."
+    if not mentorship_faction.is_empty():
+        return "Apprenticeship year %d/5: %s, studying %s." % [mentorship_year, mentorship_faction, mentorship_focus]
+    return "Continue your studies and quests."
+
 
 func record_victory(encounter_id: String, reward_xp: int) -> void:
     if encounter_id in defeated:
@@ -109,6 +137,16 @@ func save_progress(path: String) -> Error:
     file.set_value("chapter", INITIATION, initiation)
     file.set_value("chapter", "experience", experience)
     file.set_value("chapter", "conjuration_uses", conjuration_uses)
+    file.set_value("chapter", "guild_rank", guild_rank)
+    file.set_value("chapter", "guild_provisions", guild_provisions)
+    file.set_value("chapter", "guild_caravan_inspected", guild_caravan_inspected)
+    file.set_value("chapter", "guild_watch_supplied", guild_watch_supplied)
+    file.set_value("chapter", "guild_herbs", guild_herbs)
+    file.set_value("chapter", "lord_stage", lord_stage)
+    file.set_value("chapter", "mentorship_faction", mentorship_faction)
+    file.set_value("chapter", "mentorship_year", mentorship_year)
+    file.set_value("chapter", "mentorship_focus", mentorship_focus)
+    file.set_value("chapter", "player_age", player_age)
     var temporary_path := path + ".tmp"
     var result := file.save(temporary_path)
     if result == OK:
@@ -136,4 +174,14 @@ func load_progress(path: String) -> Error:
     initiation = file.get_value("chapter", INITIATION, "locked")
     experience = file.get_value("chapter", "experience", 0)
     conjuration_uses = file.get_value("chapter", "conjuration_uses", 0)
+    guild_rank = file.get_value("chapter", "guild_rank", "")
+    guild_provisions = file.get_value("chapter", "guild_provisions", false)
+    guild_caravan_inspected = file.get_value("chapter", "guild_caravan_inspected", false)
+    guild_watch_supplied = file.get_value("chapter", "guild_watch_supplied", false)
+    guild_herbs = file.get_value("chapter", "guild_herbs", 0)
+    lord_stage = file.get_value("chapter", "lord_stage", "locked")
+    mentorship_faction = file.get_value("chapter", "mentorship_faction", "")
+    mentorship_year = file.get_value("chapter", "mentorship_year", 0)
+    mentorship_focus = file.get_value("chapter", "mentorship_focus", "")
+    player_age = file.get_value("chapter", "player_age", 15)
     return OK
