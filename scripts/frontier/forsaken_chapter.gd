@@ -88,6 +88,11 @@ func _ready() -> void:
     for item_id in state.quest_items:
         if Layouts.ITEMS.has(item_id):
             inventory.grant_item(item_id, Layouts.ITEMS[item_id])
+    # Earlier builds taught the spell without giving the studied book.
+    if state.grimoire_choice == "study" and State.GRIMOIRE not in state.quest_items:
+        if inventory.grant_item(State.GRIMOIRE, Layouts.ITEMS[State.GRIMOIRE]):
+            state.quest_items.append(State.GRIMOIRE)
+            _save()
     var journal_content := VBoxContainer.new()
     journal_panel.remove_child(journal_text)
     journal_panel.add_child(journal_content)
@@ -128,6 +133,8 @@ func _load_region(destination: String) -> void:
         if action == previous:
             player.position = marker_position.move_toward(Vector2.ZERO, 100)
         if action == "cellar_gate" and region == "stonehaven" and not _cellar_known():
+            continue
+        if action == "grimoire" and not state.grimoire_choice.is_empty():
             continue
         _add_point(action, definition[1], marker_position)
     if linked_from_gate and region == "stonehaven":
@@ -287,16 +294,14 @@ func _dress_region() -> void:
             _add_local_npc("noble", Vector2(-104, -50))
         "crypt_ritual":
             _add_art(LANDMARK_ROOT + "ritual_altar.png", Vector2(0, -166), 112.0)
-            var book := Sprite2D.new()
-            book.texture = load(LANDMARK_ROOT + "forbidden_grimoire.png")
-            book.position = Vector2(0, -245)
-            book.scale = Vector2.ONE * 1.17
-            book.z_index = 1
-            if state.grimoire_choice in ["take", "destroy"]:
-                # Replayed encounters show a magical imprint of a book that is gone.
-                book.modulate = Color(0.83, 0.64, 1.0, 0.72)
-            props.add_child(book)
-            grimoire_art = book
+            if state.grimoire_choice.is_empty():
+                var book := Sprite2D.new()
+                book.texture = load(LANDMARK_ROOT + "forbidden_grimoire.png")
+                book.position = Vector2(2, -239)
+                book.rotation = -0.10
+                book.z_index = 1
+                props.add_child(book)
+                grimoire_art = book
             WorldCollision.box(props, "RitualAltar", Rect2(-55, -210, 110, 45))
         "northern_watch":
             WorldCollision.box(props, "WatchTable", Floor.WATCH_TABLE)
@@ -783,25 +788,25 @@ func _build_grimoire_dialog() -> void:
     grimoire_dialog.hide()
 
 func _show_grimoire_dialog(victory: bool) -> void:
+    if not state.grimoire_choice.is_empty():
+        return
     grimoire_heading.text = "The Bonecaller is defeated" if victory else "The Forbidden Grimoire"
     grimoire_details.text = "The Forbidden Grimoire lies open on the altar. Destroy it, take it without reading, or study its rites."
-    if not state.grimoire_choice.is_empty():
-        grimoire_details.text += "\nYou can choose again. Learned spells and Black Hand progress are kept."
     grimoire_dialog.show()
 
 func _choose_grimoire(choice: String) -> void:
-    if not grimoire_dialog.visible:
+    if not grimoire_dialog.visible or not state.grimoire_choice.is_empty():
         return
     if choice == "later":
         grimoire_dialog.hide()
         return
+    if choice in ["take", "study"] and State.GRIMOIRE not in state.quest_items:
+        if not inventory.grant_item(State.GRIMOIRE, Layouts.ITEMS[State.GRIMOIRE]):
+            grimoire_details.text = "Your backpack is full. Make room before keeping the book."
+            return
+        state.quest_items.append(State.GRIMOIRE)
     match choice:
         "take":
-            if State.GRIMOIRE not in state.quest_items:
-                if not inventory.grant_item(State.GRIMOIRE, Layouts.ITEMS[State.GRIMOIRE]):
-                    grimoire_details.text = "Your backpack is full. Make room before taking the book."
-                    return
-                state.quest_items.append(State.GRIMOIRE)
             state.grimoire_choice = "take"
             notice = "You put the unread grimoire in your backpack."
         "destroy":
@@ -816,16 +821,21 @@ func _choose_grimoire(choice: String) -> void:
     if choice != "study":
         state.emissary_pending = false
         _remove_emissary()
-        if is_instance_valid(grimoire_art):
-            grimoire_art.modulate = Color(0.83, 0.64, 1.0, 0.72)
+    if is_instance_valid(grimoire_art):
+        grimoire_art.hide()
+        grimoire_art.queue_free()
+        grimoire_art = null
+    for point in points:
+        if point.action_id == "grimoire":
+            points.erase(point)
+            point.queue_free()
+            break
     grimoire_dialog.hide()
     _save()
 
 func _learn_spell() -> void:
     var newly_learned := state.learn_summon()
     notice = "Learned Summon Skeleton. Press Q to cast for 45 mana." if newly_learned else "You study the Bonecaller’s rites again."
-    if is_instance_valid(grimoire_art):
-        grimoire_art.modulate = Color.WHITE
     emissary_seen_this_session = false
     _bring_emissary()
     notice += " A Black Hand emissary approaches. Speak to them with E."

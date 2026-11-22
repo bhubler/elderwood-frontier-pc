@@ -383,6 +383,15 @@ func _refresh_inventory() -> void:
         button.tooltip_text = str(item_data[item_id]["name"]) if not item_id.is_empty() else ""
     item_details.text = "SELECT AN ITEM\nInspect its properties and equip weapons or armor."
 
+func copy_items_from(source: CanvasLayer) -> void:
+    equipment = source.equipment.duplicate()
+    backpack.assign(source.backpack)
+    item_data = source.item_data.duplicate(true)
+    gold = source.gold
+    if is_instance_valid(player):
+        player.set_equipment(equipment)
+        _refresh_inventory()
+
 func grant_item(item_id: String, definition: Dictionary) -> bool:
     if item_id in backpack:
         return true
@@ -577,6 +586,7 @@ func _mount_chapter() -> void:
     hide()
     chapter.linked_from_gate = true
     chapter.return_to_gate.connect(_restore_stonehaven_gate, CONNECT_DEFERRED)
+    chapter.get_node("Inventory").copy_items_from(self)
     get_tree().root.add_child(chapter)
     chapter.player._choose_race(player.race)
     chapter.player.get_node("Camera2D").make_current()
@@ -587,6 +597,7 @@ func _restore_stonehaven_gate() -> void:
 func _restore_stonehaven_gate_now() -> void:
     if not is_instance_valid(chapter):
         return
+    copy_items_from(chapter.inventory)
     chapter.queue_free()
     chapter = null
     var world := get_parent() as Node2D

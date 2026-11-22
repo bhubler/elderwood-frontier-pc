@@ -95,7 +95,7 @@ const REGIONS := {
 const ITEMS := {
     "forbidden_grimoire": {
         "name": "Forbidden Grimoire", "kind": "quest", "icon": "▤", "rarity": "Rare",
-        "description": "The Bonecaller's notes. An unopened record of the Bonecaller’s rites.",
+        "description": "The Bonecaller's notes. A forbidden record of the Bonecaller’s rites.",
     },
     "sealed_ledger": {
         "name": "Sealed Ledger", "kind": "quest", "icon": "◇", "rarity": "Quest",
