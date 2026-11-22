@@ -150,6 +150,13 @@ func _load_region(destination: String) -> void:
     if region == "east_pinewood" and previous.is_empty():
         player.position = Overworld.FOREST_WEST + Vector2(105, 0)
     _dress_region()
+    if region == "stonehaven":
+        _add_point("adventurers_guild", "Adventurer's Guild", Vector2(-260, 360))
+        _add_point("city_lord", "Stonehaven Lord", Vector2(-264, -155))
+        _add_point("church_mentor", "Church of Stonehaven", Vector2(232, -155))
+    if region == "east_pinewood" and not state.guild_rank.is_empty():
+        for index in range(10):
+            _add_point("herb_%d" % index, "Gather woodland herb", Overworld.CARAVAN + Vector2(-250 + (index % 5) * 105, 220 + int(index / 5) * 95), false)
     _load_outdoor_terrain()
     floor_art.queue_redraw()
     if region == "east_pinewood" and "blackbriar_bandit" not in state.defeated:
@@ -375,6 +382,7 @@ func _dress_stonehaven() -> void:
     _add_landmark("temple", Vector2(232, -243), 314)
     _add_landmark("residence", Vector2(698, -243), 195)
     _add_landmark("residence", Vector2(-258, 285), 201)
+    _add_landmark("civic", Vector2(-260, 318), 170) # Guildhall building; reuse established civic artwork
     _add_landmark("residence", Vector2(252, 285), 196)
     _add_landmark("residence", Vector2(694, 285), 187)
     _add_landmark("way_shrine", Vector2(658, 440), 76)
@@ -594,7 +602,7 @@ func _process(_delta: float) -> void:
         Layouts.REGIONS[region]["title"], health, MAX_HEALTH, floori(mana), State.MAX_MANA, state.level(), prompt, notice
     ]
     journal_text.text = "%s\n%d XP  ·  %d unspent character points  ·  Conjuration rank %d (%d casts)\nBlack Hand reputation %d%s\n\nJ or Esc to close" % [
-        state.journal(), state.experience, state.training_points(),
+        state.journal() + "\n\nAdventurer's Guild\n" + state.guild_journal(), state.experience, state.training_points(),
         state.conjuration_rank(), state.conjuration_uses, state.black_hand_reputation(),
         "  ·  Entry by %s" % state.entry_method if not state.entry_method.is_empty() else ""
     ]
@@ -699,11 +707,59 @@ func _interact(action: String) -> void:
             local_npcs[action].interact()
         notice = "%s — %s" % local_dialogue[action]
         return
+    if action == "adventurers_guild":
+        if state.guild_rank.is_empty():
+            state.guild_rank = "D"
+            state.guild_provisions = true
+            notice = "Guild Master — Welcome to the Adventurer's Guild! Registered: D-rank. Three assignments: investigate the raided caravan and its bandits, deliver this parcel to the eastern watchtower, and gather ten herbs in East Pinewood. Your provisions are issued."
+        elif state.guild_assignments_complete() and state.lord_stage == "locked":
+            state.lord_stage = "summoned"
+            notice = "Guild Master — All three assignments complete. Excellent work. The Lord of Stonehaven requests an audience at his manor. He heard about the bandits."
+        else:
+            notice = "Guild Master — %s" % state.guild_journal()
+        _save()
+        return
+    if action.begins_with("herb_"):
+        if region != "east_pinewood" or state.guild_rank.is_empty():
+            return
+        var herb_key := action
+        if herb_key in state.quest_items:
+            notice = "You have already gathered these herbs."
+        else:
+            state.quest_items.append(herb_key)
+            state.guild_herbs = mini(10, state.guild_herbs + 1)
+            notice = "Collected woodland herb (%d/10)." % state.guild_herbs
+            for point in points:
+                if point.action_id == action:
+                    points.erase(point)
+                    point.queue_free()
+                    break
+            _save()
+        return
+    if action == "city_lord":
+        if state.lord_stage == "summoned":
+            state.lord_stage = "ruin"
+            notice = "Lord of Stonehaven — We are desperately short of capable hands. I have no right to demand this of you, but I heard you defeated the Blackbriar bandits. A strange ruin is drawing people to it. Will you investigate and return with what you discover?"
+        elif state.lord_stage == "report":
+            state.lord_stage = "share"
+            notice = "Lord of Stonehaven — Magic is our hope, and may set us free as the world awakens? Troubling words. Take this knowledge to the church. In gratitude, our swordmasters and mages will train you without an oath to my army. Speak with me again to accept."
+        elif state.lord_stage == "share":
+            notice = "Lord of Stonehaven — Our tutors can teach swordsmanship and ordinary schools of magic. The church may offer a different path. Choose your mentor when you are ready."
+        else:
+            notice = "Lord of Stonehaven — The city has burdens enough. Earn the Guild Master's trust and return."
+        _save()
+        return
+    if action == "church_mentor":
+        notice = "Priest — We will hear the prophecy and welcome you to learn healing, protection, and sacred disciplines. The choice of mentor will begin your five-year training journey."
+        return
     match action:
         "main_gate":
             return_to_gate.emit()
         "inspect_caravan":
-            notice = "Broken crates and a snapped axle litter the road. Tracks lead toward the raider camp."
+            if not state.guild_rank.is_empty():
+                state.guild_caravan_inspected = true
+                _save()
+            notice = "Broken crates and a snapped axle litter the road. You search for survivors, but find only tracks toward the Blackbriar raider camp."
         "woodland_shrine":
             notice = "Travelers have left pine cones and copper coins at the shrine."
         "grave_marker":
