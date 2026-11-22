@@ -40,8 +40,8 @@ var inventory_grid: GridContainer
 var equipment_grid: GridContainer
 var gold_label: Label
 var item_details: Label
-var equipment: Dictionary = {"weapon": "", "armor": "cloak", "accessory": ""}
-var backpack: Array[String] = ["rusty_sword", "old_map", "bread", "healing_potion"]
+var equipment: Dictionary = {"weapon": "rusty_sword", "armor": "cloak", "accessory": ""}
+var backpack: Array[String] = ["old_map", "bread", "healing_potion"]
 var item_data: Dictionary = {
     "rusty_sword": {"name": "Worn Iron Sword", "kind": "weapon", "icon": "⚔", "rarity": "Common", "description": "A battered but reliable blade.", "attack": 3},
     "cloak": {"name": "Traveler\u0027s Cloak", "kind": "armor", "icon": "◈", "rarity": "Common", "description": "A weathered cloak for the long road.", "defense": 1},
