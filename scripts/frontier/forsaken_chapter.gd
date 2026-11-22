@@ -49,6 +49,7 @@ var emissary: Point
 var emissary_actor: Node2D
 var emissary_seen_this_session := false
 var grimoire_art: Sprite2D
+var grimoire_replay := false
 var grimoire_dialog: CenterContainer
 var grimoire_heading: Label
 var grimoire_details: Label
@@ -122,6 +123,7 @@ func _load_region(destination: String) -> void:
     emissary = null
     emissary_actor = null
     grimoire_art = null
+    grimoire_replay = false
     veiled_agent = null
 
     var layout: Dictionary = Layouts.REGIONS[region]
@@ -136,6 +138,7 @@ func _load_region(destination: String) -> void:
         if action == "cellar_gate" and region == "stonehaven" and not _cellar_known():
             continue
         if action == "grimoire" and not state.grimoire_choice.is_empty():
+            _add_point("replay_grimoire", "Replay grimoire choice", marker_position)
             continue
         _add_point(action, definition[1], marker_position)
     if linked_from_gate and region == "stonehaven":
@@ -263,7 +266,7 @@ func _add_point(action: String, title: String, where: Vector2, show_caption := t
         point.show_caption = false
         point.show_disc = false
         point.radius = 95.0
-    elif action == "grimoire":
+    elif action in ["grimoire", "replay_grimoire"]:
         point.show_disc = false
         point.radius = 120.0
     elif action == "crypt_approach" and region == "graveyard":
@@ -300,13 +303,7 @@ func _dress_region() -> void:
         "crypt_ritual":
             _add_art(LANDMARK_ROOT + "ritual_altar.png", Vector2(0, -166), 112.0)
             if state.grimoire_choice.is_empty():
-                var book := Sprite2D.new()
-                book.texture = WayfindingArt._texture(LANDMARK_ROOT + "forbidden_grimoire.png")
-                book.position = Vector2(2, -239)
-                book.rotation = -0.10
-                book.z_index = 1
-                props.add_child(book)
-                grimoire_art = book
+                _place_grimoire()
             WorldCollision.box(props, "RitualAltar", Rect2(-55, -210, 110, 45))
         "northern_watch":
             WorldCollision.box(props, "WatchTable", Floor.WATCH_TABLE)
@@ -329,6 +326,17 @@ func _dress_region() -> void:
             veiled_agent = _add_npc("veiled_agent", Vector2(0, -70))
             if is_instance_valid(veiled_agent):
                 veiled_agent.autonomous_patrol = false
+
+func _place_grimoire() -> void:
+    if is_instance_valid(grimoire_art):
+        return
+    var book := Sprite2D.new()
+    book.texture = WayfindingArt._texture(LANDMARK_ROOT + "forbidden_grimoire.png")
+    book.position = Vector2(2, -239)
+    book.rotation = -0.10
+    book.z_index = 1
+    props.add_child(book)
+    grimoire_art = book
 
 func _dress_stonehaven() -> void:
     _add_art(LANDMARK_ROOT + "drainage_hatch.png", Layouts.STONEHAVEN_DRAIN + Vector2(0, 12), 105.0, -2)
@@ -499,7 +507,7 @@ func _unhandled_input(event: InputEvent) -> void:
             hit = Rect2(point.position - Vector2(68, 105), Vector2(136, 116))
         if point.action_id == "cellar_gate" and region == "stonehaven":
             hit = Rect2(point.position - Vector2(58, 66), Vector2(116, 82))
-        if point.action_id == "grimoire":
+        if point.action_id in ["grimoire", "replay_grimoire"]:
             hit = Rect2(point.position - Vector2(76, 125), Vector2(152, 131))
         if hit.has_point(cursor):
             _interact(point.action_id)
@@ -702,10 +710,13 @@ func _interact(action: String) -> void:
             _save()
         "veiled_agent":
             _speak_to_agent()
-        "grimoire":
+        "grimoire", "replay_grimoire":
             if is_instance_valid(enemy) or "bonecaller" not in state.defeated:
                 notice = "The Bonecaller bars the way to the lectern."
             else:
+                if action == "replay_grimoire":
+                    grimoire_replay = true
+                    _place_grimoire()
                 _show_grimoire_dialog(false)
         "ledger":
             if "vault_warden" not in state.defeated:
@@ -809,14 +820,16 @@ func _build_grimoire_dialog() -> void:
     grimoire_dialog.hide()
 
 func _show_grimoire_dialog(victory: bool) -> void:
-    if not state.grimoire_choice.is_empty():
+    if not state.grimoire_choice.is_empty() and not grimoire_replay:
         return
     grimoire_heading.text = "The Bonecaller is defeated" if victory else "The Forbidden Grimoire"
     grimoire_details.text = "The Forbidden Grimoire lies open on the altar. Destroy it, take it without reading, or study its rites."
+    if grimoire_replay:
+        grimoire_details.text += "\nYour previous choice stays saved until you confirm a new one. Learned spells and faction progress are kept."
     grimoire_dialog.show()
 
 func _choose_grimoire(choice: String) -> void:
-    if not grimoire_dialog.visible or not state.grimoire_choice.is_empty():
+    if not grimoire_dialog.visible or (not state.grimoire_choice.is_empty() and not grimoire_replay):
         return
     if choice == "later":
         grimoire_dialog.hide()
@@ -847,10 +860,11 @@ func _choose_grimoire(choice: String) -> void:
         grimoire_art.queue_free()
         grimoire_art = null
     for point in points:
-        if point.action_id == "grimoire":
+        if point.action_id in ["grimoire", "replay_grimoire"]:
             points.erase(point)
             point.queue_free()
             break
+    grimoire_replay = false
     grimoire_dialog.hide()
     _save()
 
@@ -966,7 +980,7 @@ func _on_victory(encounter_id: String, reward_xp: int) -> void:
         if state.grimoire_choice.is_empty():
             _show_grimoire_dialog(true)
         else:
-            notice += " The altar is empty because you already resolved the grimoire choice."
+            notice += " Use Replay grimoire choice at the altar to try a different outcome."
     if encounter_id == "cellar_guard":
         state.enter_black_hand("guard")
         _remove_emissary()
