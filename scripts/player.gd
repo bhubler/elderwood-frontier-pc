@@ -30,6 +30,11 @@ var strike_direction := Vector2.DOWN
 var attack_bonus := 0
 var defense_bonus := 1
 
+const Art := preload("res://scripts/wayfinding_art.gd")
+const ADDITIONAL_RACE_ART := {
+    "High Elf": "res://art/characters/original/high_elf.png",
+    "Orc": "res://art/characters/original/orc.png",
+}
 const RACE_ART := {
     "Human": preload("res://art/characters/original/human.png"),
     "Dark Elf": preload("res://art/characters/original/dark_elf.png"),
@@ -178,6 +183,8 @@ func _refresh_character_appearance() -> void:
     if necromancer_sprite != null:
         necromancer_sprite.visible = necromancer_active
     var race_texture: Texture2D = RACE_ART.get(race)
+    if ADDITIONAL_RACE_ART.has(race):
+        race_texture = Art._texture(ADDITIONAL_RACE_ART[race])
     race_sprite.texture = race_texture
     race_sprite.visible = not necromancer_active and race_texture != null
     if race_sprite.visible:

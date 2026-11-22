@@ -144,8 +144,7 @@ func _load_wayfarer_art() -> void:
 	add_child(inn)
 
 func _load_village_building_art() -> void:
-	# Individual building PNGs are optional; procedural placeholders remain until installed.
-	# Copy the five PNGs into res://art/village_buildings/.
+	# Prefer the local village set, with matching shipped art on fresh checkouts.
 	var assets: Array[Dictionary] = [
 		{"file": "town_hall.png", "pos": Vector2(380, -280), "scale": 0.42, "node": "TownHallArtwork"},
 		{"file": "cottage_1.png", "pos": Vector2(-480, 167), "scale": 0.39, "node": "CottageOneArtwork"},
@@ -155,16 +154,27 @@ func _load_village_building_art() -> void:
 	]
 	for item in assets:
 		var path: String = "res://art/village_buildings/" + str(item["file"])
-		if not ResourceLoader.exists(path):
-			continue
-		var texture: Texture2D = load(path) as Texture2D
+		var texture := WayfindingArt._texture(path)
+		var size_factor: float = item["scale"]
 		if texture == null:
-			continue
+			var fallback := "residence"
+			var width := 205.0
+			match str(item["file"]):
+				"town_hall.png":
+					fallback = "civic"
+					width = 235.0
+				"general_goods.png":
+					fallback = "goods_shop"
+					width = 162.0
+			texture = WayfindingArt._texture("res://art/landmarks/" + fallback + ".png")
+			if texture == null:
+				continue
+			size_factor = width / texture.get_width()
 		var sprite := Sprite2D.new()
 		sprite.name = str(item["node"])
 		sprite.texture = texture
 		sprite.position = item["pos"]
-		sprite.scale = Vector2.ONE * float(item["scale"])
+		sprite.scale = Vector2.ONE * size_factor
 		sprite.z_index = 1
 		add_child(sprite)
 
@@ -317,11 +327,11 @@ func _draw_building(b: Dictionary) -> void:
 	draw_string(ThemeDB.fallback_font, p + Vector2(-101, 73), str(b["name"]), HORIZONTAL_ALIGNMENT_LEFT, -1, 15, Color("#f4dfb0"))
 
 func _draw_tree(p: Vector2) -> void:
-	draw_circle(p + Vector2(7, 5), 15.0, Color(0, 0, 0, 0.25))
-	draw_line(p, p + Vector2(0, -57), Color("#554132"), 9.0)
-	draw_circle(p + Vector2(0, -71), 29.0, Color("#1d382f"))
-	draw_circle(p + Vector2(-13, -83), 20.0, Color("#2d5944"))
-	draw_circle(p + Vector2(16, -82), 18.0, Color("#28503d"))
+	var grove := WayfindingArt._texture("res://art/landmarks/pine_grove.png")
+	if grove != null:
+		var width := 68.0
+		var height := width * grove.get_height() / grove.get_width()
+		draw_texture_rect(grove, Rect2(p - Vector2(width * 0.5, height), Vector2(width, height)), false)
 
 func _draw_lantern(p: Vector2) -> void:
 	draw_line(p, p + Vector2(0, -70), Color("#3e332d"), 5.0)

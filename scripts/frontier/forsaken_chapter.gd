@@ -5,6 +5,7 @@ var linked_from_gate := false
 
 const Fireball := preload("res://scripts/pinewood_fireball.gd")
 const FIREBALL_COST := 30.0
+const WayfindingArt := preload("res://scripts/wayfinding_art.gd")
 const PanelHeader := preload("res://scripts/panel_header.gd")
 const AreaTransition := preload("res://scripts/area_transition.gd")
 const WorldCollision := preload("res://scripts/world_collision.gd")
@@ -258,7 +259,11 @@ func _add_point(action: String, title: String, where: Vector2, show_caption := t
     point.title = title
     point.show_caption = show_caption and action not in ["veiled_agent", "quiet_finn", "emissary"]
     point.position = where
-    if action == "grimoire":
+    if action == "cellar_gate" and region == "stonehaven":
+        point.show_caption = false
+        point.show_disc = false
+        point.radius = 95.0
+    elif action == "grimoire":
         point.show_disc = false
         point.radius = 120.0
     elif action == "crypt_approach" and region == "graveyard":
@@ -296,7 +301,7 @@ func _dress_region() -> void:
             _add_art(LANDMARK_ROOT + "ritual_altar.png", Vector2(0, -166), 112.0)
             if state.grimoire_choice.is_empty():
                 var book := Sprite2D.new()
-                book.texture = load(LANDMARK_ROOT + "forbidden_grimoire.png")
+                book.texture = WayfindingArt._texture(LANDMARK_ROOT + "forbidden_grimoire.png")
                 book.position = Vector2(2, -239)
                 book.rotation = -0.10
                 book.z_index = 1
@@ -307,6 +312,16 @@ func _dress_region() -> void:
             WorldCollision.box(props, "WatchTable", Floor.WATCH_TABLE)
             for bounds in Floor.WATCH_CRATES:
                 WorldCollision.box(props, "WatchCrates", bounds)
+        "crypt_approach", "crypt_ossuary":
+            for where in [Vector2(-315, -125), Vector2(312, -115), Vector2(-318, 94), Vector2(318, 88)]:
+                _add_landmark("grave_markers", where, 92)
+        "cellar_gate":
+            _add_art(LANDMARK_ROOT + "drainage_hatch.png", Vector2(0, 258), 105.0, -2)
+        "oath_vault":
+            _add_art(LANDMARK_ROOT + "ritual_altar.png", Vector2(0, -202), 112.0)
+        "bandit_camp", "goblin_hollow":
+            for where in [Vector2(-440, -98), Vector2(442, -70), Vector2(-425, 139), Vector2(436, 156)]:
+                _add_landmark("pine_grove", where, 170)
         "old_cabin":
             _add_landmark("cabin", Vector2(-60, -91), 226)
             _add_landmark("smugglers_door", Vector2(319, -87), 163)
@@ -316,6 +331,10 @@ func _dress_region() -> void:
                 veiled_agent.autonomous_patrol = false
 
 func _dress_stonehaven() -> void:
+    _add_art(LANDMARK_ROOT + "drainage_hatch.png", Layouts.STONEHAVEN_DRAIN + Vector2(0, 12), 105.0, -2)
+    var finn := _add_npc("elder", Vector2(-646, 390), 5)
+    if is_instance_valid(finn):
+        finn.autonomous_patrol = false
     _add_local_vendor("blacksmith", "forge", Vector2(-708, 14))
     _add_local_vendor("alchemist", "alch_shop", Vector2(-270, 14))
     _add_local_vendor("shopkeeper", "goods_shop", Vector2(247, 14))
@@ -440,7 +459,7 @@ func _add_landmark(key: String, where: Vector2, width: float) -> void:
         WorldCollision.box(props, key, Rect2(where - Vector2(footprint.x * 0.5, 25.0), footprint))
 
 func _add_art(path: String, where: Vector2, width: float, layer := -1) -> bool:
-    var texture: Texture2D = load(path) if ResourceLoader.exists(path) else null
+    var texture := WayfindingArt._texture(path)
     if texture == null:
         return false
     var art := Sprite2D.new()
@@ -478,6 +497,8 @@ func _unhandled_input(event: InputEvent) -> void:
         var hit := Rect2(point.position - Vector2(65, 54), Vector2(130, 66))
         if region == "graveyard" and point.action_id == "crypt_approach":
             hit = Rect2(point.position - Vector2(68, 105), Vector2(136, 116))
+        if point.action_id == "cellar_gate" and region == "stonehaven":
+            hit = Rect2(point.position - Vector2(58, 66), Vector2(116, 82))
         if point.action_id == "grimoire":
             hit = Rect2(point.position - Vector2(76, 125), Vector2(152, 131))
         if hit.has_point(cursor):
@@ -660,20 +681,20 @@ func _interact(action: String) -> void:
             if not state.finn_contact:
                 state.finn_contact = true
                 if not _cellar_marker_visible():
-                    _add_point("cellar_gate", "Hidden Drainage Door", Layouts.NORTH)
+                    _add_point("cellar_gate", "Hidden Drainage Door", Layouts.STONEHAVEN_DRAIN)
                 _save()
-            notice = "Quiet Finn whispers about a scratched black hand on the drainage door north of here."
+            notice = "Quiet Finn whispers about a scratched black hand on a low hatch tucked behind the forge."
         "emissary":
             if not is_instance_valid(emissary):
                 return
             emissary_seen_this_session = true
             if state.enter_black_hand("grimoire"):
                 if region == "stonehaven" and not _cellar_marker_visible():
-                    _add_point("cellar_gate", "Hidden Drainage Door", Layouts.NORTH)
+                    _add_point("cellar_gate", "Hidden Drainage Door", Layouts.STONEHAVEN_DRAIN)
                 if region == "cellar_gate" and is_instance_valid(enemy):
                     enemy.queue_free()
                     enemy = null
-                notice = "Emissary — You dared to study the Bonecaller’s rites. Find the drainage door in Stonehaven. You may pass."
+                notice = "Emissary — You dared to study the Bonecaller’s rites. Look for the hatch behind Stonehaven’s forge. You may pass."
             else:
                 notice = "Emissary — The Black Hand remembers you. The way beneath Stonehaven is still open."
             state.emissary_pending = false
@@ -942,7 +963,10 @@ func _on_victory(encounter_id: String, reward_xp: int) -> void:
         crypt_defeated_this_visit.append(encounter_id)
     state.record_victory(encounter_id, reward_xp)
     if encounter_id == "bonecaller":
-        _show_grimoire_dialog(true)
+        if state.grimoire_choice.is_empty():
+            _show_grimoire_dialog(true)
+        else:
+            notice += " The altar is empty because you already resolved the grimoire choice."
     if encounter_id == "cellar_guard":
         state.enter_black_hand("guard")
         _remove_emissary()

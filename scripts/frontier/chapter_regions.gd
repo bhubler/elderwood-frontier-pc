@@ -3,6 +3,7 @@ extends RefCounted
 const Overworld := preload("res://scripts/frontier/overworld_layout.gd")
 const EXIT := Vector2(0, 236)
 const NORTH := Vector2(0, -225)
+const STONEHAVEN_DRAIN := Vector2(-796, -64)
 const REGIONS := {
     "graveyard": {
         "title": "Forsaken Graveyard", "ground": "#282f2b",
@@ -33,7 +34,7 @@ const REGIONS := {
             ["graveyard", "Old cemetery road", Vector2(-770, -190)],
             ["quiet_finn", "Quiet Finn", Vector2(-646, 390)],
             ["east_pinewood", "East Gate · Pinewood Forest", Overworld.CITY_EAST],
-            ["cellar_gate", "Hidden Drainage Door", NORTH],
+            ["cellar_gate", "Hidden Drainage Door", STONEHAVEN_DRAIN],
         ],
     },
     "east_pinewood": {
@@ -88,7 +89,7 @@ const REGIONS := {
     "oath_vault": {
         "title": "Black Hand — Oath Vault", "ground": "#2e2934",
         "points": [["hideout", "Black Hand hideout", EXIT], ["ledger", "Sealed ledger", NORTH]],
-        "enemy": ["vault_warden", "Vault Warden", 50, 14, 35, "#a4a4be"],
+        "enemy": ["vault_warden", "Vault Warden", 50, 14, 35, "#a4a4be", "black_hand_guard"],
     },
 }
 

@@ -458,17 +458,11 @@ func _draw_track(points: Array, width: float) -> void:
 	draw_polyline(route, Color("#7d694e"), width * 0.63, true)
 
 func _draw_pine(p: Vector2) -> void:
-	var height := 86.0 + absf(sin(p.x + p.y) * 42.0)
-	draw_set_transform(p)
-	draw_rect(Rect2(-5, -35, 10, 36), Color("#503f33"))
-	for i in range(3):
-		var y := -27.0 - i * height * 0.26
-		var width := height * (0.31 - i * 0.061)
-		draw_colored_polygon(PackedVector2Array([
-			Vector2(-width, y), Vector2(0, y - height * 0.48),
-			Vector2(width, y), Vector2(0, y + 8.0)
-		]), [Color("#1b3833"), Color("#23443a"), Color("#315241")][i])
-	draw_set_transform(Vector2.ZERO)
+	var grove := WayfindingArt._texture("res://art/landmarks/pine_grove.png")
+	if grove != null:
+		var width := 105.0
+		var height := width * grove.get_height() / grove.get_width()
+		draw_texture_rect(grove, Rect2(p - Vector2(width * 0.5, height), Vector2(width, height)), false)
 
 func _draw_gate() -> void:
 	if not using_bundle_terrain:

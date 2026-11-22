@@ -69,14 +69,10 @@ func _draw_room_walls() -> void:
 func _draw_watch_room() -> void:
     draw_rect(Rect2(-48, 227, 96, 46), Color("#5a4330"))
     draw_rect(Rect2(-44, 231, 88, 37), Color("#78634b"))
-    for bounds in WATCH_CRATES:
-        draw_rect(bounds, Color("#302319"))
-        draw_rect(bounds.grow(-5), Color("#745439"))
-        for i in range(1, 4):
-            var x: float = bounds.position.x + bounds.size.x * i / 4.0
-            draw_line(Vector2(x, bounds.position.y + 4), Vector2(x, bounds.end.y - 4), Color("#493421"), 2)
-    draw_rect(WATCH_TABLE, Color("#3a2a22"))
-    draw_rect(WATCH_TABLE.grow(-5), Color("#775234"))
-    draw_rect(Rect2(-65, -119, 104, 35), Color("#b5a074"))
-    draw_polyline(PackedVector2Array([Vector2(-55, -112), Vector2(-27, -98), Vector2(0, -110), Vector2(31, -92)]),
-        Color("#68553b"), 2, true)
+    var supplies := WayfindingArt._texture("res://art/interiors/counter.png")
+    var table := WayfindingArt._texture("res://art/interiors/table.png")
+    if supplies != null:
+        for bounds in WATCH_CRATES:
+            draw_texture_rect(supplies, Rect2(bounds.position - Vector2(0, 19), bounds.size + Vector2(0, 19)), false)
+    if table != null:
+        draw_texture_rect(table, Rect2(WATCH_TABLE.position - Vector2(0, 55), WATCH_TABLE.size + Vector2(0, 55)), false)
