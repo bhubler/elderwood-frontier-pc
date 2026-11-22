@@ -11,6 +11,7 @@ const AreaTransition := preload("res://scripts/area_transition.gd")
 const Prop := preload("res://scripts/interior_prop.gd")
 const WorldCollision := preload("res://scripts/world_collision.gd")
 const State = preload("res://scripts/frontier/adventure_state.gd")
+const Mentorship = preload("res://scripts/frontier/mentorship.gd")
 const Layouts = preload("res://scripts/frontier/chapter_regions.gd")
 const Overworld := preload("res://scripts/frontier/overworld_layout.gd")
 const ForestLayout := preload("res://scripts/forest_layout.gd")
@@ -55,6 +56,11 @@ var grimoire_replay := false
 var grimoire_dialog: CenterContainer
 var grimoire_heading: Label
 var grimoire_details: Label
+var mentor_dialog: CenterContainer
+var mentor_heading: Label
+var mentor_details: Label
+var mentor_choices: VBoxContainer
+var pending_mentor := ""
 var veiled_agent: Node2D
 var local_npcs: Dictionary = {}
 var local_dialogue: Dictionary = {}
@@ -105,6 +111,7 @@ func _ready() -> void:
     PanelHeader.add_title(journal_content, journal_title, journal_panel.hide)
     journal_content.add_child(journal_text)
     _build_grimoire_dialog()
+    _build_mentor_dialog()
     summon = Node2D.new()
     summon.z_index = 6
     summon.hide()
@@ -158,6 +165,10 @@ func _load_region(destination: String) -> void:
         for index in range(10):
             if ("herb_%d" % index) not in state.quest_items:
                 _add_point("herb_%d" % index, "Gather woodland herb", Overworld.CARAVAN + Vector2(-250 + (index % 5) * 105, 220 + int(index / 5) * 95), false)
+    if not state.mentorship_faction.is_empty() and state.mentorship_year < 5 and not state.mentorship_focus.is_empty():
+        var assignment: Array = Mentorship.mission(state.mentorship_faction, state.mentorship_year)
+        if not assignment.is_empty() and region == str(assignment[0]) and not ("mentor_task_%d" % state.mentorship_year) in state.quest_items:
+            _add_point("mentor_task", str(assignment[2]), assignment[1])
     if region == "northern_watch" and state.guild_provisions and not state.guild_watch_supplied:
         _add_point("deliver_provisions", "Deliver guild provisions", Vector2(70, -85))
     if region == "ancient_ruin" and "ruin_warden" in state.defeated:
@@ -532,7 +543,7 @@ func _add_npc(key: String, where: Vector2, wardrobe := 0) -> Node2D:
 func _unhandled_input(event: InputEvent) -> void:
     if not event is InputEventMouseButton or not event.pressed:
         return
-    if player.choosing_race or inventory.inventory_open or journal_panel.visible or grimoire_dialog.visible or health <= 0:
+    if player.choosing_race or inventory.inventory_open or journal_panel.visible or grimoire_dialog.visible or mentor_dialog.visible or health <= 0:
         return
     var cursor: Vector2 = get_global_transform_with_canvas().affine_inverse() * event.position
     if event.button_index == MOUSE_BUTTON_RIGHT:
@@ -602,7 +613,7 @@ func _process(_delta: float) -> void:
         _update_forest_terrain()
     if inventory.inventory_open:
         journal_panel.hide()
-    var blocked: bool = player.choosing_race or inventory.inventory_open or journal_panel.visible or grimoire_dialog.visible
+    var blocked: bool = player.choosing_race or inventory.inventory_open or journal_panel.visible or grimoire_dialog.visible or mentor_dialog.visible
     player.set_physics_process(not blocked)
     if is_instance_valid(enemy):
         enemy.target = null if blocked or health <= 0 else player
@@ -665,6 +676,11 @@ func _unhandled_key_input(event: InputEvent) -> void:
         return
     if player.choosing_race or inventory.inventory_open or health <= 0:
         return
+    if mentor_dialog.visible:
+        if event.keycode == KEY_ESCAPE:
+            mentor_dialog.hide()
+        get_viewport().set_input_as_handled()
+        return
     if grimoire_dialog.visible:
         if event.keycode == KEY_ESCAPE:
             grimoire_dialog.hide()
@@ -717,6 +733,18 @@ func _interact(action: String) -> void:
         else:
             local_npcs[action].interact()
         notice = "%s — %s" % local_dialogue[action]
+        return
+    if action == "mentor_task":
+        if state.mentorship_faction.is_empty() or state.mentorship_year >= 5:
+            return
+        var assignment: Array = Mentorship.mission(state.mentorship_faction, state.mentorship_year)
+        if assignment.is_empty() or region != str(assignment[0]):
+            return
+        var task_key := "mentor_task_%d" % state.mentorship_year
+        if task_key not in state.quest_items:
+            state.quest_items.append(task_key)
+            notice = "%s — %s Return to %s for review." % [str(assignment[2]), str(assignment[3]), Mentorship.mentor(state.mentorship_faction)]
+            _save()
         return
     if action == "deliver_provisions":
         if state.guild_provisions and not state.guild_watch_supplied:
@@ -775,15 +803,21 @@ func _interact(action: String) -> void:
             notice = "Lord of Stonehaven — We are desperately short of capable hands. I have no right to demand this of you, but I heard you defeated the Blackbriar bandits. A strange ruin is drawing people to it. Will you investigate and return with what you discover?"
         elif state.lord_stage == "report":
             state.lord_stage = "share"
+            inventory.gold += 50
+            inventory._refresh_inventory()
             notice = "Lord of Stonehaven — Magic is our hope, and may set us free as the world awakens? Troubling words. Take this knowledge to the church. In gratitude, our swordmasters and mages will train you without an oath to my army. Speak with me again to accept."
-        elif state.lord_stage == "share":
-            notice = "Lord of Stonehaven — Our tutors can teach swordsmanship and ordinary schools of magic. The church may offer a different path. Choose your mentor when you are ready."
+        elif state.lord_stage == "share" or state.mentorship_faction == "lord":
+            _offer_mentor("lord")
+            return
         else:
             notice = "Lord of Stonehaven — The city has burdens enough. Earn the Guild Master's trust and return."
         _save()
         return
     if action == "church_mentor":
-        notice = "Priest — We will hear the prophecy and welcome you to learn healing, protection, and sacred disciplines. The choice of mentor will begin your five-year training journey."
+        if state.lord_stage == "share" or state.mentorship_faction == "church":
+            _offer_mentor("church")
+        else:
+            notice = "Priest — May you find wisdom in your journeys. Bring the ancient stone's prophecy to us if you learn more."
         return
     match action:
         "main_gate":
@@ -867,6 +901,9 @@ func _try_travel(destination: String) -> void:
         AreaTransition.run(get_tree(), _load_region.bind(destination))
 
 func _speak_to_agent() -> void:
+    if (state.lord_stage == "share" or state.mentorship_faction == "black_hand") and not state.entry_method.is_empty():
+        _offer_mentor("black_hand")
+        return
     if is_instance_valid(veiled_agent):
         veiled_agent.interact()
     match state.initiation:
@@ -896,6 +933,76 @@ func _take_item(item_id: String, message: String) -> void:
         return
     state.quest_items.append(item_id)
     notice = message
+    _save()
+
+func _build_mentor_dialog() -> void:
+    mentor_dialog = CenterContainer.new()
+    $HUD.add_child(mentor_dialog)
+    mentor_dialog.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+    var panel := PanelContainer.new()
+    panel.custom_minimum_size.x = 570
+    mentor_dialog.add_child(panel)
+    var content := VBoxContainer.new()
+    content.add_theme_constant_override("separation", 12)
+    panel.add_child(content)
+    mentor_heading = Label.new()
+    PanelHeader.add_title(content, mentor_heading, mentor_dialog.hide)
+    mentor_details = Label.new()
+    mentor_details.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+    content.add_child(mentor_details)
+    mentor_choices = VBoxContainer.new()
+    content.add_child(mentor_choices)
+    mentor_dialog.hide()
+
+func _offer_mentor(faction: String) -> void:
+    if not state.mentorship_faction.is_empty() and state.mentorship_faction != faction:
+        notice = "Your apprenticeship is already pledged to %s. You may still study other disciplines later." % Mentorship.mentor(state.mentorship_faction)
+        return
+    if state.mentorship_year >= 5:
+        notice = "%s — Five years have passed. You are twenty now. Your apprenticeship is complete, but the world still has much to teach." % Mentorship.mentor(faction)
+        return
+    var task_key := "mentor_task_%d" % state.mentorship_year
+    if task_key in state.quest_items:
+        state.quest_items.erase(task_key)
+        state.mentorship_year += 1
+        state.player_age += 1
+        state.experience += 60
+        state.mentorship_history.append(state.mentorship_focus)
+        state.mentorship_focus = ""
+        _save()
+        if state.mentorship_year >= 5:
+            state.lord_stage = "prologue_complete"
+            notice = "Five years have passed. You are now twenty years old. %s has trained you through five assignments. Your journey truly begins. (+60 XP)" % Mentorship.mentor(faction)
+            _save()
+            return
+        notice = "Year %d complete. A year passes in training under %s. (+60 XP) Choose your focus for your next year." % [state.mentorship_year, Mentorship.mentor(faction)]
+    elif not state.mentorship_focus.is_empty():
+        var mission: Array = Mentorship.mission(faction, state.mentorship_year)
+        notice = "%s — Your assignment: %s. %s" % [Mentorship.mentor(faction), str(mission[2]), str(mission[3])]
+        return
+    pending_mentor = faction
+    mentor_heading.text = Mentorship.mentor(faction)
+    mentor_details.text = "Year %d of five. Choose a discipline to emphasize this year. Training will advance your character without locking away other schools. Complete the assigned field quest and return to your mentor for the next time skip." % [state.mentorship_year + 1]
+    for child in mentor_choices.get_children():
+        child.queue_free()
+    for focus in Mentorship.focuses(faction):
+        var button := Button.new()
+        button.text = str(focus)
+        button.pressed.connect(_choose_mentor_focus.bind(str(focus)))
+        mentor_choices.add_child(button)
+    mentor_dialog.show()
+
+func _choose_mentor_focus(focus: String) -> void:
+    if state.mentorship_faction.is_empty():
+        state.mentorship_faction = pending_mentor
+    if state.mentorship_faction != pending_mentor or state.mentorship_year >= 5:
+        mentor_dialog.hide()
+        return
+    state.mentorship_focus = focus
+    state.lord_stage = "mentoring"
+    mentor_dialog.hide()
+    var mission: Array = Mentorship.mission(state.mentorship_faction, state.mentorship_year)
+    notice = "%s takes you as an apprentice. Year %d focus: %s. First task: %s. %s" % [Mentorship.mentor(state.mentorship_faction), state.mentorship_year + 1, focus, str(mission[2]), str(mission[3])]
     _save()
 
 func _build_grimoire_dialog() -> void:
