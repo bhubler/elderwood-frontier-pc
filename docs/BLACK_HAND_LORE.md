@@ -41,3 +41,19 @@ The church and lord's household are separate mentor choices and must remain stru
 - Let members sincerely disagree about what freedom means and who benefits.
 - Do not confuse Black Hand power, the existence of gods, or the awakening prophecy with proof that their interpretation is correct.
 - Preserve existing routes into the Black Hand through the graveyard/grimoire or the cellar guard, and connect its politics to portal exploration, ruins and the wider world.
+
+
+## Leadership arc — canonical endgame direction (2026-11-22)
+The player should eventually be able to **become the leader of the Black Hand** through an earned, playable rise to power, then shape the organization within credible institutional and story constraints. This is not merely a cosmetic rank or final cutscene: leadership is a continuing gameplay role with consequential decisions.
+
+Progression: (1) the five-year apprentice/mentor prologue, (2) respected operative with followers and meaningful influence, (3) political and magical contest for leadership involving rival members and competing visions, (4) recognized supreme leader able to govern and pursue the faction's purpose. Do not rush leadership during the early prologue.
+
+**Player-directed governance:** The player may set research priorities (blood magic, necromancy, dimensional portals, relics and other forbidden arts), assign lieutenants and expedition teams, choose how the Hand treats outsiders and recruits, direct military/covert resources, manage relations with cities, churches and other factions, and determine the strategy for confronting the gods. Offer genuine actionable options and visible consequences, not only dialogue flavor. Invest in reusable faction governance structures when implementing this.
+
+**Living membership and limitations:** The Black Hand has real people with loyalties, goals, fears, independent agency and conflicting ideologies. Choices shift faction support, resources, research access, external reputation, and risk of dissent or schism. A leader cannot simply rewrite its long-established culture without resistance. Equally, dissent should not automatically undo player decisions or force a single morally approved outcome. Build faction politics as legible systems, not unpredictable hidden punishments.
+
+**Possible philosophies:** The player can emphasize liberation from divine rule, self-ascension and rule in place of gods, relentless magical discovery regardless of danger, coercive domination, or a complex mixture. These routes should emerge from sustained choices and affiliations, not a single final binary dialogue. The organization remains a dangerous, morally compromised faction with forbidden practices and malicious members; a reformist-minded leader is not proof that the whole Hand was benevolent.
+
+**Climactic question:** The shared ambition is to overthrow the gods who rule over mortals. If divine rule can be broken, the player ultimately decides whether to dismantle the structure of domination or claim that power for themselves. Preserve the possibility of divergent outcomes, repercussions and meaningful post-leadership play. The actual existence, motivations and power of the gods must be established in the wider game's lore and quests.
+
+**Implementation sequencing:** Canonize this endpoint now, but fully implement the Black Hand apprenticeship and founding relationships first. Build trust, faction standing and persistent decision data in early quests so later leadership grows naturally out of previous actions. The guild, church and lord's factions remain possible alternate routes rather than all requiring full content production simultaneously.
