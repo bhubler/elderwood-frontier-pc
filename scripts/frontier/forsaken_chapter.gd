@@ -8,6 +8,7 @@ const FIREBALL_COST := 30.0
 const WayfindingArt := preload("res://scripts/wayfinding_art.gd")
 const PanelHeader := preload("res://scripts/panel_header.gd")
 const AreaTransition := preload("res://scripts/area_transition.gd")
+const Prop := preload("res://scripts/interior_prop.gd")
 const WorldCollision := preload("res://scripts/world_collision.gd")
 const State = preload("res://scripts/frontier/adventure_state.gd")
 const Layouts = preload("res://scripts/frontier/chapter_regions.gd")
@@ -48,6 +49,7 @@ var crypt_defeated_this_visit: Array[String] = []
 var emissary: Point
 var emissary_actor: Node2D
 var emissary_seen_this_session := false
+var ritual_altar: Sprite2D
 var grimoire_art: Sprite2D
 var grimoire_replay := false
 var grimoire_dialog: CenterContainer
@@ -269,6 +271,7 @@ func _add_point(action: String, title: String, where: Vector2, show_caption := t
     elif action in ["grimoire", "replay_grimoire"]:
         point.show_disc = false
         point.radius = 120.0
+        point.z_index = 12
     elif action == "crypt_approach" and region == "graveyard":
         point.show_disc = false
         point.radius = 115.0
@@ -301,17 +304,38 @@ func _dress_region() -> void:
             _add_local_npc("monk", Vector2(373, -31), 2)
             _add_local_npc("noble", Vector2(-104, -50))
         "crypt_ritual":
-            _add_art(LANDMARK_ROOT + "ritual_altar.png", Vector2(0, -166), 112.0)
+            ritual_altar = Prop.place(props, "../landmarks/ritual_altar", Vector2(0, -166),
+                Vector2(110, 44), player)
+            var used_altar := Prop.place(props, "crypts/altar_empty_ritual", Vector2(278, -105),
+                Vector2(113, 48), player)
+            Prop.loop(used_altar, "drip", Vector2(-18, -28), 5.0)
+            var candles := Prop.place(used_altar, "crypts/wax_candles", Vector2(13, -63),
+                Vector2.ZERO, null, 0)
+            Prop.loop(candles, "candle", Vector2(-8, -49), 6.0)
+            var rune := Prop.loop(props, "rune", Vector2(288, 115), 4.0)
+            rune.z_index = -5
+            Prop.place(props, "crypts/cage_rusted", Vector2(-293, -95), Vector2(61, 46), player)
+            Prop.place(props, "crypts/blood_pool_fresh", Vector2(263, -49), Vector2.ZERO, null, -5)
+            Prop.place(props, "crypts/blood_trail_fresh", Vector2(-234, 112), Vector2.ZERO, null, -5)
+            Prop.place(props, "crypts/chains", Vector2(-364, -139))
             if state.grimoire_choice.is_empty():
                 _place_grimoire()
-            WorldCollision.box(props, "RitualAltar", Rect2(-55, -210, 110, 45))
         "northern_watch":
             WorldCollision.box(props, "WatchTable", Floor.WATCH_TABLE)
             for bounds in Floor.WATCH_CRATES:
                 WorldCollision.box(props, "WatchCrates", bounds)
-        "crypt_approach", "crypt_ossuary":
-            for where in [Vector2(-315, -125), Vector2(312, -115), Vector2(-318, 94), Vector2(318, 88)]:
-                _add_landmark("grave_markers", where, 92)
+        "crypt_approach":
+            Prop.place(props, "crypts/sarcophagus_cracked", Vector2(-271, -85), Vector2(138, 55), player)
+            Prop.place(props, "crypts/altar_clean", Vector2(286, -96), Vector2(115, 49), player)
+            Prop.place(props, "crypts/web_left", Vector2(-414, -138))
+            Prop.place(props, "crypts/web_doorway", Vector2(0, -154))
+            Prop.place(props, "crypts/blood_smear_dried", Vector2(219, 92), Vector2.ZERO, null, -5)
+        "crypt_ossuary":
+            Prop.place(props, "crypts/altar_abandoned", Vector2(-278, -90), Vector2(112, 46), player)
+            Prop.place(props, "crypts/sarcophagus_cracked", Vector2(274, -76), Vector2(138, 55), player)
+            Prop.place(props, "crypts/bone_pile", Vector2(-238, 90), Vector2.ZERO, null, -4)
+            Prop.place(props, "crypts/web_right", Vector2(414, -142))
+            Prop.place(props, "crypts/blood_pool_dried", Vector2(242, 128), Vector2.ZERO, null, -5)
         "cellar_gate":
             _add_art(LANDMARK_ROOT + "drainage_hatch.png", Vector2(0, 258), 105.0, -2)
         "oath_vault":
@@ -332,10 +356,9 @@ func _place_grimoire() -> void:
         return
     var book := Sprite2D.new()
     book.texture = WayfindingArt._texture(LANDMARK_ROOT + "forbidden_grimoire.png")
-    book.position = Vector2(2, -239)
+    book.position = Vector2(2, -73)
     book.rotation = -0.10
-    book.z_index = 1
-    props.add_child(book)
+    ritual_altar.add_child(book)
     grimoire_art = book
 
 func _dress_stonehaven() -> void:

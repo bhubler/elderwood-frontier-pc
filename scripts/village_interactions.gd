@@ -93,7 +93,6 @@ func _ready() -> void:
         player.set_equipment(equipment)
     if inventory_only:
         return
-    _make_interior()
     _make_villagers()
     _show_message("Welcome to Elderwood Village. WASD to move, E to interact, I for inventory.", 5.0)
 
@@ -471,8 +470,8 @@ func _make_interior() -> void:
     interior.position = Vector2(4200, 0)
     interior.z_index = 0
     interior.set_script(load("res://scripts/inn_interior.gd"))
-    # The parent is still assembling its scene tree during _ready().
-    get_parent().call_deferred("add_child", interior)
+    interior.set("player", player)
+    get_parent().add_child(interior)
 
 func _process(_delta: float) -> void:
     if player == null or inventory_only:
@@ -837,6 +836,7 @@ func _enter_inn() -> void:
     AreaTransition.run(get_tree(), _enter_inn_now)
 
 func _enter_inn_now() -> void:
+    _make_interior()
     inside_inn = true
     return_position = player.position
     player.position = Vector2(4200, 105)
@@ -847,6 +847,8 @@ func _leave_inn() -> void:
 
 func _leave_inn_now() -> void:
     inside_inn = false
+    interior.queue_free()
+    interior = null
     player.position = Vector2(-390, -140)
     _show_message("You step back into Elderwood Village.", 3.0)
 
