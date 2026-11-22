@@ -99,6 +99,7 @@ const REGIONS := {
 }
 
 const ITEMS := {
+    "watch_provisions": {"name": "Watchtower Provisions", "kind": "quest", "icon": "▣", "rarity": "Quest", "description": "Sealed provisions from the guild master for the eastern watchtower."},
     "ancient_magic_stone": {"name": "Inscribed Magic Stone", "kind": "quest", "icon": "◇", "rarity": "Rare", "description": "Ancient words: Magic is our hope. It has the power to set us free. As it awakens, the world will change."},
     "sentinel_sword": {"name": "Sentinel\'s Longsword", "kind": "weapon", "icon": "⚔", "rarity": "Uncommon", "attack": 7, "description": "A finely forged sword recovered from the waking ruins."},
     "forbidden_grimoire": {
