@@ -167,7 +167,7 @@ func _load_region(destination: String) -> void:
                 _add_point("herb_%d" % index, "Gather woodland herb", Overworld.CARAVAN + Vector2(-250 + (index % 5) * 105, 220 + int(index / 5) * 95), false)
     if not state.mentorship_faction.is_empty() and state.mentorship_year < 5 and not state.mentorship_focus.is_empty():
         var assignment: Array = Mentorship.mission(state.mentorship_faction, state.mentorship_year)
-        if not assignment.is_empty() and region == str(assignment[0]) and not ("mentor_task_%d" % state.mentorship_year) in state.quest_items:
+        if not assignment.is_empty() and region == str(assignment[0]) and ("mentor_task_%d" % state.mentorship_year) not in state.quest_items:
             _add_point("mentor_task", str(assignment[2]), assignment[1])
     if region == "northern_watch" and state.guild_provisions and not state.guild_watch_supplied:
         _add_point("deliver_provisions", "Deliver guild provisions", Vector2(70, -85))
@@ -617,11 +617,11 @@ func _process(_delta: float) -> void:
     player.set_physics_process(not blocked)
     if is_instance_valid(enemy):
         enemy.target = null if blocked or health <= 0 else player
-    inventory.update_resource_bars(health, MAX_HEALTH, mana, State.MAX_MANA)
+    inventory.update_resource_bars(health, _effective_max_health(), mana, State.MAX_MANA)
     var point := _nearest_point()
     var prompt := "Move to a marker and press E." if point == null else "E  %s" % point.title
     hud.text = "%s  |  HP %d/%d  |  Mana %d/%d  |  Level %d\n%s\nLMB / Space attack  ·  RMB / F Fireball  ·  L grimoire  ·  Q summon  ·  J journal  ·  I inventory\n%s" % [
-        Layouts.REGIONS[region]["title"], health, MAX_HEALTH, floori(mana), State.MAX_MANA, state.level(), prompt, notice
+        Layouts.REGIONS[region]["title"], health, _effective_max_health(), floori(mana), State.MAX_MANA, state.level(), prompt, notice
     ]
     journal_text.text = "%s\n%d XP  ·  %d unspent character points  ·  Conjuration rank %d (%d casts)\nBlack Hand reputation %d%s\n\nJ or Esc to close" % [
         state.journal() + "\n\nAdventurer's Guild\n" + state.guild_journal(), state.experience, state.training_points(),
@@ -665,7 +665,7 @@ func _physics_process(delta: float) -> void:
 
 func _on_summon_contact() -> void:
     if summon.visible and is_instance_valid(enemy) and summon.position.distance_to(enemy.position) <= 49:
-        enemy.take_hit(9)
+        enemy.take_hit(9 + 3 * state.mentorship_history.count("Necromancy"))
 
 func _bounded(where: Vector2) -> Vector2:
     var bounds := Overworld.bounds(region, Floor.BOUNDS)
@@ -762,7 +762,8 @@ func _interact(action: String) -> void:
             state.lord_stage = "report"
             if inventory.grant_item("ancient_magic_stone", Layouts.ITEMS["ancient_magic_stone"]):
                 state.quest_items.append("ancient_magic_stone")
-            inventory.grant_item("sentinel_sword", Layouts.ITEMS["sentinel_sword"])
+            if inventory.grant_item("sentinel_sword", Layouts.ITEMS["sentinel_sword"]):
+                state.quest_items.append("sentinel_sword")
             notice = "You recover a magic stone and the Sentinel's Longsword. The engraving reads: Magic is our hope. It has the power to set us free. As it awakens, the world will change. Return to Stonehaven's lord."
             _save()
         else:
@@ -968,6 +969,8 @@ func _offer_mentor(faction: String) -> void:
         state.player_age += 1
         state.experience += 60
         state.mentorship_history.append(state.mentorship_focus)
+        if state.mentorship_focus == "Healing":
+            health += 5
         state.mentorship_focus = ""
         _save()
         if state.mentorship_year >= 5:
@@ -1135,7 +1138,7 @@ func _attack(cursor := Vector2.INF) -> void:
         aim = player.position.direction_to(enemy.position)
     player.play_strike(aim, true)
     if is_instance_valid(enemy) and enemy.position.distance_to(player.position) <= 72:
-        enemy.take_hit(9 + player.attack_bonus)
+        enemy.take_hit(9 + player.attack_bonus + state.mentorship_history.count("Swordsmanship") + state.mentorship_history.count("Paladin Combat"))
         if is_instance_valid(enemy):
             notice = "You strike %s." % enemy.title
     else:
@@ -1182,7 +1185,8 @@ func _update_fireball(delta: float) -> void:
     if is_instance_valid(enemy):
         var closest := Geometry2D.get_closest_point_to_segment(enemy.global_position, start, finish)
         if closest.distance_to(enemy.global_position) <= 22.0 and (wall.is_empty() or closest != finish):
-            enemy.take_hit(17)
+            enemy.take_hit(17 + 2 * (state.mentorship_history.count("Elemental Magic") + state.mentorship_history.count("Radiance") + state.mentorship_history.count("Blood Magic")))
+            health = mini(_effective_max_health(), health + state.mentorship_history.count("Blood Magic"))
             fireball.detonate()
             return
     if not wall.is_empty() or fireball.remaining <= 0.0:
@@ -1211,13 +1215,17 @@ func _on_victory(encounter_id: String, reward_xp: int) -> void:
         notice += " The guard's defeat grants access to the cellar."
     _save()
 
+func _effective_max_health() -> int:
+    return MAX_HEALTH + 5 * state.mentorship_history.count("Healing")
+
 func _take_damage(amount: int) -> void:
-    health = maxi(0, health - maxi(1, amount - player.defense_bonus))
+    var wards := state.mentorship_history.count("Wardcraft") + state.mentorship_history.count("Sacred Wards") + state.mentorship_history.count("Forbidden Wards")
+    health = maxi(0, health - maxi(1, amount - player.defense_bonus - wards))
     if health == 0:
         call_deferred("_recover_at_graveyard")
 
 func _recover_at_graveyard() -> void:
-    health = MAX_HEALTH
+    health = _effective_max_health()
     mana = State.MAX_MANA
     summon_remaining = 0.0
     summon_windup = 0.0
