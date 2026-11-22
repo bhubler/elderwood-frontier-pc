@@ -57,6 +57,7 @@ var chapter: Node2D
 var gate_resources := Vector2.ZERO
 var defeated_wolves: Array[int] = []
 var road_quest := RoadQuest.OFFERED
+var opening_greeting_shown := false
 
 var inventory_open := false
 var inside_inn := false
@@ -67,8 +68,8 @@ var people := [
     {"name": "Mara", "role": "Innkeeper", "pos": Vector2(-285, -165),
         "route": [Vector2(-240, -107), Vector2(-330, -115)], "wait": 2.5, "speed": 39.0,
         "words": "Welcome to the Wayfarer Inn! Travelers are always welcome. Come inside and rest by the hearth."},
-    {"name": "Elden", "role": "Village Elder", "pos": Vector2(315, -165),
-        "route": [Vector2(247, -150), Vector2(215, -92)], "wait": 5.0, "speed": 31.0,
+    {"name": "Elden", "role": "Village Elder", "pos": Vector2(40, -80),
+        "route": [Vector2(40, -80), Vector2(65, -104)], "wait": 5.0, "speed": 31.0,
         "words": "You have taken your first steps into adulthood. There is much more for you to discover in Stonehaven."},
     {"name": "Pip", "role": "Merchant", "pos": Vector2(290, 30),
         "route": [Vector2(347, 30), Vector2(221, 35)], "wait": 1.0, "speed": 44.0,
@@ -480,6 +481,9 @@ func _process(_delta: float) -> void:
     if player == null or inventory_only:
         return
     _update_pinewood_loading()
+    if not opening_greeting_shown and not player.choosing_race and road_quest == RoadQuest.OFFERED:
+        opening_greeting_shown = true
+        _show_quest_offer()
     if is_instance_valid(speaker) and not conversation_open:
         speaker.talking = false
         speaker = null
@@ -498,7 +502,7 @@ func _process(_delta: float) -> void:
     if inventory_open:
         prompt.text = "Inventory open — press I to close"
     elif quest_offer.visible:
-        prompt.text = "Pip — Merchant"
+        prompt.text = "Elden — Village Elder"
     elif conversation_open:
         prompt.text = "Press E or Esc to close dialogue"
     elif in_forest:
