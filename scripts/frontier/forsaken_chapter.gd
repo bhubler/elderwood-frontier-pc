@@ -156,9 +156,16 @@ func _load_region(destination: String) -> void:
         _add_point("church_mentor", "Church of Stonehaven", Vector2(232, -155))
     if region == "east_pinewood" and not state.guild_rank.is_empty():
         for index in range(10):
-            _add_point("herb_%d" % index, "Gather woodland herb", Overworld.CARAVAN + Vector2(-250 + (index % 5) * 105, 220 + int(index / 5) * 95), false)
+            if not ("herb_%d" % index) in state.quest_items:
+                _add_point("herb_%d" % index, "Gather woodland herb", Overworld.CARAVAN + Vector2(-250 + (index % 5) * 105, 220 + int(index / 5) * 95), false)
+    if region == "northern_watch" and state.guild_provisions and not state.guild_watch_supplied:
+        _add_point("deliver_provisions", "Deliver guild provisions", Vector2(70, -85))
+    if region == "ancient_ruin" and "ruin_warden" in state.defeated:
+        _add_point("ancient_stone", "Recover inscribed magic stone", Vector2(0, -170))
     _load_outdoor_terrain()
     floor_art.queue_redraw()
+    if region == "ancient_ruin" and state.lord_stage == "ruin" and "ruin_warden" not in state.defeated:
+        _add_enemy(["ruin_warden", "The Waking Sentinel", 78, 16, 65, "#ae9fd0", "vault_warden"], Vector2(0, -60))
     if region == "east_pinewood" and "blackbriar_bandit" not in state.defeated:
         _add_enemy(["blackbriar_bandit", "Blackbriar Bandit", 33, 11, 24, "#bd8061", "bandit"],
             Overworld.CARAVAN + Vector2(125, 135))
@@ -327,6 +334,10 @@ func _dress_region() -> void:
             Prop.place(props, "crypts/chains", Vector2(-364, -139))
             if state.grimoire_choice.is_empty():
                 _place_grimoire()
+        "ancient_ruin":
+            _add_landmark("ritual_altar", Vector2(0, -200), 190)
+            for where in [Vector2(-350, -140), Vector2(350, -140), Vector2(-260, 95), Vector2(260, 95)]:
+                _add_landmark("grave_markers", where, 120)
         "northern_watch":
             WorldCollision.box(props, "WatchTable", Floor.WATCH_TABLE)
             for bounds in Floor.WATCH_CRATES:
@@ -707,6 +718,28 @@ func _interact(action: String) -> void:
             local_npcs[action].interact()
         notice = "%s — %s" % local_dialogue[action]
         return
+    if action == "deliver_provisions":
+        if state.guild_provisions and not state.guild_watch_supplied:
+            state.guild_provisions = false
+            state.guild_watch_supplied = true
+            notice = "The watch captain accepts the guild provisions. The guards will have enough to last another week. Return to the Guild Master."
+            _save()
+        else:
+            notice = "The watchtower has already received its supplies."
+        return
+    if action == "ancient_stone":
+        if "ruin_warden" not in state.defeated:
+            notice = "The Waking Sentinel stands between you and the stone."
+        elif state.lord_stage == "ruin":
+            state.lord_stage = "report"
+            state.quest_items.append("ancient_magic_stone")
+            inventory.grant_item("ancient_magic_stone", {"name": "Inscribed Magic Stone", "kind": "quest", "icon": "◇", "rarity": "Rare", "description": "Ancient script: Magic is our hope. It can set us free. As it awakens, the world shall change."})
+            inventory.grant_item("sentinel_sword", {"name": "Sentinel's Longsword", "kind": "weapon", "icon": "⚔", "rarity": "Uncommon", "attack": 7, "description": "A finely balanced blade recovered from the forgotten ruin."})
+            notice = "You recover a magic stone and the Sentinel's Longsword. The engraving reads: Magic is our hope. It has the power to set us free. As it awakens, the world will change. Return to Stonehaven's lord."
+            _save()
+        else:
+            notice = "You have already taken the ancient stone."
+        return
     if action == "adventurers_guild":
         if state.guild_rank.is_empty():
             state.guild_rank = "D"
@@ -1055,6 +1088,9 @@ func _on_victory(encounter_id: String, reward_xp: int) -> void:
     if encounter_id in ["ossuary_skeleton", "bonecaller"]:
         crypt_defeated_this_visit.append(encounter_id)
     state.record_victory(encounter_id, reward_xp)
+    if encounter_id == "ruin_warden" and region == "ancient_ruin":
+        _add_point("ancient_stone", "Recover inscribed magic stone", Vector2(0, -170))
+        notice += " The ancient stone lies exposed beside the altar."
     if encounter_id == "bonecaller":
         if state.grimoire_choice.is_empty():
             _show_grimoire_dialog(true)
