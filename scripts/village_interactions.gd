@@ -14,7 +14,8 @@ const PINEWOOD_RELEASE_DISTANCE := 580.0
 const PINEWOOD_MAX_HEALTH := 14
 const PINEWOOD_MAX_MANA := 6.0
 const PINEWOOD_ENTRY_DISTANCE := 175.0
-const ROAD_REWARD := 20
+const ROAD_REWARD := 35
+const RITE_WOLF_COUNT := 4
 enum RoadQuest { OFFERED, ACTIVE, COMPLETE }
 
 const VillageNPC := preload("res://scripts/village_npc.gd")
@@ -68,7 +69,7 @@ var people := [
         "words": "Welcome to the Wayfarer Inn! Travelers are always welcome. Come inside and rest by the hearth."},
     {"name": "Elden", "role": "Village Elder", "pos": Vector2(315, -165),
         "route": [Vector2(247, -150), Vector2(215, -92)], "wait": 5.0, "speed": 31.0,
-        "words": "Our little frontier settlement is growing. The roads beyond the woods are not always safe."},
+        "words": "You have taken your first steps into adulthood. There is much more for you to discover in Stonehaven."},
     {"name": "Pip", "role": "Merchant", "pos": Vector2(290, 30),
         "route": [Vector2(347, 30), Vector2(221, 35)], "wait": 1.0, "speed": 44.0,
         "words": "Fresh supplies! The wilderness rewards those who come prepared."},
@@ -216,8 +217,8 @@ func _make_quest_offer(holder: Control, style: StyleBoxFlat) -> void:
 
 func _show_quest_offer(turn_in := false) -> void:
     turning_in_quest = turn_in
-    quest_title.text = "The Pinewood Road Is Clear" if turn_in else "Clear the Pinewood Road"
-    quest_details.text = ("Pip: The road is open again. Merchants can make the trip to Stonehaven safely. Here’s what I promised you.\n\nReward  ·  %d gold" if turn_in else "Pip needs help clearing two briar wolves from the road to Stonehaven. Take the north trail into Pinewood Forest. Look for one wolf at the fork and the other farther north. Return to Pip when the road is clear.\n\nReward  ·  %d gold") % ROAD_REWARD
+    quest_title.text = "Rite of Manhood — Complete" if turn_in else "Your Fifteenth Birthday — Rite of Manhood"
+    quest_details.text = ("Elden — Village Elder:\n\nYou have returned safely and protected our sheep. You have passed your rite of manhood, and I am proud of you. Take %d gold, two health potions, and two mana potions.\n\nYour next journey is to Stonehaven City. Seek out the Adventurer's Guild and register there." if turn_in else "Elden — Village Elder:\n\nHappy fifteenth birthday! We have trained you for this day. You have become a young man, proficient with the sword and skilled with magic, and now you are ready to set out on your own.\n\nFour wolves in Pinewood Forest have been threatening our sheep. Go into the forest, defeat all four, and return to me. This will be your first quest, and your rite of manhood.\n\nReward: %d gold, two health potions, and two mana potions.") % ROAD_REWARD
     accept_quest.text = "Claim reward" if turn_in else "Accept quest"
     decline_quest.text = "Later" if turn_in else "Decline"
     notice_timer.stop()
@@ -236,9 +237,11 @@ func _confirm_road_quest() -> void:
         road_quest = RoadQuest.COMPLETE
         gold += ROAD_REWARD
         gold_label.text = "%d GOLD" % gold
+        grant_item("rite_health_potions", {"name": "Health Potion x2", "kind": "consumable", "icon": "◆", "rarity": "Common", "description": "Two health potions, a gift from Elder Elden."})
+        grant_item("rite_mana_potions", {"name": "Mana Potion x2", "kind": "consumable", "icon": "✦", "rarity": "Common", "description": "Two mana potions, a gift from Elder Elden."})
         _update_pip_marker()
         _close_quest_offer()
-        _show_message("Quest completed — Clear the Pinewood Road\nReceived %d gold." % ROAD_REWARD, 5.0)
+        _show_message("Rite of Manhood completed! Received %d gold, 2 health potions and 2 mana potions. Next: Stonehaven Adventurer's Guild." % ROAD_REWARD, 7.0)
 
 func _accept_road_quest() -> void:
     if not quest_offer.visible or road_quest != RoadQuest.OFFERED:
@@ -246,9 +249,9 @@ func _accept_road_quest() -> void:
     road_quest = RoadQuest.ACTIVE
     _update_pip_marker()
     _close_quest_offer()
-    var already_clear := defeated_wolves.size() == 2
-    var objective := "Talk to Pip to collect your reward." if already_clear else "Take the north trail into Pinewood Forest."
-    _show_message("Quest accepted — Clear the Pinewood Road\n" + objective, 5.0)
+    var already_clear := defeated_wolves.size() >= RITE_WOLF_COUNT
+    var objective := "Return to Elder Elden for your reward." if already_clear else "Defeat four wolves threatening the village sheep in Pinewood Forest."
+    _show_message("Quest accepted — Rite of Manhood\n" + objective, 5.0)
 
 func _make_inventory_window() -> void:
     inventory_panel = PanelContainer.new()
@@ -452,7 +455,7 @@ func _make_villagers() -> void:
     for person in people:
         var npc := VillageNPC.new()
         npc.name = str(person["name"])
-        npc.quest_available = npc.name == &"Pip" and road_quest == RoadQuest.OFFERED
+        npc.quest_available = npc.name == &"Elden" and road_quest == RoadQuest.OFFERED
         npc.position = person["pos"]
         npc.z_index = 8
         npc.artwork_height = player.character_art_height
@@ -698,7 +701,7 @@ func _unhandled_key_input(event: InputEvent) -> void:
                 speaker.talking = true
                 conversation_open = true
                 var words: String = people[nearest]["words"]
-                var road_dialogue := speaker.name == &"Pip" and road_quest != RoadQuest.COMPLETE
+                var road_dialogue := speaker.name == &"Elden" and road_quest != RoadQuest.COMPLETE
                 if road_dialogue and (road_quest == RoadQuest.OFFERED or _road_ready_to_turn_in()):
                     _show_quest_offer(_road_ready_to_turn_in())
                     get_viewport().set_input_as_handled()
@@ -713,18 +716,18 @@ func _unhandled_key_input(event: InputEvent) -> void:
         get_viewport().set_input_as_handled()
 
 func _road_ready_to_turn_in() -> bool:
-    return road_quest == RoadQuest.ACTIVE and defeated_wolves.size() == 2
+    return road_quest == RoadQuest.ACTIVE and defeated_wolves.size() >= RITE_WOLF_COUNT
 
 func _update_pip_marker() -> void:
     for npc in villagers:
-        if npc.name == &"Pip":
+        if npc.name == &"Elden":
             npc.quest_available = road_quest == RoadQuest.OFFERED
             npc.quest_ready = _road_ready_to_turn_in()
             return
 
 func _pip_road_dialogue() -> String:
-    var remaining := 2 - defeated_wolves.size()
-    return "%d briar %s still on the Pinewood road. I’ll be here when the road is clear." % [
+    var remaining := maxi(0, RITE_WOLF_COUNT - defeated_wolves.size())
+    return "%d %s still threatening our sheep in Pinewood Forest. Return when the village is safe." % [
         remaining, "wolf is" if remaining == 1 else "wolves are"
     ]
 
@@ -802,7 +805,7 @@ func _on_wolf_defeated(variant: int) -> void:
         defeated_wolves.append(variant)
     _update_pip_marker()
     if _road_ready_to_turn_in():
-        _show_message("Clear the Pinewood Road — return to Pip for your reward.", 5.0)
+        _show_message("Rite of Manhood — return to Elder Elden for your reward.", 5.0)
     else:
         _show_message("Briar wolf defeated.", 3.0)
 
@@ -816,8 +819,8 @@ func _pinewood_prompt() -> String:
         return "Click the gate, press E, or walk through — Stonehaven"
     if road_quest == RoadQuest.ACTIVE:
         if forest.wolves.is_empty():
-            return "Return to Pip | " + status
-        return "Clear the Pinewood Road (%d/2) | %s" % [2 - forest.wolves.size(), status]
+            return "Return to Elder Elden | " + status
+        return "Rite of Manhood (%d/4) | %s" % [RITE_WOLF_COUNT - forest.wolves.size(), status]
     return "Pinewood Forest | " + status
 
 func _nearest_person() -> int:
