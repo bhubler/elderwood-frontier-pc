@@ -238,8 +238,8 @@ func _confirm_road_quest() -> void:
         road_quest = RoadQuest.COMPLETE
         gold += ROAD_REWARD
         gold_label.text = "%d GOLD" % gold
-        grant_item("rite_health_potions", {"name": "Health Potion x2", "kind": "consumable", "icon": "◆", "rarity": "Common", "description": "Two health potions, a gift from Elder Elden."})
-        grant_item("rite_mana_potions", {"name": "Mana Potion x2", "kind": "consumable", "icon": "✦", "rarity": "Common", "description": "Two mana potions, a gift from Elder Elden."})
+        grant_item("rite_health_potions", {"name": "Health Potion x2", "kind": "consumable", "icon": "◆", "rarity": "Common", "description": "Two health potions, a gift from Elder Elden.", "charges": 2})
+        grant_item("rite_mana_potions", {"name": "Mana Potion x2", "kind": "consumable", "icon": "✦", "rarity": "Common", "description": "Two mana potions, a gift from Elder Elden.", "charges": 2})
         _update_pip_marker()
         _close_quest_offer()
         _show_message("Rite of Manhood completed! Received %d gold, 2 health potions and 2 mana potions. Next: Stonehaven Adventurer's Guild." % ROAD_REWARD, 7.0)
@@ -383,7 +383,7 @@ func _refresh_inventory() -> void:
         var button := inventory_grid.get_child(i) as Button
         var item_id := backpack[i] if i < backpack.size() else ""
         button.text = str(item_data[item_id]["icon"]) if not item_id.is_empty() else ""
-        button.tooltip_text = str(item_data[item_id]["name"]) if not item_id.is_empty() else ""
+        button.tooltip_text = (str(item_data[item_id]["name"]) + " (%d remaining)" % int(item_data[item_id].get("charges", 1))) if not item_id.is_empty() and item_id in ["rite_health_potions", "rite_mana_potions"] else (str(item_data[item_id]["name"]) if not item_id.is_empty() else "")
     item_details.text = "SELECT AN ITEM\nInspect its properties and equip weapons or armor."
 
 func copy_items_from(source: CanvasLayer) -> void:
@@ -415,6 +415,9 @@ func _select_backpack_slot(index: int) -> void:
         _select_item(backpack[index])
 
 func _select_item(item_id: String) -> void:
+    if item_id in ["rite_health_potions", "rite_mana_potions"]:
+        _drink_rite_potion(item_id)
+        return
     var data: Dictionary = item_data[item_id]
     var stats := ""
     if data.has("attack"):
@@ -425,6 +428,41 @@ func _select_item(item_id: String) -> void:
     var kind: String = data["kind"]
     if kind in ["weapon", "armor", "accessory"]:
         _equip(item_id, kind)
+
+func _drink_rite_potion(item_id: String) -> void:
+    var is_health := item_id == "rite_health_potions"
+    var key := "health" if is_health else "mana"
+    var charges := int(item_data[item_id].get("charges", 0))
+    if charges <= 0:
+        return
+    var restored := 0.0
+    if inventory_only:
+        var chapter := get_parent()
+        var cap := float(chapter.call("_effective_max_health")) if is_health else 100.0
+        var old := float(chapter.get(key))
+        var now := minf(cap, old + (25.0 if is_health else 30.0))
+        chapter.set(key, int(now) if is_health else now)
+        restored = now - old
+    elif is_instance_valid(forest) and forest.active:
+        var maximum := float(PINEWOOD_MAX_HEALTH) if is_health else PINEWOOD_MAX_MANA
+        var old := float(forest.get(key))
+        var now := minf(maximum, old + (6.0 if is_health else 3.0))
+        forest.set(key, int(now) if is_health else now)
+        restored = now - old
+    else:
+        item_details.text = "Save this potion for when you need to recover during an adventure."
+        return
+    if restored <= 0.0:
+        item_details.text = "Already at full %s." % key
+        return
+    charges -= 1
+    if charges == 0:
+        backpack.erase(item_id)
+    else:
+        item_data[item_id]["charges"] = charges
+        item_data[item_id]["name"] = ("%s Potion x%d" % ["Health" if is_health else "Mana", charges])
+    _refresh_inventory()
+    item_details.text = "Restored %d %s. %d potion(s) remaining." % [int(ceilf(restored)), key, charges]
 
 func _equip(item_id: String, kind: String) -> void:
     var old_id: String = equipment[kind]
