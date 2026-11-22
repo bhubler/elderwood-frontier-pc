@@ -46,8 +46,13 @@ const REGIONS := {
             ["northern_watch", "Enter the watchtower", Overworld.WATCH + Vector2(0, 120)],
             ["graveyard", "Enter Forsaken Graveyard", Overworld.CRYPT + Vector2(0, 123)],
             ["old_cabin", "Explore the old cabin", Overworld.CABIN + Vector2(0, 112)],
+            ["ancient_ruin", "Investigate the awakening ruins", Overworld.SHRINE + Vector2(170, -170)],
             ["woodland_shrine", "Roadside shrine", Overworld.SHRINE + Vector2(0, 77)],
         ],
+    },
+    "ancient_ruin": {
+        "title": "The Awakening Ruins — Inner Sanctum", "ground": "#2c2d35",
+        "points": [["east_pinewood", "Return to the eastern forest", EXIT]],
     },
     "town_court": {
         "title": "Stonehaven — Civic Court", "ground": "#41403d",
