@@ -156,7 +156,7 @@ func _load_region(destination: String) -> void:
         _add_point("church_mentor", "Church of Stonehaven", Vector2(232, -155))
     if region == "east_pinewood" and not state.guild_rank.is_empty():
         for index in range(10):
-            if not ("herb_%d" % index) in state.quest_items:
+            if ("herb_%d" % index) not in state.quest_items:
                 _add_point("herb_%d" % index, "Gather woodland herb", Overworld.CARAVAN + Vector2(-250 + (index % 5) * 105, 220 + int(index / 5) * 95), false)
     if region == "northern_watch" and state.guild_provisions and not state.guild_watch_supplied:
         _add_point("deliver_provisions", "Deliver guild provisions", Vector2(70, -85))
@@ -392,18 +392,18 @@ func _dress_stonehaven() -> void:
     _add_landmark("civic", Vector2(-264, -243), 326)
     _add_landmark("temple", Vector2(232, -243), 314)
     _add_landmark("residence", Vector2(698, -243), 195)
-    _add_landmark("residence", Vector2(-258, 285), 201)
-    _add_landmark("civic", Vector2(-260, 318), 170) # Guildhall building; reuse established civic artwork
+    _add_landmark("civic", Vector2(-258, 285), 201) # Guildhall: temporary existing civic art
     _add_landmark("residence", Vector2(252, 285), 196)
     _add_landmark("residence", Vector2(694, 285), 187)
     _add_landmark("way_shrine", Vector2(658, 440), 76)
     _add_local_npc("guard_sword", Vector2(-610, -178))
     _add_local_npc("guard_spear", Vector2(722, 115))
-    _add_local_npc("priest", Vector2(238, -178))
+    _add_npc("priest", Vector2(238, -178))
     _add_local_npc("monk", Vector2(354, -118), 2)
-    _add_local_npc("noble", Vector2(-255, -178))
+    _add_npc("noble", Vector2(-255, -178))
     _add_local_npc("sweeper", Vector2(-212, 131), 2)
     _add_local_npc("dockhand", Vector2(403, 145), 5)
+    _add_npc("noble", Vector2(-260, 360), 2) # Guild Master
     for guest in [
         ["townswoman", "Herb grower", "The chapel keeps a garden behind the square.", Vector2(438, -82), 2],
         ["townsman", "Carter", "Wagons take the east entrance when the road is dry.", Vector2(623, 338), 4],
@@ -732,9 +732,9 @@ func _interact(action: String) -> void:
             notice = "The Waking Sentinel stands between you and the stone."
         elif state.lord_stage == "ruin":
             state.lord_stage = "report"
-            state.quest_items.append("ancient_magic_stone")
-            inventory.grant_item("ancient_magic_stone", {"name": "Inscribed Magic Stone", "kind": "quest", "icon": "◇", "rarity": "Rare", "description": "Ancient script: Magic is our hope. It can set us free. As it awakens, the world shall change."})
-            inventory.grant_item("sentinel_sword", {"name": "Sentinel's Longsword", "kind": "weapon", "icon": "⚔", "rarity": "Uncommon", "attack": 7, "description": "A finely balanced blade recovered from the forgotten ruin."})
+            if inventory.grant_item("ancient_magic_stone", Layouts.ITEMS["ancient_magic_stone"]):
+                state.quest_items.append("ancient_magic_stone")
+            inventory.grant_item("sentinel_sword", Layouts.ITEMS["sentinel_sword"])
             notice = "You recover a magic stone and the Sentinel's Longsword. The engraving reads: Magic is our hope. It has the power to set us free. As it awakens, the world will change. Return to Stonehaven's lord."
             _save()
         else:
@@ -852,7 +852,9 @@ func _cellar_marker_visible() -> bool:
 func _try_travel(destination: String) -> void:
     if not Layouts.REGIONS.has(destination):
         return
-    if destination == "crypt_ritual" and (is_instance_valid(enemy) or "ossuary_skeleton" not in state.defeated):
+    if destination == "ancient_ruin" and state.lord_stage not in ["ruin", "report", "share"] and state.mentorship_faction.is_empty():
+        notice = "The ruin is sealed. The Lord of Stonehaven may know more."
+    elif destination == "crypt_ritual" and (is_instance_valid(enemy) or "ossuary_skeleton" not in state.defeated):
         notice = "Defeat the Restless Skeleton to reach the ritual chamber."
     elif destination == "hideout" and region == "cellar_gate" and state.entry_method.is_empty():
         notice = "The Black Hand Guard bars the way. Defeat him to enter."
