@@ -750,6 +750,8 @@ func _interact(action: String) -> void:
         if state.guild_provisions and not state.guild_watch_supplied:
             state.guild_provisions = false
             state.guild_watch_supplied = true
+            state.quest_items.erase("watch_provisions")
+            inventory.remove_item("watch_provisions")
             notice = "The watch captain accepts the guild provisions. The guards will have enough to last another week. Return to the Guild Master."
             _save()
         else:
@@ -773,6 +775,8 @@ func _interact(action: String) -> void:
         if state.guild_rank.is_empty():
             state.guild_rank = "D"
             state.guild_provisions = true
+            if inventory.grant_item("watch_provisions", Layouts.ITEMS["watch_provisions"]):
+                state.quest_items.append("watch_provisions")
             notice = "Guild Master — Welcome to the Adventurer's Guild! Registered: D-rank. Three assignments: investigate the raided caravan and its bandits, deliver this parcel to the eastern watchtower, and gather ten herbs in East Pinewood. Your provisions are issued."
         elif state.guild_assignments_complete() and state.lord_stage == "locked":
             state.lord_stage = "summoned"
