@@ -92,6 +92,8 @@ func _ready() -> void:
 	add_child(lettering)
 	_spawn_wolf(Vector2(-357, 127), 0)
 	_spawn_wolf(Vector2(170, -250), 1)
+	_spawn_wolf(Vector2(-325, 330), 2)
+	_spawn_wolf(Vector2(300, -470), 3)
 
 func _place_trees() -> void:
 	var rng := RandomNumberGenerator.new()
@@ -168,7 +170,7 @@ func _spawn_wolf(at: Vector2, variant: int) -> void:
 		if atlas != null:
 			var half := atlas.get_width() / 2.0
 			var image := atlas.get_image()
-			var area := Rect2i(roundi(variant * half), 0, floori(half), atlas.get_height())
+			var area := Rect2i(roundi((variant % 2) * half), 0, floori(half), atlas.get_height())
 			var sprite := image.get_region(area)
 			var tight := sprite.get_used_rect()
 			if tight.has_area():
