@@ -37,12 +37,11 @@ func enter_black_hand(method: String) -> bool:
     return true
 
 func learn_summon() -> bool:
-    if spell_learned or not grimoire_choice.is_empty():
-        return false
+    var newly_learned := not spell_learned
     grimoire_choice = "study"
     spell_learned = true
-    emissary_pending = entry_method.is_empty()
-    return true
+    emissary_pending = true
+    return newly_learned
 
 func record_summon() -> void:
     conjuration_uses += 1
@@ -132,7 +131,7 @@ func load_progress(path: String) -> Error:
     emissary_pending = file.get_value("chapter", "emissary_pending", false)
     spell_learned = file.get_value("chapter", "spell_learned", false)
     grimoire_choice = file.get_value("chapter", "grimoire_choice", "study" if spell_learned else "")
-    if spell_learned and entry_method.is_empty():
+    if grimoire_choice == "study" and entry_method.is_empty():
         emissary_pending = true
     initiation = file.get_value("chapter", INITIATION, "locked")
     experience = file.get_value("chapter", "experience", 0)

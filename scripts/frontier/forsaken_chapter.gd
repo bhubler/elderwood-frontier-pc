@@ -46,6 +46,7 @@ var enemy: Enemy
 var crypt_defeated_this_visit: Array[String] = []
 var emissary: Point
 var emissary_actor: Node2D
+var emissary_seen_this_session := false
 var grimoire_art: Sprite2D
 var grimoire_dialog: CenterContainer
 var grimoire_heading: Label
@@ -658,30 +659,28 @@ func _interact(action: String) -> void:
                 _save()
             notice = "Quiet Finn whispers about a scratched black hand on the drainage door north of here."
         "emissary":
+            if not is_instance_valid(emissary):
+                return
+            emissary_seen_this_session = true
             if state.enter_black_hand("grimoire"):
-                _remove_emissary()
                 if region == "stonehaven" and not _cellar_marker_visible():
                     _add_point("cellar_gate", "Hidden Drainage Door", Layouts.NORTH)
                 if region == "cellar_gate" and is_instance_valid(enemy):
                     enemy.queue_free()
                     enemy = null
                 notice = "Emissary — You dared to study the Bonecaller’s rites. Find the drainage door in Stonehaven. You may pass."
-                _save()
+            else:
+                notice = "Emissary — The Black Hand remembers you. The way beneath Stonehaven is still open."
+            state.emissary_pending = false
+            _remove_emissary()
+            _save()
         "veiled_agent":
             _speak_to_agent()
         "grimoire":
             if is_instance_valid(enemy) or "bonecaller" not in state.defeated:
                 notice = "The Bonecaller bars the way to the lectern."
             else:
-                match state.grimoire_choice:
-                    "study":
-                        notice = "You already studied these rites. Summon Skeleton is available with Q."
-                    "take":
-                        notice = "The altar holds an imprint. The unread grimoire is in your backpack."
-                    "destroy":
-                        notice = "Only a magical imprint remains. You destroyed the grimoire."
-                    _:
-                        _show_grimoire_dialog(false)
+                _show_grimoire_dialog(false)
         "ledger":
             if "vault_warden" not in state.defeated:
                 notice = "The Warden guards the ledger."
@@ -784,14 +783,14 @@ func _build_grimoire_dialog() -> void:
     grimoire_dialog.hide()
 
 func _show_grimoire_dialog(victory: bool) -> void:
-    if not state.grimoire_choice.is_empty():
-        return
     grimoire_heading.text = "The Bonecaller is defeated" if victory else "The Forbidden Grimoire"
     grimoire_details.text = "The Forbidden Grimoire lies open on the altar. Destroy it, take it without reading, or study its rites."
+    if not state.grimoire_choice.is_empty():
+        grimoire_details.text += "\nYou can choose again. Learned spells and Black Hand progress are kept."
     grimoire_dialog.show()
 
 func _choose_grimoire(choice: String) -> void:
-    if not grimoire_dialog.visible or not state.grimoire_choice.is_empty():
+    if not grimoire_dialog.visible:
         return
     if choice == "later":
         grimoire_dialog.hide()
@@ -815,22 +814,21 @@ func _choose_grimoire(choice: String) -> void:
         _:
             return
     if choice != "study":
+        state.emissary_pending = false
+        _remove_emissary()
         if is_instance_valid(grimoire_art):
-            grimoire_art.queue_free()
-        for point in points:
-            if point.action_id == "grimoire":
-                points.erase(point)
-                point.queue_free()
-                break
+            grimoire_art.modulate = Color(0.83, 0.64, 1.0, 0.72)
     grimoire_dialog.hide()
     _save()
 
 func _learn_spell() -> void:
-    if state.learn_summon():
-        notice = "Learned Summon Skeleton. Press Q to cast for 45 mana."
-        if state.emissary_pending:
-            _bring_emissary()
-            notice += " A Black Hand emissary approaches. Speak to them with E."
+    var newly_learned := state.learn_summon()
+    notice = "Learned Summon Skeleton. Press Q to cast for 45 mana." if newly_learned else "You study the Bonecaller’s rites again."
+    if is_instance_valid(grimoire_art):
+        grimoire_art.modulate = Color.WHITE
+    emissary_seen_this_session = false
+    _bring_emissary()
+    notice += " A Black Hand emissary approaches. Speak to them with E."
 
 func _cast_summon() -> void:
     if not state.spell_learned:
@@ -853,6 +851,10 @@ func _cast_summon() -> void:
         _summon_effect(&"windup", player.position + Vector2(0, -18))
         state.record_summon()
         notice = "A skeleton rises for 35 seconds."
+        if region == "crypt_ritual" and state.grimoire_choice == "study" and not emissary_seen_this_session:
+            state.emissary_pending = true
+            _bring_emissary()
+            notice += " Speak to the Black Hand emissary with E."
         _save()
 
 func _summon_effect(clip: StringName, where: Vector2) -> void:

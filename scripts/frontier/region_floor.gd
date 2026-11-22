@@ -14,6 +14,8 @@ const GRAVEYARD_ROADS := [
     [Vector2(-60, 170), Vector2(-240, 182), Vector2(-430, 193)],
     [Vector2(100, 155), Vector2(344, 225)]
 ]
+const WayfindingArt := preload("res://scripts/wayfinding_art.gd")
+const SEAL_PATH := "res://art/landmarks/bonecaller_seal.png"
 const ROOM_WALL := preload("res://art/stonehaven/curtain_wall.png")
 const WATCH_TABLE := Rect2(-128, -132, 256, 64)
 const WATCH_CRATES := [Rect2(-367, -92, 95, 70), Rect2(265, -111, 91, 67)]
@@ -47,7 +49,7 @@ func _draw() -> void:
     if region_id == "northern_watch":
         _draw_watch_room()
     elif region_id == "crypt_ritual":
-        var seal := load("res://art/landmarks/bonecaller_seal.png") as Texture2D
+        var seal := WayfindingArt._texture(SEAL_PATH)
         if seal != null:
             draw_texture_rect(seal, Rect2(-132, -141, 264, 172), false)
 
