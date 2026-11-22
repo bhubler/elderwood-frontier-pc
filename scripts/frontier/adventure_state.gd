@@ -28,6 +28,7 @@ var lord_stage := "locked"
 var mentorship_faction := ""
 var mentorship_year := 0
 var mentorship_focus := ""
+var mentorship_history: Array[String] = []
 var player_age := 15
 func guild_assignments_complete() -> bool:
     return not guild_rank.is_empty() and guild_caravan_inspected and "blackbriar_bandit" in defeated and "blackbriar_chief" in defeated and guild_watch_supplied and guild_herbs >= 10
@@ -146,6 +147,7 @@ func save_progress(path: String) -> Error:
     file.set_value("chapter", "mentorship_faction", mentorship_faction)
     file.set_value("chapter", "mentorship_year", mentorship_year)
     file.set_value("chapter", "mentorship_focus", mentorship_focus)
+    file.set_value("chapter", "mentorship_history", mentorship_history)
     file.set_value("chapter", "player_age", player_age)
     var temporary_path := path + ".tmp"
     var result := file.save(temporary_path)
@@ -183,5 +185,6 @@ func load_progress(path: String) -> Error:
     mentorship_faction = file.get_value("chapter", "mentorship_faction", "")
     mentorship_year = file.get_value("chapter", "mentorship_year", 0)
     mentorship_focus = file.get_value("chapter", "mentorship_focus", "")
+    mentorship_history.assign(file.get_value("chapter", "mentorship_history", []))
     player_age = file.get_value("chapter", "player_age", 15)
     return OK
