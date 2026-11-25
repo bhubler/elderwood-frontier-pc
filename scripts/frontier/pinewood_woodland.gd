@@ -4,8 +4,9 @@ const Layout := preload("res://scripts/frontier/overworld_layout.gd")
 const ForestLayout := preload("res://scripts/forest_layout.gd")
 const WorldCollision := preload("res://scripts/world_collision.gd")
 const Vegetation := preload("res://scripts/wilderness_vegetation.gd")
+const Ruins := preload("res://scripts/frontier/awakening_ruins.gd")
 const CHUNK_SIZE := 880
-const LANDMARKS := [Layout.CARAVAN, Layout.WATCH, Layout.CRYPT, Layout.CABIN, Layout.SHRINE]
+const LANDMARKS := [Layout.CARAVAN, Layout.WATCH, Layout.CRYPT, Layout.CABIN, Layout.SHRINE, Ruins.ENTRANCE + Vector2(0, -110)]
 const GROVE_PATH := "res://art/landmarks/pine_grove.png"
 
 var player: Node2D

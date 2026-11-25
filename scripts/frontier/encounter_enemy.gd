@@ -13,6 +13,8 @@ const AnimatedNPC := preload("res://scenes/npc/animated_npc.tscn")
 
 @export var frames: SpriteFrames
 @export var attack_style := "melee"
+var sprite_scale := 1.0
+var sprite_tint := Color.WHITE
 var projectile := Vector2.INF
 var projectile_direction := Vector2.ZERO
 var projectile_life := 0.0
@@ -39,6 +41,9 @@ func _ready() -> void:
         presentation = AnimatedNPC.instantiate()
         presentation.frames = frames
         presentation.autonomous_patrol = false
+        presentation.scale = Vector2.ONE * sprite_scale
+        presentation.modulate = sprite_tint
+        caption.position.y -= (sprite_scale - 1.0) * 60.0
         presentation.attack_contact.connect(_on_sprite_contact)
         presentation.defeated.connect(queue_free)
         add_child(presentation)

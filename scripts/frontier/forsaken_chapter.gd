@@ -13,6 +13,12 @@ const Prop := preload("res://scripts/interior_prop.gd")
 const WorldCollision := preload("res://scripts/world_collision.gd")
 const State = preload("res://scripts/frontier/adventure_state.gd")
 const Mentorship = preload("res://scripts/frontier/mentorship.gd")
+const Ruins := preload("res://scripts/frontier/awakening_ruins.gd")
+const RUIN_TREASURE := {
+    "ancient_ruin": [Vector2(-596, -293), "ruin_ward_clasp"],
+    "ruin_lower": [Vector2(592, -245), "ruin_watch_mantle"],
+}
+var ruin_walls: Array[Rect2] = []
 const Layouts = preload("res://scripts/frontier/chapter_regions.gd")
 const PinewoodWoodland := preload("res://scripts/frontier/pinewood_woodland.gd")
 const Overworld := preload("res://scripts/frontier/overworld_layout.gd")
@@ -131,6 +137,7 @@ func _ready() -> void:
 func _load_region(destination: String) -> void:
     var previous := region
     region = destination
+    ruin_walls.clear()
     for child in props.get_children():
         if child == forest_terrain or child == forest_woodland:
             child.hide()
@@ -189,12 +196,10 @@ func _load_region(destination: String) -> void:
         if not assignment.is_empty() and region == str(assignment[0]) and ("mentor_task_%d" % state.mentorship_year) not in state.quest_items:
             _add_point("mentor_task", str(assignment[2]), assignment[1])
 
-    if region == "ancient_ruin" and "ruin_warden" in state.defeated:
-        _add_point("ancient_stone", "Recover inscribed magic stone", Vector2(0, -170))
+    if region == "ruin_sanctum" and "ruin_warden" in state.defeated and state.lord_stage == "ruin":
+        _add_point("ancient_stone", "Recover the stone and longsword", Ruins.RELIC)
     _load_outdoor_terrain()
     floor_art.queue_redraw()
-    if region == "ancient_ruin" and state.lord_stage == "ruin" and "ruin_warden" not in state.defeated:
-        _add_enemy(["ruin_warden", "The Waking Sentinel", 78, 16, 65, "#ae9fd0", "vault_warden"], Vector2(0, -60))
     if region == "east_pinewood" and "blackbriar_bandit" not in state.defeated:
         _add_enemy(["blackbriar_bandit", "Blackbriar Bandit", 33, 11, 24, "#bd8061", "bandit"],
             Overworld.CARAVAN + Vector2(125, 135))
@@ -205,7 +210,7 @@ func _load_region(destination: String) -> void:
         if encounter_id in ["ossuary_skeleton", "bonecaller"]:
             cleared = encounter_id in crypt_defeated_this_visit
         if not cleared and not (region == "cellar_gate" and state.entry_method == "grimoire"):
-            _add_enemy(definition)
+            _add_enemy(definition, layout.get("enemy_position", Vector2.ZERO))
     if state.emissary_pending:
         _bring_emissary()
     summon.position = player.position + Vector2(34, 24)
@@ -256,7 +261,11 @@ func _load_outdoor_terrain() -> void:
     if city:
         terrain.ground_bounds = Overworld.CITY.grow(740)
     elif not forest:
-        terrain.ground_bounds = Floor.BOUNDS if interior else Floor.BOUNDS.grow(590)
+        if Ruins.ROOMS.has(region):
+            terrain.ground_bounds = Ruins.bounds(region)
+            terrain.cobble_radius = 1200.0
+        else:
+            terrain.ground_bounds = Floor.BOUNDS if interior else Floor.BOUNDS.grow(590)
         terrain.modulate = Color("#bbb2a6") if interior else Color.WHITE
     if region == "graveyard":
         terrain.modulate = Color("#8f9c97")
@@ -323,7 +332,11 @@ func _add_point(action: String, title: String, where: Vector2, show_caption := t
     point.title = title
     point.show_caption = show_caption and action not in ["veiled_agent", "quiet_finn", "emissary"]
     point.position = where
-    if action == "cellar_gate" and region == "stonehaven":
+    if action == "ancient_ruin" and region == "east_pinewood":
+        point.show_disc = false
+        point.show_caption = false
+        point.radius = 145.0
+    elif action == "cellar_gate" and region == "stonehaven":
         point.show_caption = false
         point.show_disc = false
         point.radius = 95.0
@@ -379,10 +392,8 @@ func _dress_region() -> void:
             Prop.place(props, "crypts/chains", Vector2(-364, -139))
             if state.grimoire_choice.is_empty():
                 _place_grimoire()
-        "ancient_ruin":
-            _add_landmark("ritual_altar", Vector2(0, -200), 190)
-            for where in [Vector2(-350, -140), Vector2(350, -140), Vector2(-260, 95), Vector2(260, 95)]:
-                _add_landmark("grave_markers", where, 120)
+        "ancient_ruin", "ruin_lower", "ruin_sanctum":
+            _dress_ruins()
         "northern_watch":
             var captain_position := Vector2(95, -43)
             watch_captain = _add_npc("guard_sword", captain_position, 1)
@@ -519,7 +530,42 @@ func _add_side_masonry(texture: Texture2D, y: float, length: float, height: floa
     sprite.z_index = layer
     props.add_child(sprite)
 
+func _dress_ruins() -> void:
+    ruin_walls = Ruins.walls(region)
+    for wall in ruin_walls:
+        WorldCollision.box(props, "RuinMasonry", wall)
+    if RUIN_TREASURE.has(region):
+        var treasure: Array = RUIN_TREASURE[region]
+        var where: Vector2 = treasure[0]
+        var opened: bool = treasure[1] in state.quest_items
+        var chest := Prop.place(props, "inns/chest", where, Vector2(52, 26), player)
+        if opened and chest != null:
+            chest.modulate = Color("#8d8880")
+        var point := _add_point("ruin_chest", "Search the old chest", where + Vector2(0, 12), false)
+        point.show_disc = false
+    match region:
+        "ancient_ruin":
+            Prop.place(props, "crypts/sarcophagus_cracked", Vector2(-470, 310), Vector2(100, 42), player)
+            Prop.place(props, "crypts/web_left", Vector2(-715, -340))
+            Prop.place(props, "crypts/altar_clean", Vector2(0, -311), Vector2(90, 34), player)
+        "ruin_lower":
+            Prop.place(props, "crypts/cage_rusted", Vector2(-617, 301), Vector2(62, 43), player)
+            Prop.place(props, "crypts/bone_pile", Vector2(-372, -308), Vector2.ZERO, null, -4)
+            Prop.place(props, "crypts/sarcophagus_cracked", Vector2(18, -277), Vector2(100, 42), player)
+        "ruin_sanctum":
+            Prop.place(props, "crypts/altar_clean", Ruins.RELIC - Vector2(0, 8), Vector2(96, 38), player)
+            for at in [Vector2(-205, -193), Vector2(205, -193), Vector2(-335, 158), Vector2(335, 158)]:
+                Prop.place(props, "crypts/wax_candles", at)
+                Prop.loop(props, "candle", at - Vector2(0, 24), 5.0)
+            var seal := Prop.place(props, "crypts/rune_decal", Vector2(0, 43), Vector2.ZERO, null, -5)
+            if seal != null:
+                seal.modulate = Color("#9290b3")
+
 func _dress_east_pinewood() -> void:
+    if _add_art(LANDMARK_ROOT + "awakening_ruins.png", Ruins.ENTRANCE + Vector2(0, 15), 330):
+        for x in [-99, 99]:
+            WorldCollision.box(props, "RuinButtress", Rect2(Ruins.ENTRANCE + Vector2(x - 30, -48), Vector2(60, 57)))
+        WorldCollision.box(props, "RuinBackWall", Rect2(Ruins.ENTRANCE + Vector2(-129, -90), Vector2(258, 34)))
     _add_art("res://art/wayfinding/trail_gate.png", Overworld.FOREST_WEST + Vector2(0, 27), 225)
     _add_art("res://art/wayfinding/stonehaven_sign.png", Overworld.FOREST_WEST + Vector2(-132, 53), 88)
     _add_landmark("caravan", Overworld.CARAVAN, 350)
@@ -607,6 +653,8 @@ func _unhandled_input(event: InputEvent) -> void:
             hit = Rect2(point.position - Vector2(68, 105), Vector2(136, 116))
         if point.action_id == "cellar_gate" and region == "stonehaven":
             hit = Rect2(point.position - Vector2(58, 66), Vector2(116, 82))
+        if point.action_id == "ancient_ruin" and region == "east_pinewood":
+            hit = Rect2(point.position - Vector2(160, 270), Vector2(320, 289))
         if point.action_id.begins_with("herb_"):
             hit = Rect2(point.position - Vector2(24, 24), Vector2(48, 48))
         if point.action_id in ["grimoire", "replay_grimoire"]:
@@ -633,6 +681,9 @@ func _add_enemy(definition: Array, where := Vector2.ZERO) -> void:
         if ResourceLoader.exists(path):
             enemy.frames = load(path)
             enemy.attack_style = NpcLibrary.ATTACK_STYLES.get(sheet, "melee")
+    if enemy.encounter_id == "ruin_warden":
+        enemy.sprite_scale = 1.42
+        enemy.sprite_tint = Color("#bdc9dc")
     enemy.defeated.connect(_on_victory)
     enemy.attack_landed.connect(_take_damage)
     props.add_child(enemy)
@@ -665,7 +716,7 @@ func _process(_delta: float) -> void:
     var blocked: bool = player.choosing_race or inventory.inventory_open or journal_panel.visible or grimoire_dialog.visible or mentor_dialog.visible or guild_dialog.visible
     player.set_physics_process(not blocked)
     if is_instance_valid(enemy):
-        enemy.target = null if blocked or health <= 0 else player
+        enemy.target = null if blocked or health <= 0 or not _can_reach_enemy() else player
     inventory.update_resource_bars(health, _effective_max_health(), mana, State.MAX_MANA)
     var point := _nearest_point()
     var prompt := "Move to a marker and press E." if point == null else "E  %s" % point.title
@@ -701,7 +752,7 @@ func _physics_process(delta: float) -> void:
         return
     summon_attack_wait = maxf(0.0, summon_attack_wait - delta)
     var destination: Vector2 = player.position + Vector2(34, 24)
-    if is_instance_valid(enemy) and enemy.position.distance_to(player.position) <= 210.0:
+    if _can_reach_enemy() and enemy.position.distance_to(player.position) <= 210.0:
         destination = enemy.position
         if summon.position.distance_to(destination) <= 46 and summon_attack_wait <= 0.0:
             summon_attack_wait = 1.15
@@ -717,7 +768,7 @@ func _on_summon_contact() -> void:
         enemy.take_hit(9 + 3 * state.mentorship_history.count("Necromancy"))
 
 func _bounded(where: Vector2) -> Vector2:
-    var bounds := Overworld.bounds(region, Floor.BOUNDS)
+    var bounds := Ruins.bounds(region) if Ruins.ROOMS.has(region) else Overworld.bounds(region, Floor.BOUNDS)
     return where.clamp(bounds.position + Vector2(20, 28), bounds.end - Vector2(20, 20))
 
 func _unhandled_key_input(event: InputEvent) -> void:
@@ -815,10 +866,18 @@ func _interact(action: String) -> void:
         else:
             notice = "Watch Captain — Speak with the Guild Master if you're here about our provisions."
         return
+    if action == "ruin_chest" and RUIN_TREASURE.has(region):
+        var item_id: String = RUIN_TREASURE[region][1]
+        _take_item(item_id, "Found %s in the old chest." % Layouts.ITEMS[item_id]["name"])
+        return
     if action == "ancient_stone":
         if "ruin_warden" not in state.defeated:
             notice = "The Waking Sentinel stands between you and the stone."
         elif state.lord_stage == "ruin":
+            var needed := int("ancient_magic_stone" not in inventory.backpack) + int("sentinel_sword" not in inventory.backpack)
+            if inventory.backpack.size() + needed > inventory.BACKPACK_CAPACITY:
+                notice = "Make room for the inscribed stone and longsword before taking them."
+                return
             state.lord_stage = "report"
             if inventory.grant_item("ancient_magic_stone", Layouts.ITEMS["ancient_magic_stone"]):
                 state.quest_items.append("ancient_magic_stone")
@@ -942,6 +1001,8 @@ func _try_travel(destination: String) -> void:
         return
     if destination == "ancient_ruin" and state.lord_stage not in ["ruin", "report", "share"] and state.mentorship_faction.is_empty():
         notice = "The ruin is sealed. The Lord of Stonehaven may know more."
+    elif destination == "ruin_sanctum" and "ruin_seal_guard" not in state.defeated and "ruin_warden" not in state.defeated:
+        notice = "The Sealkeeper bars the sanctum. Defeat it to break the seal."
     elif destination == "crypt_ritual" and (is_instance_valid(enemy) or "ossuary_skeleton" not in state.defeated):
         notice = "Defeat the Restless Skeleton to reach the ritual chamber."
     elif destination == "hideout" and region == "cellar_gate" and state.entry_method.is_empty():
@@ -1248,15 +1309,29 @@ func _cast_summon() -> void:
 func _summon_effect(clip: StringName, where: Vector2) -> void:
     SpellEffects.play(props, "summon", clip, where)
 
+func _can_reach_enemy() -> bool:
+    if not is_instance_valid(enemy):
+        return false
+    if not Ruins.ROOMS.has(region):
+        return true
+    var origin: Vector2 = player.position
+    for wall in ruin_walls:
+        if Geometry2D.segment_intersects_segment(origin, enemy.position, wall.position, Vector2(wall.end.x, wall.position.y)) != null \
+            or Geometry2D.segment_intersects_segment(origin, enemy.position, wall.end, Vector2(wall.position.x, wall.end.y)) != null \
+            or Geometry2D.segment_intersects_segment(origin, enemy.position, wall.position, Vector2(wall.position.x, wall.end.y)) != null \
+            or Geometry2D.segment_intersects_segment(origin, enemy.position, wall.end, Vector2(wall.end.x, wall.position.y)) != null:
+            return false
+    return true
+
 func _attack(cursor := Vector2.INF) -> void:
     if attack_wait > 0.0:
         return
     attack_wait = 0.32
     var aim: Vector2 = player.facing if cursor == Vector2.INF else player.position.direction_to(cursor)
-    if is_instance_valid(enemy) and enemy.position.distance_to(player.position) <= 84:
+    if _can_reach_enemy() and enemy.position.distance_to(player.position) <= 84:
         aim = player.position.direction_to(enemy.position)
     player.play_strike(aim, true)
-    if is_instance_valid(enemy) and enemy.position.distance_to(player.position) <= 72:
+    if _can_reach_enemy() and enemy.position.distance_to(player.position) <= 72:
         enemy.take_hit(9 + player.attack_bonus + state.mentorship_history.count("Swordsmanship") + state.mentorship_history.count("Paladin Combat"))
         if is_instance_valid(enemy):
             notice = "You strike %s." % enemy.title
@@ -1272,7 +1347,7 @@ func _cast_fireball(cursor: Vector2) -> void:
     var direction: Vector2 = player.position.direction_to(cursor)
     if direction == Vector2.ZERO:
         direction = player.facing
-    if is_instance_valid(enemy) and player.position.distance_to(enemy.position) < 460:
+    if _can_reach_enemy() and player.position.distance_to(enemy.position) < 460:
         var target_direction: Vector2 = player.position.direction_to(enemy.position)
         if direction.dot(target_direction) > 0.8:
             direction = target_direction
@@ -1320,8 +1395,8 @@ func _on_victory(encounter_id: String, reward_xp: int) -> void:
     if encounter_id in ["ossuary_skeleton", "bonecaller"]:
         crypt_defeated_this_visit.append(encounter_id)
     state.record_victory(encounter_id, reward_xp)
-    if encounter_id == "ruin_warden" and region == "ancient_ruin":
-        _add_point("ancient_stone", "Recover inscribed magic stone", Vector2(0, -170))
+    if encounter_id == "ruin_warden" and region == "ruin_sanctum" and state.lord_stage == "ruin":
+        _add_point("ancient_stone", "Recover the stone and longsword", Ruins.RELIC)
         notice += " The ancient stone lies exposed beside the altar."
     if encounter_id == "bonecaller":
         if state.grimoire_choice.is_empty():

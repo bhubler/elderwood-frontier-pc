@@ -1,5 +1,6 @@
 extends RefCounted
 ## Room layouts specify entrances, NPCs, encounter IDs and landmark positions.
+const Ruins := preload("res://scripts/frontier/awakening_ruins.gd")
 const Overworld := preload("res://scripts/frontier/overworld_layout.gd")
 const EXIT := Vector2(0, 236)
 const NORTH := Vector2(0, -225)
@@ -46,14 +47,13 @@ const REGIONS := {
             ["northern_watch", "Enter the watchtower", Overworld.WATCH + Vector2(0, 120)],
             ["graveyard", "Enter Forsaken Graveyard", Overworld.CRYPT + Vector2(0, 123)],
             ["old_cabin", "Explore the old cabin", Overworld.CABIN + Vector2(0, 112)],
-            ["ancient_ruin", "Investigate the awakening ruins", Overworld.SHRINE + Vector2(170, -170)],
+            ["ancient_ruin", "Enter the Awakening Ruins", Ruins.ENTRANCE],
             ["woodland_shrine", "Roadside shrine", Overworld.SHRINE + Vector2(0, 77)],
         ],
     },
-    "ancient_ruin": {
-        "title": "The Awakening Ruins — Inner Sanctum", "ground": "#2c2d35",
-        "points": [["east_pinewood", "Return to the eastern forest", EXIT]],
-    },
+    "ancient_ruin": Ruins.ROOMS["ancient_ruin"],
+    "ruin_lower": Ruins.ROOMS["ruin_lower"],
+    "ruin_sanctum": Ruins.ROOMS["ruin_sanctum"],
     "town_court": {
         "title": "Stonehaven — Civic Court", "ground": "#41403d",
         "points": [["stonehaven", "Eastward Quarter", EXIT],
@@ -99,6 +99,8 @@ const REGIONS := {
 }
 
 const ITEMS := {
+    "ruin_ward_clasp": {"name": "Bronze Ward Clasp", "kind": "accessory", "icon": "◇", "rarity": "Uncommon", "defense": 2, "description": "A warded bronze clasp recovered from the entrance halls."},
+    "ruin_watch_mantle": {"name": "Old Watch Mantle", "kind": "armor", "icon": "◈", "rarity": "Uncommon", "defense": 3, "description": "A surviving mantle of the guard who once kept the lower halls."},
     "watch_provisions": {"name": "Watchtower Provisions", "kind": "quest", "icon": "▣", "rarity": "Quest", "description": "Sealed provisions from the guild master for the eastern watchtower."},
     "ancient_magic_stone": {"name": "Inscribed Magic Stone", "kind": "quest", "icon": "◇", "rarity": "Rare", "description": "Ancient words: Magic is our hope. It has the power to set us free. As it awakens, the world will change."},
     "sentinel_sword": {"name": "Sentinel\'s Longsword", "kind": "weapon", "icon": "⚔", "rarity": "Uncommon", "attack": 7, "description": "A finely forged sword recovered from the waking ruins."},

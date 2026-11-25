@@ -1,5 +1,7 @@
 extends RefCounted
 
+const Ruins := preload("res://scripts/frontier/awakening_ruins.gd")
+
 const CITY_SIZE := Vector2(1800, 1100)
 const CITY := Rect2(-CITY_SIZE / 2, CITY_SIZE)
 const FOREST := Rect2(-CITY_SIZE * 3.5, CITY_SIZE * 7)
@@ -21,7 +23,8 @@ const FOREST_ROADS := [
         Vector2(4550, 2480), Vector2(5500, 1130), CABIN + Vector2(0, 130)],
     [Vector2(-3100, 390), Vector2(-3540, 1730), Vector2(-2000, 2590), Vector2(210, 2640),
         Vector2(1570, 810)],
-    [Vector2(-850, -160), Vector2(-1650, -712), WATCH + Vector2(0, 145)]
+    [Vector2(-850, -160), Vector2(-1650, -712), WATCH + Vector2(0, 145)],
+    [SHRINE + Vector2(0, 100), Vector2(-1780, 152), Ruins.ENTRANCE + Vector2(0, 32)]
 ]
 const CITY_ROADS := [
     [Vector2(-870, 80), CITY_EAST],
