@@ -14,6 +14,7 @@ const WorldCollision := preload("res://scripts/world_collision.gd")
 const State = preload("res://scripts/frontier/adventure_state.gd")
 const Mentorship = preload("res://scripts/frontier/mentorship.gd")
 const Layouts = preload("res://scripts/frontier/chapter_regions.gd")
+const PinewoodWoodland := preload("res://scripts/frontier/pinewood_woodland.gd")
 const Overworld := preload("res://scripts/frontier/overworld_layout.gd")
 const ForestLayout := preload("res://scripts/forest_layout.gd")
 const WildernessTerrain := preload("res://scripts/wilderness_terrain.gd")
@@ -40,9 +41,11 @@ const MAX_HEALTH := 100
 var state := State.new()
 var region := ""
 var outdoor_terrain: WildernessTerrain
-var terrain_window := Rect2()
-var terrain_patches: Array[Rect2] = []
-var retired_tiles: Array[Vector2i] = []
+var forest_terrain: WildernessTerrain
+var forest_woodland: PinewoodWoodland
+var terrain_center := Vector2i(9999, 9999)
+var terrain_patches: Array[Vector2i] = []
+var painted_patches: Dictionary = {}
 const TERRAIN_PATCH_SIZE := Vector2(240, 144)
 const STONEHAVEN_BUILDING_SCALE := 1.32
 var points: Array[Point] = []
@@ -129,6 +132,10 @@ func _load_region(destination: String) -> void:
     var previous := region
     region = destination
     for child in props.get_children():
+        if child == forest_terrain or child == forest_woodland:
+            child.hide()
+            child.process_mode = Node.PROCESS_MODE_DISABLED
+            continue
         props.remove_child(child)
         child.queue_free()
     points.clear()
@@ -206,9 +213,8 @@ func _load_region(destination: String) -> void:
 
 func _load_outdoor_terrain() -> void:
     outdoor_terrain = null
-    terrain_window = Rect2()
+    terrain_center = Vector2i(9999, 9999)
     terrain_patches.clear()
-    retired_tiles.clear()
     floor_art.show()
     floor_art.grass_backing = false
     floor_art.tiled_ground = false
@@ -217,6 +223,12 @@ func _load_outdoor_terrain() -> void:
         return
     var city := region == "stonehaven"
     var forest := region == "east_pinewood"
+    if forest and is_instance_valid(forest_terrain):
+        outdoor_terrain = forest_terrain
+        outdoor_terrain.show()
+        outdoor_terrain.process_mode = Node.PROCESS_MODE_INHERIT
+        _prime_forest_terrain()
+        return
     var interior := Floor.is_interior(region)
     var terrain := WildernessTerrain.new()
     terrain.name = "WildernessTerrain"
@@ -237,6 +249,10 @@ func _load_outdoor_terrain() -> void:
     terrain.paved_roads = city or region == "graveyard"
     terrain.populate_on_ready = not forest
     terrain.streamed = forest
+    if forest:
+        # Trunks and map boundaries use dedicated world collision, not ground tiles.
+        terrain.collision_enabled = false
+        terrain.navigation_enabled = false
     if city:
         terrain.ground_bounds = Overworld.CITY.grow(740)
     elif not forest:
@@ -250,49 +266,56 @@ func _load_outdoor_terrain() -> void:
         return
     outdoor_terrain = terrain
     if forest:
-        terrain_window = _forest_terrain_bounds()
-        terrain.paint_ground(terrain_window)
-    if not terrain.ground_cells().is_empty():
+        forest_terrain = terrain
+        _prime_forest_terrain()
+    elif not terrain.ground_cells().is_empty():
         if city:
             floor_art.hide()
-        elif forest:
-            floor_art.grass_backing = true
-            floor_art.z_index = -12
         else:
             floor_art.tiled_ground = true
             floor_art.z_index = -9
-    else:
-        floor_art.z_index = -10
 
-func _forest_terrain_bounds() -> Rect2:
-    var snapped := (Vector2(player.position) / 360.0).floor() * 360.0
-    return Rect2(snapped - Vector2(960, 720), Vector2(2400, 1872))
+func _prime_forest_terrain() -> void:
+    floor_art.grass_backing = true
+    floor_art.z_index = -12
+    var center := Vector2i((Vector2(player.position) / TERRAIN_PATCH_SIZE).floor())
+    var first := center - Vector2i(4, 5)
+    var size := Vector2i(9, 11)
+    if painted_patches.is_empty():
+        # Paint the landing area in one pass while the transition is covered.
+        outdoor_terrain.paint_ground(Rect2(Vector2(first) * TERRAIN_PATCH_SIZE,
+            Vector2(size) * TERRAIN_PATCH_SIZE))
+        for x in range(first.x, first.x + size.x):
+            for y in range(first.y, first.y + size.y):
+                painted_patches[Vector2i(x, y)] = true
+    else:
+        for x in range(first.x, first.x + size.x):
+            for y in range(first.y, first.y + size.y):
+                _paint_forest_patch(Vector2i(x, y))
+
+func _paint_forest_patch(key: Vector2i) -> void:
+    if painted_patches.has(key):
+        return
+    outdoor_terrain.paint_ground(Rect2(Vector2(key) * TERRAIN_PATCH_SIZE, TERRAIN_PATCH_SIZE), true)
+    painted_patches[key] = true
 
 func _update_forest_terrain() -> void:
-    var bounds := _forest_terrain_bounds()
-    if bounds != terrain_window:
-        # Keep overlap visible and schedule the approaching edge in small patches.
-        var previous := terrain_window if terrain_patches.is_empty() else Rect2()
-        terrain_window = bounds
+    var center := Vector2i((Vector2(player.position) / TERRAIN_PATCH_SIZE).floor())
+    if center != terrain_center:
+        terrain_center = center
         terrain_patches.clear()
-        var columns := int(bounds.size.x / TERRAIN_PATCH_SIZE.x)
-        var rows := int(bounds.size.y / TERRAIN_PATCH_SIZE.y)
-        for x in range(columns):
-            for y in range(rows):
-                var patch := Rect2(bounds.position + Vector2(x, y) * TERRAIN_PATCH_SIZE, TERRAIN_PATCH_SIZE)
-                if not previous.encloses(patch):
-                    terrain_patches.append(patch)
-        var player_position: Vector2 = player.position
-        terrain_patches.sort_custom(func(a: Rect2, b: Rect2) -> bool:
-            return a.get_center().distance_squared_to(player_position) > b.get_center().distance_squared_to(player_position))
-        retired_tiles.clear()
-        for cell in outdoor_terrain.ground_cells():
-            if not bounds.has_point(outdoor_terrain.map_to_local(cell)):
-                retired_tiles.append(cell)
+        for x in range(-6, 7):
+            for y in range(-8, 9):
+                var key := center + Vector2i(x, y)
+                if not painted_patches.has(key):
+                    terrain_patches.append(key)
+        terrain_patches.sort_custom(func(a: Vector2i, b: Vector2i) -> bool:
+            return (Vector2(a - center) * TERRAIN_PATCH_SIZE).length_squared() > (Vector2(b - center) * TERRAIN_PATCH_SIZE).length_squared())
+    var deadline := Time.get_ticks_usec() + 1500
     for i in range(mini(2, terrain_patches.size())):
-        outdoor_terrain.paint_ground(terrain_patches.pop_back(), true)
-    for i in range(mini(96, retired_tiles.size())):
-        outdoor_terrain.erase_ground_cell(retired_tiles.pop_back())
+        _paint_forest_patch(terrain_patches.pop_back())
+        if Time.get_ticks_usec() >= deadline:
+            break
 
 func _add_point(action: String, title: String, where: Vector2, show_caption := true) -> Point:
     var point := POINT_SCENE.instantiate() as Point
@@ -506,9 +529,14 @@ func _dress_east_pinewood() -> void:
     _add_landmark("way_shrine", Overworld.SHRINE, 111)
     for offset in [Vector2(-185, 31), Vector2(172, 23), Vector2(-222, -79), Vector2(158, -94)]:
         _add_landmark("grave_markers", Overworld.CRYPT + offset, 125)
-    var woodland := load("res://scripts/frontier/pinewood_woodland.gd").new() as Node2D
-    woodland.player = player
-    props.add_child(woodland)
+    if is_instance_valid(forest_woodland):
+        forest_woodland.process_mode = Node.PROCESS_MODE_INHERIT
+        forest_woodland.resume_at_player()
+        forest_woodland.show()
+    else:
+        forest_woodland = PinewoodWoodland.new()
+        forest_woodland.player = player
+        props.add_child(forest_woodland)
 
 func _add_local_vendor(key: String, shop: String, where: Vector2) -> void:
     _add_landmark(shop, where, 195)
