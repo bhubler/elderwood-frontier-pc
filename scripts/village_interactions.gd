@@ -629,6 +629,7 @@ func _mount_chapter() -> void:
     world.process_mode = Node.PROCESS_MODE_DISABLED
     hide()
     chapter.linked_from_gate = true
+    chapter.rite_completed = road_quest == RoadQuest.COMPLETE
     chapter.return_to_gate.connect(_restore_stonehaven_gate, CONNECT_DEFERRED)
     chapter.get_node("Inventory").copy_items_from(self)
     get_tree().root.add_child(chapter)

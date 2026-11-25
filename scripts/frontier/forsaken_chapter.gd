@@ -2,6 +2,7 @@ extends Node2D
 
 signal return_to_gate
 var linked_from_gate := false
+var rite_completed := false
 
 const Fireball := preload("res://scripts/pinewood_fireball.gd")
 const FIREBALL_COST := 30.0
@@ -56,6 +57,11 @@ var grimoire_replay := false
 var grimoire_dialog: CenterContainer
 var grimoire_heading: Label
 var grimoire_details: Label
+var guild_dialog: CenterContainer
+var guild_details: Label
+var guild_confirm: Button
+var guild_master: Node2D
+var watch_captain: Node2D
 var mentor_dialog: CenterContainer
 var mentor_heading: Label
 var mentor_details: Label
@@ -112,6 +118,7 @@ func _ready() -> void:
     journal_content.add_child(journal_text)
     _build_grimoire_dialog()
     _build_mentor_dialog()
+    _build_guild_dialog()
     summon = Node2D.new()
     summon.z_index = 6
     summon.hide()
@@ -134,6 +141,8 @@ func _load_region(destination: String) -> void:
     grimoire_art = null
     grimoire_replay = false
     veiled_agent = null
+    guild_master = null
+    watch_captain = null
 
     var layout: Dictionary = Layouts.REGIONS[region]
     floor_art.ground = Color(layout["ground"])
@@ -164,13 +173,15 @@ func _load_region(destination: String) -> void:
     if region == "east_pinewood" and not state.guild_rank.is_empty():
         for index in range(10):
             if ("herb_%d" % index) not in state.quest_items:
-                _add_point("herb_%d" % index, "Gather woodland herb", Overworld.CARAVAN + Vector2(-250 + (index % 5) * 105, 220 + int(index / 5) * 95), false)
+                var herb_position := Overworld.CARAVAN + Vector2(-250 + (index % 5) * 105, 220 + int(index / 5) * 95)
+                var herb := _add_point("herb_%d" % index, "Gather woodland herb", herb_position, false)
+                herb.marker_color = Color("#a9c676")
+                herb.radius = 58.0
     if not state.mentorship_faction.is_empty() and state.mentorship_year < 5 and not state.mentorship_focus.is_empty():
         var assignment: Array = Mentorship.mission(state.mentorship_faction, state.mentorship_year)
         if not assignment.is_empty() and region == str(assignment[0]) and ("mentor_task_%d" % state.mentorship_year) not in state.quest_items:
             _add_point("mentor_task", str(assignment[2]), assignment[1])
-    if region == "northern_watch" and state.guild_provisions and not state.guild_watch_supplied:
-        _add_point("deliver_provisions", "Deliver guild provisions", Vector2(70, -85))
+
     if region == "ancient_ruin" and "ruin_warden" in state.defeated:
         _add_point("ancient_stone", "Recover inscribed magic stone", Vector2(0, -170))
     _load_outdoor_terrain()
@@ -350,6 +361,12 @@ func _dress_region() -> void:
             for where in [Vector2(-350, -140), Vector2(350, -140), Vector2(-260, 95), Vector2(260, 95)]:
                 _add_landmark("grave_markers", where, 120)
         "northern_watch":
+            var captain_position := Vector2(95, -43)
+            watch_captain = _add_npc("guard_sword", captain_position, 1)
+            if is_instance_valid(watch_captain):
+                watch_captain.autonomous_patrol = false
+            var captain_point := _add_point("deliver_provisions", "Watch Captain", captain_position, false)
+            captain_point.show_disc = false
             WorldCollision.box(props, "WatchTable", Floor.WATCH_TABLE)
             for bounds in Floor.WATCH_CRATES:
                 WorldCollision.box(props, "WatchCrates", bounds)
@@ -414,7 +431,9 @@ func _dress_stonehaven() -> void:
     _add_npc("noble", Vector2(-255, -178))
     _add_local_npc("sweeper", Vector2(-212, 131), 2)
     _add_local_npc("dockhand", Vector2(403, 145), 5)
-    _add_npc("noble", Vector2(-260, 360), 2) # Guild Master
+    guild_master = _add_npc("noble", Vector2(-260, 360), 2)
+    if is_instance_valid(guild_master):
+        guild_master.autonomous_patrol = false
     for guest in [
         ["townswoman", "Herb grower", "The chapel keeps a garden behind the square.", Vector2(438, -82), 2],
         ["townsman", "Carter", "Wagons take the east entrance when the road is dry.", Vector2(623, 338), 4],
@@ -543,7 +562,7 @@ func _add_npc(key: String, where: Vector2, wardrobe := 0) -> Node2D:
 func _unhandled_input(event: InputEvent) -> void:
     if not event is InputEventMouseButton or not event.pressed:
         return
-    if player.choosing_race or inventory.inventory_open or journal_panel.visible or grimoire_dialog.visible or mentor_dialog.visible or health <= 0:
+    if player.choosing_race or inventory.inventory_open or journal_panel.visible or grimoire_dialog.visible or mentor_dialog.visible or guild_dialog.visible or health <= 0:
         return
     var cursor: Vector2 = get_global_transform_with_canvas().affine_inverse() * event.position
     if event.button_index == MOUSE_BUTTON_RIGHT:
@@ -560,6 +579,8 @@ func _unhandled_input(event: InputEvent) -> void:
             hit = Rect2(point.position - Vector2(68, 105), Vector2(136, 116))
         if point.action_id == "cellar_gate" and region == "stonehaven":
             hit = Rect2(point.position - Vector2(58, 66), Vector2(116, 82))
+        if point.action_id.begins_with("herb_"):
+            hit = Rect2(point.position - Vector2(24, 24), Vector2(48, 48))
         if point.action_id in ["grimoire", "replay_grimoire"]:
             hit = Rect2(point.position - Vector2(76, 125), Vector2(152, 131))
         if hit.has_point(cursor):
@@ -613,7 +634,7 @@ func _process(_delta: float) -> void:
         _update_forest_terrain()
     if inventory.inventory_open:
         journal_panel.hide()
-    var blocked: bool = player.choosing_race or inventory.inventory_open or journal_panel.visible or grimoire_dialog.visible or mentor_dialog.visible
+    var blocked: bool = player.choosing_race or inventory.inventory_open or journal_panel.visible or grimoire_dialog.visible or mentor_dialog.visible or guild_dialog.visible
     player.set_physics_process(not blocked)
     if is_instance_valid(enemy):
         enemy.target = null if blocked or health <= 0 else player
@@ -675,6 +696,11 @@ func _unhandled_key_input(event: InputEvent) -> void:
     if not event is InputEventKey or not event.pressed or event.echo:
         return
     if player.choosing_race or inventory.inventory_open or health <= 0:
+        return
+    if guild_dialog.visible:
+        if event.keycode == KEY_ESCAPE:
+            guild_dialog.hide()
+        get_viewport().set_input_as_handled()
         return
     if mentor_dialog.visible:
         if event.keycode == KEY_ESCAPE:
@@ -747,15 +773,19 @@ func _interact(action: String) -> void:
             _save()
         return
     if action == "deliver_provisions":
-        if state.guild_provisions and not state.guild_watch_supplied:
+        if is_instance_valid(watch_captain):
+            watch_captain.interact()
+        if state.guild_provisions and not state.guild_watch_supplied and "watch_provisions" in inventory.backpack:
             state.guild_provisions = false
             state.guild_watch_supplied = true
             state.quest_items.erase("watch_provisions")
             inventory.remove_item("watch_provisions")
             notice = "The watch captain accepts the guild provisions. The guards will have enough to last another week. Return to the Guild Master."
             _save()
-        else:
+        elif state.guild_watch_supplied:
             notice = "The watchtower has already received its supplies."
+        else:
+            notice = "Watch Captain — Speak with the Guild Master if you're here about our provisions."
         return
     if action == "ancient_stone":
         if "ruin_warden" not in state.defeated:
@@ -772,18 +802,9 @@ func _interact(action: String) -> void:
             notice = "You have already taken the ancient stone."
         return
     if action == "adventurers_guild":
-        if state.guild_rank.is_empty():
-            state.guild_rank = "D"
-            state.guild_provisions = true
-            if inventory.grant_item("watch_provisions", Layouts.ITEMS["watch_provisions"]):
-                state.quest_items.append("watch_provisions")
-            notice = "Guild Master — Welcome to the Adventurer's Guild! Registered: D-rank. Three assignments: investigate the raided caravan and its bandits, deliver this parcel to the eastern watchtower, and gather ten herbs in East Pinewood. Your provisions are issued."
-        elif state.guild_assignments_complete() and state.lord_stage == "locked":
-            state.lord_stage = "summoned"
-            notice = "Guild Master — All three assignments complete. Excellent work. The Lord of Stonehaven requests an audience at his manor. He heard about the bandits."
-        else:
-            notice = "Guild Master — %s" % state.guild_journal()
-        _save()
+        if is_instance_valid(guild_master):
+            guild_master.interact()
+        _show_guild_dialog()
         return
     if action.begins_with("herb_"):
         if region != "east_pinewood" or state.guild_rank.is_empty():
@@ -939,6 +960,72 @@ func _take_item(item_id: String, message: String) -> void:
     state.quest_items.append(item_id)
     notice = message
     _save()
+
+func _build_guild_dialog() -> void:
+    guild_dialog = CenterContainer.new()
+    $HUD.add_child(guild_dialog)
+    guild_dialog.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+    var panel := PanelContainer.new()
+    panel.custom_minimum_size.x = 590
+    guild_dialog.add_child(panel)
+    var content := VBoxContainer.new()
+    content.add_theme_constant_override("separation", 14)
+    panel.add_child(content)
+    var title := Label.new()
+    title.text = "Adventurer's Guild"
+    PanelHeader.add_title(content, title, guild_dialog.hide)
+    guild_details = Label.new()
+    guild_details.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+    content.add_child(guild_details)
+    guild_confirm = Button.new()
+    guild_confirm.pressed.connect(_confirm_guild_dialog)
+    content.add_child(guild_confirm)
+    guild_dialog.hide()
+
+func _show_guild_dialog() -> void:
+    guild_confirm.show()
+    if state.guild_rank.is_empty():
+        if linked_from_gate and not rite_completed:
+            guild_details.text = "Guild Master — Finish your rite and report to Elder Elden in Elderwood Village. Then come back and I'll put your name on the roll."
+            guild_confirm.hide()
+        else:
+            guild_details.text = "Guild Master — Welcome to Stonehaven. Register as a D-rank adventurer and I'll issue three contracts in East Pinewood. You can tackle them in any order."
+            guild_confirm.text = "Register as D-rank"
+    else:
+        guild_details.text = "%s-rank adventurer\n\n%s" % [state.guild_rank, state.guild_journal()]
+        if state.lord_stage == "locked" and state.guild_assignments_complete():
+            guild_confirm.text = "Report to the Guild Master"
+        elif state.guild_provisions and "watch_provisions" not in inventory.backpack:
+            guild_confirm.text = "Collect watchtower provisions"
+        else:
+            guild_confirm.hide()
+    guild_dialog.show()
+
+func _confirm_guild_dialog() -> void:
+    if not guild_dialog.visible or not guild_confirm.visible:
+        return
+    if state.guild_rank.is_empty():
+        if linked_from_gate and not rite_completed:
+            return
+        if not inventory.grant_item("watch_provisions", Layouts.ITEMS["watch_provisions"]):
+            guild_details.text = "Guild Master — Make room in your backpack for the watchtower parcel, then register."
+            return
+        state.guild_rank = "D"
+        state.guild_provisions = true
+        state.quest_items.append("watch_provisions")
+        _save()
+        _show_guild_dialog()
+    elif state.lord_stage == "locked" and state.guild_assignments_complete():
+        state.lord_stage = "summoned"
+        _save()
+        _show_guild_dialog()
+    elif state.guild_provisions and inventory.grant_item("watch_provisions", Layouts.ITEMS["watch_provisions"]):
+        if "watch_provisions" not in state.quest_items:
+            state.quest_items.append("watch_provisions")
+        _save()
+        _show_guild_dialog()
+    else:
+        guild_details.text += "\n\nMake room in your backpack for the watchtower parcel."
 
 func _build_mentor_dialog() -> void:
     mentor_dialog = CenterContainer.new()

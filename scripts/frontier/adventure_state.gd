@@ -30,14 +30,25 @@ var mentorship_year := 0
 var mentorship_focus := ""
 var mentorship_history: Array[String] = []
 var player_age := 15
+func caravan_assignment_complete() -> bool:
+    return guild_caravan_inspected and "blackbriar_bandit" in defeated and "blackbriar_chief" in defeated
+
 func guild_assignments_complete() -> bool:
-    return not guild_rank.is_empty() and guild_caravan_inspected and "blackbriar_bandit" in defeated and "blackbriar_chief" in defeated and guild_watch_supplied and guild_herbs >= 10
+    return not guild_rank.is_empty() and caravan_assignment_complete() and guild_watch_supplied and guild_herbs >= 10
+
+func guild_contracts() -> String:
+    return "Raided Caravan — %s\nWatchtower Provisions — %s\nHerbalist Requisition — %d/10 woodland herbs" % [
+        "Complete" if caravan_assignment_complete() else "Search the wreck and defeat the Blackbriar bandit and chief",
+        "Delivered" if guild_watch_supplied else "Bring the guild parcel to the captain inside the eastern watchtower",
+        guild_herbs,
+    ]
 
 func guild_journal() -> String:
     if guild_rank.is_empty():
         return "Register at Stonehaven's Adventurer's Guild as a D-rank adventurer."
     if lord_stage == "locked":
-        return "D-rank assignments: caravan and bandits (%s); watchtower provisions (%s); herbs (%d/10)." % ["complete" if guild_caravan_inspected and "blackbriar_bandit" in defeated and "blackbriar_chief" in defeated else "active", "complete" if guild_watch_supplied else "active", guild_herbs]
+        var next_step := "Return to the Guild Master." if guild_assignments_complete() else "Complete the three assignments in any order."
+        return "%s\n%s" % [guild_contracts(), next_step]
     if lord_stage == "summoned":
         return "The Lord of Stonehaven requests your presence at his manor."
     if lord_stage in ["ruin", "report"]:
