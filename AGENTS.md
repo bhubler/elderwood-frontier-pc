@@ -24,6 +24,12 @@
 - Use the existing Godot Wilderness Bundle tilemap for new outdoor terrain, dirt roads, and cobbled streets, and reuse its tree scenes for woodland. Keep the licensed pack local.
 - Put outdoor landmarks and encounters on their regional map. Use scene changes for interiors such as crypts, and return the player to the entrance they used.
 
+## Prepare large outdoor regions before play
+
+- Use East Pinewood as the reference for large tiled regions. Generate connected terrain in a separate, resumable editor preparation scene and reuse the finished local cache across playthroughs.
+- Keep full-region terrain generation out of gameplay and gate transitions. Keep cache data derived from licensed assets local. As regions grow, load prepared terrain in sections if loading the whole cache starts to slow down entry.
+- Check the first entry with the prepared cache on the target PC, then walk representative routes in both directions, including map edges. Verify that the prepared routes queue no terrain generation and that travel and exploration stay smooth.
+
 ## Build and verify complete areas
 
 - Design flooring, terrain transitions, environmental props, lighting, and boundaries together before handing off a new area. Match nearby finished areas and use the established tilesets, palette, scale, and perspective.
