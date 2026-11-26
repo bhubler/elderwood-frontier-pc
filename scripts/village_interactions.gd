@@ -42,6 +42,19 @@ var inventory_stats: Label
 var item_action: Button
 var second_accessory_action: Button
 var inspected_item := ""
+const CharacterMenuPanel := preload("res://scripts/character_menu_panel.gd")
+const FILTERS := ["All", "Weapons", "Armor", "Food", "Potions", "Miscellaneous"]
+const CONSUMABLE_FILTERS := {
+    "bread": "Food", "healing_potion": "Potions",
+    "rite_health_potions": "Potions", "rite_mana_potions": "Potions",
+}
+var visible_backpack: Array[String] = []
+var backpack_filter := "All"
+var spell_list: Label
+var inventory_page: HBoxContainer
+var spells_page: PanelContainer
+var menu_tabs: ButtonGroup
+var inventory_tab: Button
 var inventory_panel: PanelContainer
 var pinewood_script: GDScript
 var notice_timer: Timer
@@ -272,14 +285,12 @@ func _accept_road_quest() -> void:
     _show_message("Quest accepted — Rite of Manhood\n" + objective, 5.0)
 
 func _make_inventory_window() -> void:
-    inventory_panel = PanelContainer.new()
-    var inventory_center := CenterContainer.new()
-    add_child(inventory_center)
-    inventory_center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-    inventory_center.mouse_filter = Control.MOUSE_FILTER_IGNORE
-    inventory_panel.custom_minimum_size.x = 866
-    inventory_panel.mouse_filter = Control.MOUSE_FILTER_STOP
-    inventory_center.add_child(inventory_panel)
+    var panel := CharacterMenuPanel.new()
+    panel.process_mode = Node.PROCESS_MODE_ALWAYS
+    panel.close_requested.connect(_close_inventory)
+    inventory_panel = panel
+    add_child(panel)
+    panel.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
     inventory_panel.add_theme_stylebox_override("panel",
         InventoryFinish.surface(InventoryFinish.CHARCOAL, InventoryFinish.BRASS, 14, false, true))
     var layout := VBoxContainer.new()
@@ -303,7 +314,18 @@ func _make_inventory_window() -> void:
     top.add_child(gold_label)
     PanelHeader.add_close_button(top, _close_inventory)
     InventoryFinish.style_button(top.get_node("CloseButton"), InventoryFinish.RECESS, InventoryFinish.BRASS, 4)
+    var tabs := HBoxContainer.new()
+    layout.add_child(tabs)
+    menu_tabs = ButtonGroup.new()
+    inventory_tab = _menu_tab(tabs, "Inventory", false)
+    inventory_tab.button_pressed = true
+    _menu_tab(tabs, "Spells", true)
+    var skills := _menu_tab(tabs, "🔒 Skills", false)
+    skills.disabled = true
+    skills.tooltip_text = "Skills are locked."
     var columns := HBoxContainer.new()
+    inventory_page = columns
+    columns.size_flags_vertical = Control.SIZE_EXPAND_FILL
     columns.add_theme_constant_override("separation", 9)
     layout.add_child(columns)
     var left := VBoxContainer.new()
@@ -333,6 +355,13 @@ func _make_inventory_window() -> void:
     bag_title.text = "Backpack"
     bag_title.add_theme_color_override("font_color", Color("#dfc08a"))
     right.add_child(bag_title)
+    var filter := OptionButton.new()
+    filter.accessibility_name = "Backpack filter"
+    for category in FILTERS:
+        filter.add_item(category)
+    filter.item_selected.connect(_filter_backpack)
+    InventoryFinish.style_button(filter, InventoryFinish.RECESS, InventoryFinish.BRASS, 7)
+    right.add_child(filter)
     inventory_grid = GridContainer.new()
     inventory_grid.columns = 6
     inventory_grid.add_theme_constant_override("h_separation", 5)
@@ -356,13 +385,59 @@ func _make_inventory_window() -> void:
     second_accessory_action.pressed.connect(_apply_inspected_item.bind("accessory_2"))
     right.add_child(second_accessory_action)
     InventoryFinish.style_button(second_accessory_action, Color("#3a3228"), InventoryFinish.BRASS, 7, false)
+    spells_page = PanelContainer.new()
+    spells_page.size_flags_vertical = Control.SIZE_EXPAND_FILL
+    spells_page.add_theme_stylebox_override("panel",
+        InventoryFinish.surface(InventoryFinish.RECESS, InventoryFinish.BRASS, 25, true))
+    layout.add_child(spells_page)
+    spell_list = Label.new()
+    spell_list.vertical_alignment = VERTICAL_ALIGNMENT_TOP
+    spell_list.add_theme_font_size_override("font_size", 20)
+    spell_list.add_theme_color_override("font_color", InventoryFinish.INK)
+    spells_page.add_child(spell_list)
+    spells_page.hide()
     var footer := Label.new()
-    footer.text = "Select gear to compare. Press I or Esc to close."
+    footer.text = "Paused  ·  I or Esc to close"
     footer.add_theme_font_size_override("font_size", 13)
     footer.add_theme_color_override("font_color", Color("#ad9c80"))
     layout.add_child(footer)
     _refresh_inventory()
     inventory_panel.hide()
+
+func _menu_tab(parent: HBoxContainer, title: String, spells: bool) -> Button:
+    var tab := Button.new()
+    tab.text = title
+    tab.toggle_mode = true
+    tab.button_group = menu_tabs
+    tab.custom_minimum_size.x = 116
+    tab.pressed.connect(_show_character_page.bind(spells))
+    InventoryFinish.style_button(tab, InventoryFinish.CHARCOAL, InventoryFinish.BRASS, 8, false)
+    parent.add_child(tab)
+    return tab
+
+func _show_character_page(spells: bool) -> void:
+    inventory_page.visible = not spells
+    spells_page.visible = spells
+    if spells:
+        spell_list.text = "Known Spells\n\nFireball\nRMB or F · 2 mana in Pinewood, 30 mana in frontier areas\nLaunch a bolt of fire toward your target."
+        var learned := bool(playthrough_progress.get_value("chapter", "spell_learned", false))
+        if inventory_only:
+            learned = get_parent().state.spell_learned
+        if learned:
+            spell_list.text += "\n\nSummon Skeleton\nQ · 45 mana in frontier areas\nRaise a skeleton to fight beside you."
+
+func _filter_backpack(index: int) -> void:
+    backpack_filter = FILTERS[index]
+    _refresh_inventory()
+
+func _item_category(item_id: String) -> String:
+    var data: Dictionary = item_data.get(item_id, {})
+    var kind: String = data.get("kind", "")
+    if kind == "weapon":
+        return "Weapons"
+    if kind in ["armor", "shield", "helmet", "boots", "belt"]:
+        return "Armor"
+    return data.get("category", CONSUMABLE_FILTERS.get(item_id, "Miscellaneous"))
 
 func _add_equipment_column(parent: HBoxContainer, kinds: Array) -> void:
     var column := VBoxContainer.new()
@@ -407,9 +482,15 @@ func _refresh_inventory() -> void:
             var button := InventorySlot.new()
             button.pressed.connect(_select_backpack_slot.bind(i))
             inventory_grid.add_child(button)
+    visible_backpack.clear()
+    for item_id in backpack:
+        if backpack_filter == "All" or _item_category(item_id) == backpack_filter:
+            visible_backpack.append(item_id)
+    if inspected_item in backpack and inspected_item not in visible_backpack:
+        inspected_item = ""
     for i in range(BACKPACK_CAPACITY):
         var button := inventory_grid.get_child(i) as InventorySlot
-        var item_id := backpack[i] if i < backpack.size() else ""
+        var item_id := visible_backpack[i] if i < visible_backpack.size() else ""
         button.show_item(item_id, item_data.get(item_id, {}))
     _select_item(inspected_item)
 
@@ -438,8 +519,8 @@ func remove_item(item_id: String) -> void:
         _refresh_inventory()
 
 func _select_backpack_slot(index: int) -> void:
-    if index < backpack.size():
-        _select_item(backpack[index])
+    if index < visible_backpack.size():
+        _select_item(visible_backpack[index])
 
 func _inspect_equipped(kind: String) -> void:
     _select_item(equipment.get(kind, ""))
@@ -756,8 +837,11 @@ func _pinewood_combat_input(melee: bool, aim: Vector2, cursor := Vector2.INF) ->
         _show_message("Not enough mana. Give it a moment to recover.", 3.0)
 
 func _close_inventory() -> void:
+    if not inventory_open:
+        return
     inventory_open = false
     inventory_panel.hide()
+    get_tree().paused = false
 
 func _unhandled_key_input(event: InputEvent) -> void:
     if not event is InputEventKey or not event.pressed or event.echo:
@@ -768,21 +852,21 @@ func _unhandled_key_input(event: InputEvent) -> void:
         get_viewport().set_input_as_handled()
         return
     if event.keycode == KEY_I:
-        inventory_open = not inventory_open
+        if player.choosing_race:
+            return
+        inventory_open = true
         conversation_open = false
-        if inventory_open:
-            _refresh_inventory()
-            notice_timer.stop()
-            ui.hide()
-            inventory_panel.show()
-        else:
-            inventory_panel.hide()
-        get_viewport().set_input_as_handled()
-    elif event.keycode == KEY_ESCAPE and (conversation_open or inventory_open):
-        conversation_open = false
-        inventory_open = false
+        _refresh_inventory()
+        notice_timer.stop()
         ui.hide()
-        inventory_panel.hide()
+        inventory_tab.set_pressed_no_signal(true)
+        _show_character_page(false)
+        inventory_panel.show()
+        get_tree().paused = true
+        get_viewport().set_input_as_handled()
+    elif event.keycode == KEY_ESCAPE and conversation_open:
+        conversation_open = false
+        ui.hide()
         notice_timer.stop()
         get_viewport().set_input_as_handled()
     elif inventory_only:
