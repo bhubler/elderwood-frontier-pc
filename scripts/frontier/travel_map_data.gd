@@ -2,7 +2,6 @@ extends RefCounted
 
 const Overworld := preload("res://scripts/frontier/overworld_layout.gd")
 const Ruins := preload("res://scripts/frontier/awakening_ruins.gd")
-const Village := preload("res://scripts/forest_layout.gd")
 const REGIONS := {
     "village": ["Elderwood Village", Rect2(-950, -740, 1900, 1460), 100],
     "pinewood": ["Pinewood Road", Rect2(-900, -920, 1800, 1790), 100],
@@ -34,16 +33,6 @@ const LANDMARKS := {
     "crypt": ["graveyard", "Crypt of the Bonecaller", Vector2(0, -225), Vector2(0, -133)],
 }
 
-static func roads(region: String) -> Array:
-    match region:
-        "village": return Village.ROADS + Village.TRAILS
-        "pinewood": return [Village.PINEWOOD_ROAD, Village.PINEWOOD_CLEARING]
-        "stonehaven": return Overworld.CITY_ROADS
-        "east_pinewood": return Overworld.FOREST_ROADS
-        "graveyard": return [[Vector2(0, -225), Vector2(0, 140), Vector2(344, 225)],
-            [Vector2(0, 140), Vector2(408, 115)]]
-    return []
-
 static func cells(file: ConfigFile, region: String) -> Dictionary:
     return file.get_value("map", "fog_" + region, {})
 
@@ -62,6 +51,10 @@ static func reveal(file: ConfigFile, region: String, position: Vector2) -> void:
                 revealed[center + Vector2i(x, y)] = true
     file.set_value("map", "fog_" + region, revealed)
     var visited := discovered(file)
+    match region:
+        "village": visited["elderwood"] = true
+        "stonehaven": visited["stonehaven"] = true
+        "graveyard": visited["cemetery"] = true
     for key: String in LANDMARKS:
         var entry: Array = LANDMARKS[key]
         if entry[0] == region and not visited.has(key) and position.distance_to(entry[2]) < maxf(145.0, step * 0.8):

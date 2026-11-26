@@ -912,7 +912,6 @@ func _reveal_map_position() -> void:
     var region := _map_region()
     if MapData.REGIONS.has(region):
         MapData.reveal(playthrough_progress, region, _map_position())
-        playthrough_progress.set_value("map", "last_region", region)
 
 func _open_travel_map() -> bool:
     if player.choosing_race or quest_offer.visible or inventory_open or get_tree().paused:
