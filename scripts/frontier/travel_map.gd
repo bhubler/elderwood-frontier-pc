@@ -42,6 +42,14 @@ func _ready() -> void:
     legend.text = "Travel"
     Type.heading(legend)
     side.add_child(legend)
+    var controls := Label.new()
+    controls.text = "Drag to pan · Scroll to zoom"
+    side.add_child(controls)
+    var reset := Button.new()
+    reset.text = "Reset View"
+    Finish.style_dialog_action(reset)
+    reset.pressed.connect(chart.reset_view)
+    side.add_child(reset)
     var spacer := Control.new()
     spacer.size_flags_vertical = Control.SIZE_EXPAND_FILL
     side.add_child(spacer)
@@ -59,6 +67,7 @@ func open(file: ConfigFile, region: String, position: Vector2, blocked: String) 
     chart.progress = file
     chart.current_region = region
     chart.current_position = position
+    chart.reset_view()
     travel_block = blocked
     _select_landmark("")
     show()

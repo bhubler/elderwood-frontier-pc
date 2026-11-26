@@ -71,6 +71,8 @@ func guild_journal() -> String:
         return "The Lord of Stonehaven requests your presence at his manor."
     if lord_stage in ["ruin", "report"]:
         return "Explore the mysterious ruin and report its ancient magic stone to the lord."
+    if lord_stage == "share_offer":
+        return "Speak with the Lord of Stonehaven to accept the next quest."
     if lord_stage == "share":
         return "Bring the prophecy to the church or a Black Hand contact and choose your mentor."
     if not mentorship_faction.is_empty():

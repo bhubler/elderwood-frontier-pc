@@ -33,6 +33,14 @@ var turning_in_quest := false
 var dialogue_continue_only := false
 const DialoguePanel := preload("res://scripts/dialogue_panel.gd")
 const DialoguePortrait := preload("res://scripts/dialogue_portrait.gd")
+var quest_rewards: HBoxContainer
+var quest_accept_action: Callable
+var guild_referral_accepted := false
+const GOLD_REWARD := {"name": "Gold", "kind": "currency", "rarity": "Common", "description": "Spend gold with merchants throughout the frontier."}
+const RITE_POTIONS := {
+    "rite_health_potions": {"name": "Health Potion x2", "kind": "consumable", "rarity": "Common", "description": "Restores health during an adventure.", "charges": 2},
+    "rite_mana_potions": {"name": "Mana Potion x2", "kind": "consumable", "rarity": "Common", "description": "Restores mana during an adventure.", "charges": 2},
+}
 var quest_portrait: DialoguePortrait
 var health_bar: ProgressBar
 var mana_bar: ProgressBar
@@ -238,6 +246,9 @@ func _make_quest_offer(holder: Control) -> void:
     quest_title = panel.title
     quest_portrait = panel.portrait
     quest_details = panel.details
+    quest_rewards = HBoxContainer.new()
+    quest_rewards.add_theme_constant_override("separation", 8)
+    panel.content.add_child(quest_rewards)
     var actions := HBoxContainer.new()
     actions.alignment = BoxContainer.ALIGNMENT_END
     panel.content.add_child(actions)
@@ -258,6 +269,8 @@ func _show_intro_objective() -> void:
         null, VillageNPC.ART[&"Elden"])
 
 func show_person_dialogue(title: String, words: String, actor: Node, fallback: Texture2D = null) -> void:
+    quest_accept_action = Callable()
+    _show_quest_rewards({})
     dialogue_continue_only = true
     conversation_open = true
     quest_title.text = title
@@ -272,12 +285,14 @@ func show_person_dialogue(title: String, words: String, actor: Node, fallback: T
     accept_quest.grab_focus()
 
 func _show_quest_offer(turn_in := false) -> void:
+    quest_accept_action = Callable()
+    _show_quest_rewards(_rite_rewards())
     quest_portrait.show_speaker(speaker, VillageNPC.ART[&"Elden"], true)
     dialogue_continue_only = false
     decline_quest.show()
     turning_in_quest = turn_in
     quest_title.text = "Rite of Manhood — Complete" if turn_in else "Your Fifteenth Birthday — Rite of Manhood"
-    quest_details.text = ("Elden — Village Elder:\n\nYou have returned safely and protected our sheep. You have passed your rite of manhood, and I am proud of you. Take %d gold, two health potions, and two mana potions.\n\nYour next journey is to Stonehaven City. Seek out the Adventurer's Guild and register there." if turn_in else "Elden — Village Elder:\n\nHappy fifteenth birthday! We have trained you for this day. You have become a young man, proficient with the sword and skilled with magic, and now you are ready to set out on your own.\n\nFour wolves in Pinewood Forest have been threatening our sheep. Go into the forest, defeat all four, and return to me. This will be your first quest, and your rite of manhood.\n\nReward: %d gold, two health potions, and two mana potions.") % ROAD_REWARD
+    quest_details.text = ("Elden — Village Elder:\n\nYou have returned safely and protected our sheep. You have passed your rite of manhood, and I am proud of you. Take %d gold, two health potions, and two mana potions." if turn_in else "Elden — Village Elder:\n\nHappy fifteenth birthday! We have trained you for this day. You have become a young man, proficient with the sword and skilled with magic, and now you are ready to set out on your own.\n\nFour wolves in Pinewood Forest have been threatening our sheep. Go into the forest, defeat all four, and return to me. This will be your first quest, and your rite of manhood.\n\nReward: %d gold, two health potions, and two mana potions.") % ROAD_REWARD
     accept_quest.text = "Claim reward" if turn_in else "Accept quest"
     decline_quest.text = "Later" if turn_in else "Decline"
     notice_timer.stop()
@@ -288,24 +303,74 @@ func _show_quest_offer(turn_in := false) -> void:
 
 func _close_quest_offer() -> void:
     quest_offer.hide()
+    quest_accept_action = Callable()
     dialogue_continue_only = false
     player.set_physics_process(true)
     conversation_open = false
 
+func show_quest_handoff(title: String, words: String, actor: Node, on_accept: Callable,
+        fallback: Texture2D = null, rewards: Dictionary = {}) -> void:
+    show_person_dialogue(title, words, actor, fallback)
+    dialogue_continue_only = false
+    quest_accept_action = on_accept
+    accept_quest.text = "Accept"
+    decline_quest.text = "Later"
+    decline_quest.show()
+    _show_quest_rewards(rewards)
+
+func _show_quest_rewards(rewards: Dictionary) -> void:
+    for child in quest_rewards.get_children():
+        quest_rewards.remove_child(child)
+        child.queue_free()
+    quest_rewards.visible = not rewards.is_empty()
+    for id: String in rewards:
+        var slot := InventorySlot.new()
+        slot.show_item(id, rewards[id])
+        slot.focus_mode = Control.FOCUS_NONE
+        quest_rewards.add_child(slot)
+        var label := Label.new()
+        label.text = rewards[id]["name"]
+        quest_rewards.add_child(label)
+
+func _rite_rewards() -> Dictionary:
+    var coin := GOLD_REWARD.duplicate()
+    coin["name"] = "%d gold" % ROAD_REWARD
+    return {"quest_gold": coin}.merged(RITE_POTIONS)
+
+func _show_guild_referral(reward_just_claimed := false) -> void:
+    var opening := "You’ve earned your place on the road, and I’m proud of you. " if reward_just_claimed else ""
+    show_quest_handoff("Join the Adventurer’s Guild",
+        opening + "Travel to Stonehaven and register with the Adventurer’s Guild as a D-rank adventurer.",
+        speaker, _accept_guild_referral, VillageNPC.ART[&"Elden"],
+        _rite_rewards() if reward_just_claimed else {})
+
+func _accept_guild_referral() -> void:
+    guild_referral_accepted = true
+    _update_pip_marker()
+
 func _confirm_road_quest() -> void:
-    if dialogue_continue_only:
+    if quest_accept_action.is_valid():
+        var action := quest_accept_action
+        _close_quest_offer()
+        action.call()
+    elif dialogue_continue_only:
         _close_quest_offer()
     elif not turning_in_quest:
         _accept_road_quest()
     elif quest_offer.visible and _road_ready_to_turn_in():
+        var needed := 0
+        for id: String in RITE_POTIONS:
+            if id not in backpack:
+                needed += 1
+        if backpack.size() + needed > BACKPACK_CAPACITY:
+            quest_details.text = "Make room in your backpack for the potions, then claim your reward."
+            return
         road_quest = RoadQuest.COMPLETE
         gold += ROAD_REWARD
-        gold_label.text = "%d GOLD" % gold
-        grant_item("rite_health_potions", {"name": "Health Potion x2", "kind": "consumable", "icon": "◆", "rarity": "Common", "description": "Two health potions, a gift from Elder Elden.", "charges": 2})
-        grant_item("rite_mana_potions", {"name": "Mana Potion x2", "kind": "consumable", "icon": "✦", "rarity": "Common", "description": "Two mana potions, a gift from Elder Elden.", "charges": 2})
+        for id: String in RITE_POTIONS:
+            grant_item(id, RITE_POTIONS[id].duplicate())
         _update_pip_marker()
-        _close_quest_offer()
-        _show_message("Rite of Manhood completed! Received %d gold, 2 health potions and 2 mana potions. Next: Stonehaven Adventurer's Guild." % ROAD_REWARD, 7.0)
+        _show_guild_referral(true)
 
 func _accept_road_quest() -> void:
     if not quest_offer.visible or road_quest != RoadQuest.OFFERED:
@@ -670,7 +735,7 @@ func _make_villagers() -> void:
     for person in people:
         var npc := VillageNPC.new()
         npc.name = str(person["name"])
-        npc.quest_available = npc.name == &"Elden" and road_quest == RoadQuest.OFFERED
+        npc.quest_available = npc.name == &"Elden" and _elden_has_offer()
         npc.position = person["pos"]
         npc.z_index = 8
         npc.artwork_height = player.character_art_height
@@ -739,8 +804,10 @@ func _process(_delta: float) -> void:
             prompt.text = "E — Talk to %s (%s) | I inventory" % [people[nearby]["name"], people[nearby]["role"]]
         elif player.position.distance_to(Vector2(-390, -190)) < 155.0:
             prompt.text = "E — Enter the Wayfarer Inn | I inventory"
-        elif road_quest == RoadQuest.OFFERED and opening_greeting_shown:
+        elif _elden_has_offer() and opening_greeting_shown:
             prompt.text = "Objective: Speak to Elder Elden | I inventory"
+        elif guild_referral_accepted and playthrough_progress.get_value("chapter", "guild_rank", "") == "":
+            prompt.text = "Objective: Join the Adventurer’s Guild in Stonehaven | M map"
         else:
             prompt.text = "WASD move | E interact | I inventory"
 
@@ -816,6 +883,7 @@ func _mount_chapter() -> void:
     chapter.linked_from_gate = true
     chapter.playthrough_progress = playthrough_progress
     chapter.rite_completed = road_quest == RoadQuest.COMPLETE
+    chapter.guild_referral_accepted = guild_referral_accepted
     chapter.return_to_gate.connect(_restore_stonehaven_gate, CONNECT_DEFERRED)
     var chapter_inventory := chapter.get_node("Inventory")
     chapter_inventory.copy_items_from(self)
@@ -1050,6 +1118,10 @@ func _unhandled_key_input(event: InputEvent) -> void:
                 speaker.talking = true
                 conversation_open = true
                 var words: String = people[nearest]["words"]
+                if speaker.name == &"Elden" and road_quest == RoadQuest.COMPLETE and not guild_referral_accepted:
+                    _show_guild_referral()
+                    get_viewport().set_input_as_handled()
+                    return
                 var road_dialogue := speaker.name == &"Elden" and road_quest != RoadQuest.COMPLETE
                 if road_dialogue and (road_quest == RoadQuest.OFFERED or _road_ready_to_turn_in()):
                     _show_quest_offer(_road_ready_to_turn_in())
@@ -1065,10 +1137,13 @@ func _unhandled_key_input(event: InputEvent) -> void:
 func _road_ready_to_turn_in() -> bool:
     return road_quest == RoadQuest.ACTIVE and defeated_wolves.size() >= RITE_WOLF_COUNT
 
+func _elden_has_offer() -> bool:
+    return road_quest == RoadQuest.OFFERED or (road_quest == RoadQuest.COMPLETE and not guild_referral_accepted)
+
 func _update_pip_marker() -> void:
     for npc in villagers:
         if npc.name == &"Elden":
-            npc.quest_available = road_quest == RoadQuest.OFFERED
+            npc.quest_available = _elden_has_offer()
             npc.quest_ready = _road_ready_to_turn_in()
             return
 

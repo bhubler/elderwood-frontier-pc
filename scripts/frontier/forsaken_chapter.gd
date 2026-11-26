@@ -5,6 +5,7 @@ const ElderwoodType := preload("res://scripts/elderwood_type.gd")
 signal return_to_gate
 var linked_from_gate := false
 var rite_completed := false
+var guild_referral_accepted := false
 var playthrough_progress: ConfigFile
 var resume_region := ""
 var resume_position := Vector2.INF
@@ -397,12 +398,12 @@ func _add_herb_art(herb: Point) -> void:
 
 func _update_quest_markers() -> void:
     var guild_turn_in := state.lord_stage == "locked" and state.guild_assignments_complete()
-    var guild_offer := (state.guild_rank.is_empty() and (rite_completed or not linked_from_gate)) \
+    var guild_offer := (state.guild_rank.is_empty() and ((rite_completed and guild_referral_accepted) or not linked_from_gate)) \
         or (not state.guild_rank.is_empty() and state.guild_accepted.size() < State.GUILD_CONTRACTS.size())
     InteractionArt.update_quest_marker(guild_master, guild_offer, guild_turn_in)
     var mentor_ready := state.mentorship_year < 5 and state.mentorship_focus.is_empty()
     var mentor_turn_in := ("mentor_task_%d" % state.mentorship_year) in state.quest_items
-    InteractionArt.update_quest_marker(city_lord, state.lord_stage in ["summoned", "share"]
+    InteractionArt.update_quest_marker(city_lord, state.lord_stage in ["summoned", "share_offer", "share"]
         or (state.mentorship_faction == "lord" and mentor_ready),
         state.lord_stage == "report" or (state.mentorship_faction == "lord" and mentor_turn_in))
     InteractionArt.update_quest_marker(church_priest, state.lord_stage == "share"
@@ -974,13 +975,20 @@ func _interact(action: String) -> void:
         return
     if action == "city_lord":
         if state.lord_stage == "summoned":
-            state.lord_stage = "ruin"
-            notice = "Lord of Stonehaven — We are desperately short of capable hands. I have no right to demand this of you, but I heard you defeated the Blackbriar bandits. A strange ruin is drawing people to it. Will you investigate and return with what you discover?"
+            inventory.show_quest_handoff("Investigate the Awakening Ruins",
+                "We’re short of capable hands. A strange ruin in East Pinewood is drawing travelers to it. Will you investigate and return with what you discover?",
+                city_lord, _accept_ruins_quest)
+            return
         elif state.lord_stage == "report":
-            state.lord_stage = "share"
+            state.lord_stage = "share_offer"
             inventory.gold += 50
             inventory._refresh_inventory()
-            notice = "Lord of Stonehaven — Magic is our hope, and may set us free as the world awakens? Troubling words. Take this knowledge to the church. In gratitude, our swordmasters and mages will train you without an oath to my army. Speak with me again to accept."
+            _save()
+            _show_prophecy_referral(true)
+            return
+        elif state.lord_stage == "share_offer":
+            _show_prophecy_referral()
+            return
         elif state.lord_stage == "share" or state.mentorship_faction == "lord":
             _offer_mentor("lord")
             return
@@ -1065,7 +1073,7 @@ func _cellar_marker_visible() -> bool:
 func _try_travel(destination: String) -> void:
     if not Layouts.REGIONS.has(destination):
         return
-    if destination == "ancient_ruin" and state.lord_stage not in ["ruin", "report", "share"] and state.mentorship_faction.is_empty():
+    if destination == "ancient_ruin" and state.lord_stage not in ["ruin", "report", "share_offer", "share"] and state.mentorship_faction.is_empty():
         notice = "The ruin is sealed. The Lord of Stonehaven may know more."
     elif destination == "ruin_sanctum" and "ruin_seal_guard" not in state.defeated and "ruin_warden" not in state.defeated:
         notice = "The Sealkeeper bars the sanctum. Defeat it to break the seal."
@@ -1081,6 +1089,27 @@ func _try_travel(destination: String) -> void:
         notice = ""
         AreaTransition.run(get_tree(), _load_region.bind(destination))
 
+func _accept_ruins_quest() -> void:
+    if state.lord_stage == "summoned":
+        state.lord_stage = "ruin"
+        _save()
+
+func _show_prophecy_referral(reward_just_claimed := false) -> void:
+    var coin: Dictionary = inventory.GOLD_REWARD.duplicate()
+    coin["name"] = "50 gold"
+    inventory.show_quest_handoff("Share the Prophecy",
+        "You’ve done Stonehaven a service. The inscription says magic may set us free as the world awakens. Take this knowledge to the church. Our swordmasters and mages can also train you without an oath to my army.",
+        city_lord, _accept_prophecy_referral, null, {"quest_gold": coin} if reward_just_claimed else {})
+
+func _accept_prophecy_referral() -> void:
+    if state.lord_stage == "share_offer":
+        state.lord_stage = "share"
+        _save()
+
+func _accept_black_hand_initiation() -> void:
+    state.start_initiation()
+    _save()
+
 func _speak_to_agent() -> void:
     if (state.lord_stage == "share" or state.mentorship_faction == "black_hand") and not state.entry_method.is_empty():
         _offer_mentor("black_hand")
@@ -1089,12 +1118,11 @@ func _speak_to_agent() -> void:
         veiled_agent.interact()
     match state.initiation:
         "available":
-            state.start_initiation()
-            if state.entry_method == "guard":
-                notice = "Veiled Agent — The guard was your trial. A guard who cannot survive has no place here.\nRecover the sealed ledger from the oath vault to earn membership."
-            else:
-                notice = "Veiled Agent — No banners. No sermons. We work in the spaces between kingdoms.\nRecover the sealed ledger from the oath vault to earn membership."
-            _save()
+            var words := "The guard was your trial. A guard who cannot survive has no place here." if state.entry_method == "guard" else "No banners. No sermons. We work in the spaces between kingdoms."
+            inventory.show_quest_handoff("Black Hand Initiation",
+                words + "\n\nRecover the sealed ledger from the oath vault and bring it back unopened to earn membership.",
+                veiled_agent, _accept_black_hand_initiation)
+            return
         "active":
             if state.finish_initiation():
                 inventory.remove_item(State.LEDGER)
@@ -1201,8 +1229,8 @@ func _show_guild_dialog() -> void:
     guild_cards.visible = registered
     guild_confirm.hide()
     if not registered:
-        if linked_from_gate and not rite_completed:
-            guild_details.text = "Finish your rite and report to Elder Elden in Elderwood Village. Then come back and I’ll put your name on the roll."
+        if linked_from_gate and (not rite_completed or not guild_referral_accepted):
+            guild_details.text = "Speak with Elder Elden in Elderwood Village and accept his referral. Then I’ll put your name on the roll."
         else:
             guild_details.text = "Register as a D-rank adventurer to take on three contracts in East Pinewood."
             guild_confirm.text = "Register as D-rank"
@@ -1217,8 +1245,8 @@ func _show_guild_dialog() -> void:
         if state.lord_stage != "locked":
             guild_details.text = state.guild_journal()
         elif state.guild_assignments_complete():
-            guild_details.text = "All three contracts are complete."
-            guild_confirm.text = "Report to the Guild Master"
+            guild_details.text = "All three contracts are complete. The Lord of Stonehaven requests an audience at his manor."
+            guild_confirm.text = "Accept Audience"
             guild_confirm.show()
         elif state.guild_provisions and "watch_provisions" not in inventory.backpack:
             guild_confirm.text = "Collect watchtower provisions"
@@ -1248,7 +1276,7 @@ func _confirm_guild_dialog() -> void:
     if not guild_dialog.visible or not guild_confirm.visible:
         return
     if state.guild_rank.is_empty():
-        if linked_from_gate and not rite_completed:
+        if linked_from_gate and (not rite_completed or not guild_referral_accepted):
             return
         state.guild_rank = "D"
     elif state.lord_stage == "locked" and state.guild_assignments_complete():
@@ -1321,10 +1349,18 @@ func _offer_mentor(faction: String) -> void:
         var button := Button.new()
         InventoryFinish.style_dialog_action(button)
         button.text = str(focus)
-        button.pressed.connect(_choose_mentor_focus.bind(str(focus)))
+        button.pressed.connect(_preview_mentor_assignment.bind(str(focus)))
         mentor_choices.add_child(button)
     mentor_portrait.show_speaker(actor, null, true)
     mentor_dialog.show()
+
+func _preview_mentor_assignment(focus: String) -> void:
+    var mission: Array = Mentorship.mission(pending_mentor, state.mentorship_year)
+    if mission.is_empty():
+        return
+    mentor_dialog.hide()
+    inventory.show_quest_handoff(str(mission[2]), "Training focus: %s\n\n%s" % [focus, str(mission[3])],
+        _mentor_actor(pending_mentor), _choose_mentor_focus.bind(focus))
 
 func _choose_mentor_focus(focus: String) -> void:
     if state.mentorship_faction.is_empty():

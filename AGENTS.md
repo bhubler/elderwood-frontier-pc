@@ -36,3 +36,5 @@
 - Use the inventory's matte charcoal panels and aged brass trim for dialogue, quest offers, quest turn-ins, and choices. Use the shared DialoguePanel for its square portrait frame, centered heading, boxed dialogue, and close button. Give independently accepted contracts separate illustrated cards and actions.
 - Show the speaking NPC's in-world art in the panel, including their wardrobe variant. Use the same layout for ordinary conversation, merchants, and quest NPCs. Reserve brief HUD messages for system feedback and interactions with objects.
 - Verify each new conversation through its normal interaction prompt. Check that the correct speaker appears, the dialog can be dismissed, and any quest or dialogue choices still work.
+
+- Present quest-chain handoffs in the speaking NPC’s dialogue with an explicit Accept action. Keep pending offers available after dismissal. Show illustrated reward tiles with hover details when turning in quests.

@@ -12,21 +12,25 @@ const PLACES := {
     "elderwood": [Vector2(0.21, 0.72), "Elderwood Village", 1, 72],
     "stonehaven": [Vector2(0.41, 0.39), "Stonehaven", 2, 74],
     "caravan": [Vector2(0.59, 0.50), "Raided Caravan", -1, 54],
+    "raider_trail": [Vector2(0.53, 0.31), "Blackbriar Trail", -1, 46],
     "watchtower": [Vector2(0.64, 0.23), "Northern Watchtower", 2, 57],
     "shrine": [Vector2(0.68, 0.70), "Roadside Shrine", -1, 50],
     "ruins": [Vector2(0.77, 0.48), "Awakening Ruins", 2, 55],
     "cabin": [Vector2(0.86, 0.26), "Woodland Cabin", 1, 54],
     "cemetery": [Vector2(0.85, 0.76), "Forsaken Graveyard", -1, 55],
+    "crypt": [Vector2(0.90, 0.62), "Bonecaller Crypt", 2, 47],
 }
 # Each route links named destinations, with a few points to shape its curves.
 const ROUTES := [
     ["elderwood", "stonehaven", [Vector2(0.29, 0.67), Vector2(0.32, 0.53), Vector2(0.35, 0.46)]],
     ["stonehaven", "caravan", [Vector2(0.48, 0.42), Vector2(0.53, 0.50)]],
+    ["caravan", "raider_trail", [Vector2(0.55, 0.45), Vector2(0.54, 0.37)]],
     ["caravan", "watchtower", [Vector2(0.61, 0.42), Vector2(0.58, 0.33)]],
     ["watchtower", "cabin", [Vector2(0.73, 0.19), Vector2(0.80, 0.22)]],
     ["caravan", "shrine", [Vector2(0.58, 0.58), Vector2(0.63, 0.65)]],
     ["caravan", "ruins", [Vector2(0.65, 0.46), Vector2(0.71, 0.47)]],
     ["shrine", "cemetery", [Vector2(0.75, 0.71), Vector2(0.80, 0.77)]],
+    ["cemetery", "crypt", [Vector2(0.87, 0.69)]],
 ]
 const GROVES := [
     [Vector2(0.17, 0.31), Vector2(0.10, 0.17)],
@@ -45,16 +49,25 @@ var current_position := Vector2.ZERO
 var selected := ""
 var pins: Dictionary = {}
 var parchment: Texture2D
+var zoom := 1.0
+var pan := Vector2.ZERO
+var hovered := ""
+var drag_origin := Vector2.ZERO
+var pan_origin := Vector2.ZERO
+var dragging := false
+var moved := false
 
 func _ready() -> void:
     mouse_filter = Control.MOUSE_FILTER_STOP
     texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
-    resized.connect(queue_redraw)
+    clip_contents = true
+    resized.connect(_on_resize)
 
 func _draw() -> void:
     pins.clear()
     if progress == null or size.x < 150 or size.y < 150:
         return
+    draw_set_transform(pan, 0, Vector2.ONE * zoom)
     _draw_parchment()
     var visited := Data.discovered(progress)
     _draw_woodlands()
@@ -118,7 +131,7 @@ func _draw_landmark(id: String) -> void:
     var place: Array = PLACES[id]
     var pin: Vector2 = place[0] * size
     pins[id] = pin
-    var chosen := selected == id
+    var chosen := selected == id or hovered == id
     draw_circle(pin, float(place[3]) * 0.32, Color("#eaca90"), true, -1.0, true)
     if chosen:
         draw_arc(pin, float(place[3]) * 0.38, 0, TAU, 36, Color("#784b23"), 1.8, true)
@@ -163,22 +176,70 @@ func _current_nearest_landmark() -> String:
         return "stonehaven"
     return closest
 
+func reset_view() -> void:
+    zoom = 1.0
+    pan = Vector2.ZERO
+    hovered = ""
+    dragging = false
+    tooltip_text = ""
+    queue_redraw()
+
+func _on_resize() -> void:
+    _clamp_pan()
+    queue_redraw()
+
+func _clamp_pan() -> void:
+    pan = pan.clamp(size * (1.0 - zoom), Vector2.ZERO)
+
 func _gui_input(event: InputEvent) -> void:
     if event is InputEventMouseMotion:
-        var id := _pin_at(event.position)
-        tooltip_text = PLACES[id][1] if not id.is_empty() else ""
-        mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND if not id.is_empty() else Control.CURSOR_ARROW
-    if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
-        var id := _pin_at(event.position)
-        if not id.is_empty():
-            landmark_selected.emit(id)
+        if dragging:
+            if event.position.distance_to(drag_origin) >= 5.0:
+                moved = true
+            if moved:
+                pan = pan_origin + event.position - drag_origin
+                _clamp_pan()
+                queue_redraw()
+        _update_hover(event.position)
+    elif event is InputEventMouseButton:
+        if event.button_index in [MOUSE_BUTTON_WHEEL_UP, MOUSE_BUTTON_WHEEL_DOWN] and event.pressed:
+            var anchor: Vector2 = (event.position - pan) / zoom
+            var factor := 1.2 if event.button_index == MOUSE_BUTTON_WHEEL_UP else 1.0 / 1.2
+            zoom = clampf(zoom * factor, 1.0, 2.8)
+            pan = event.position - anchor * zoom
+            _clamp_pan()
+            _update_hover(event.position)
+            queue_redraw()
+            accept_event()
+        elif event.button_index == MOUSE_BUTTON_LEFT:
+            if event.pressed:
+                dragging = true
+                moved = false
+                drag_origin = event.position
+                pan_origin = pan
+            elif dragging:
+                dragging = false
+                if not moved:
+                    var id := _pin_at(event.position)
+                    if not id.is_empty():
+                        landmark_selected.emit(id)
             accept_event()
 
+func _update_hover(position: Vector2) -> void:
+    var id := _pin_at(position)
+    if hovered != id:
+        hovered = id
+        tooltip_text = PLACES[id][1] if not id.is_empty() else ""
+        queue_redraw()
+    mouse_default_cursor_shape = Control.CURSOR_DRAG if dragging and moved else (
+        Control.CURSOR_POINTING_HAND if not id.is_empty() else Control.CURSOR_ARROW)
+
 func _pin_at(at: Vector2) -> String:
+    var local := (at - pan) / zoom
     var closest := ""
     var distance := INF
     for id: String in pins:
-        var candidate := at.distance_to(pins[id])
+        var candidate := local.distance_to(pins[id])
         if candidate < distance and candidate <= float(PLACES[id][3]) * 0.56:
             closest = id
             distance = candidate

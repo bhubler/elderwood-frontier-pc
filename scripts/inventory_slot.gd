@@ -97,6 +97,8 @@ static func _tooltip_line(parent: VBoxContainer, content: String, color: Color, 
 static func _item_icon(item_id: String) -> Texture2D:
     if icons.has(item_id):
         return icons[item_id]
+    if item_id == "quest_gold":
+        return Art._texture("res://art/items/gold_reward.png")
     if item_id == "watch_provisions":
         return Art._texture("res://art/interiors/shops/sacks.png")
     if not ICON_CELLS.has(item_id):
