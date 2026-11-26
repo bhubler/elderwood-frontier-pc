@@ -10,6 +10,8 @@ const BACKPACK_CAPACITY := 24
 const INTERACT_DISTANCE := 115.0
 const FORSAKEN_CHAPTER := "res://scenes/frontier/forsaken_chapter.tscn"
 const PINEWOOD_SCRIPT := "res://scripts/pinewood_forest.gd"
+const EAST_PINEWOOD_TEST_SIGN := Vector2(-255, 56)
+const EAST_PINEWOOD_TEST_TITLE := "East Pinewood · Test Shortcut"
 const PINEWOOD_ENTRANCE := Vector2(4, -670)
 const PINEWOOD_APPROACH_DISTANCE := 440.0
 const PINEWOOD_RELEASE_DISTANCE := 580.0
@@ -147,6 +149,17 @@ func _ready() -> void:
     if inventory_only:
         return
     _make_villagers()
+    if OS.has_feature("editor"):
+        var sign := Label.new()
+        sign.text = EAST_PINEWOOD_TEST_TITLE
+        sign.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+        sign.mouse_filter = Control.MOUSE_FILTER_IGNORE
+        sign.position = EAST_PINEWOOD_TEST_SIGN - Vector2(112, 28)
+        sign.size.x = 224
+        sign.z_index = 12
+        sign.add_theme_color_override("font_color", Color("#ffda91"))
+        sign.add_theme_constant_override("outline_size", 5)
+        get_parent().add_child.call_deferred(sign)
     _show_message("Welcome to Elderwood Village. WASD to move, E to interact, I for inventory.", 5.0)
 
 func _make_interface() -> void:
@@ -834,6 +847,10 @@ func _nearby_route() -> Dictionary:
     elif inside_inn:
         if player.position.distance_to(Vector2(4200, 120)) < 190.0:
             return _route(Vector2(4200, 205), Rect2(4125, 156, 150, 75), "Elderwood Village", _leave_inn)
+    elif _near_east_pinewood_test_sign():
+        return _route(EAST_PINEWOOD_TEST_SIGN,
+            Rect2(EAST_PINEWOOD_TEST_SIGN - Vector2(112, 32), Vector2(224, 42)),
+            EAST_PINEWOOD_TEST_TITLE, _enter_east_pinewood_test)
     elif _near_pinewood_entrance():
         return _route(PINEWOOD_ENTRANCE, Rect2(PINEWOOD_ENTRANCE - Vector2(114, 178), Vector2(228, 178)), "Pinewood Forest", _enter_pinewood)
     elif player.position.distance_to(Vector2(-390, -190)) < 155.0:
@@ -1109,7 +1126,9 @@ func _unhandled_key_input(event: InputEvent) -> void:
                 show_person_dialogue("Mara · Innkeeper", "Make yourself at home. The fire is warm and the road can wait.", null, VillageNPC.ART[&"Mara"])
         else:
             var nearest := _nearest_person()
-            if _near_pinewood_entrance() and not player.choosing_race:
+            if _near_east_pinewood_test_sign():
+                _enter_east_pinewood_test()
+            elif _near_pinewood_entrance() and not player.choosing_race:
                 _enter_pinewood()
             elif player.position.distance_to(Vector2(-390, -190)) < 105.0:
                 _enter_inn()
@@ -1152,6 +1171,13 @@ func _pip_road_dialogue() -> String:
     return "%d %s still threatening our sheep in Pinewood Forest. Return when the village is safe." % [
         remaining, "wolf is" if remaining == 1 else "wolves are"
     ]
+
+func _near_east_pinewood_test_sign() -> bool:
+    return OS.has_feature("editor") and not player.choosing_race and not quest_offer.visible \
+        and player.global_position.distance_to(EAST_PINEWOOD_TEST_SIGN) < 85.0
+
+func _enter_east_pinewood_test() -> void:
+    AreaTransition.run(get_tree(), _fast_travel_to.bind("east_trail"))
 
 func _near_pinewood_entrance() -> bool:
     return player.position.distance_to(PINEWOOD_ENTRANCE) < PINEWOOD_ENTRY_DISTANCE
