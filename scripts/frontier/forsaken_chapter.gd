@@ -57,6 +57,7 @@ const MAX_HEALTH := 100
 var state := State.new()
 var region := ""
 var outdoor_terrain: WildernessTerrain
+var stonehaven_terrain: WildernessTerrain
 var forest_terrain: WildernessTerrain
 var forest_woodland: PinewoodWoodland
 var terrain_center := Vector2i(9999, 9999)
@@ -169,8 +170,11 @@ func _load_region(destination: String) -> void:
     var previous := region
     region = destination
     ruin_walls.clear()
+    if is_instance_valid(stonehaven_terrain):
+        stonehaven_terrain.collision_enabled = false
+        stonehaven_terrain.navigation_enabled = false
     for child in props.get_children():
-        if child == forest_terrain or child == forest_woodland:
+        if child == stonehaven_terrain or child == forest_terrain or child == forest_woodland:
             child.hide()
             child.process_mode = Node.PROCESS_MODE_DISABLED
             continue
@@ -269,6 +273,14 @@ func _load_outdoor_terrain() -> void:
         return
     var city := region == "stonehaven"
     var forest := region == "east_pinewood"
+    if city and is_instance_valid(stonehaven_terrain):
+        outdoor_terrain = stonehaven_terrain
+        outdoor_terrain.collision_enabled = true
+        outdoor_terrain.navigation_enabled = true
+        outdoor_terrain.process_mode = Node.PROCESS_MODE_INHERIT
+        outdoor_terrain.show()
+        floor_art.hide()
+        return
     if forest and is_instance_valid(forest_terrain):
         outdoor_terrain = forest_terrain
         outdoor_terrain.show()
@@ -297,6 +309,8 @@ func _load_outdoor_terrain() -> void:
     terrain.streamed = forest
     if forest:
         # Trunks and map boundaries use dedicated world collision, not ground tiles.
+        # Rebuild smaller rendering batches when a streamed patch changes.
+        terrain.rendering_quadrant_size = 8
         terrain.collision_enabled = false
         terrain.navigation_enabled = false
     if city:
@@ -320,6 +334,7 @@ func _load_outdoor_terrain() -> void:
         _prime_forest_terrain()
     elif not terrain.ground_cells().is_empty():
         if city:
+            stonehaven_terrain = terrain
             floor_art.hide()
         else:
             floor_art.tiled_ground = true
@@ -355,7 +370,7 @@ func _paint_forest_patch(key: Vector2i) -> void:
     outdoor_terrain.paint_ground(Rect2(Vector2(key) * TERRAIN_PATCH_SIZE, TERRAIN_PATCH_SIZE), true)
     painted_patches[key] = true
 
-func _update_forest_terrain() -> void:
+func _queue_forest_terrain() -> void:
     var center := Vector2i((Vector2(player.position) / TERRAIN_PATCH_SIZE).floor())
     if center != terrain_center:
         terrain_center = center
@@ -364,9 +379,16 @@ func _update_forest_terrain() -> void:
             var key := center + offset
             if not painted_patches.has(key):
                 terrain_patches.append(key)
-    # TileMapLayer applies rendering changes together at the end of the frame.
-    if not terrain_patches.is_empty():
+func _stream_east_pinewood() -> void:
+    if is_instance_valid(outdoor_terrain):
+        _queue_forest_terrain()
+    forest_woodland.update_player_chunk()
+    # Tile updates and attaching tree scenes can both do work at frame end.
+    # When both queues have work, give each its own frame.
+    if not terrain_patches.is_empty() and (forest_woodland.pending_chunks.is_empty() or Engine.get_process_frames() % 2 == 0):
         _paint_forest_patch(terrain_patches.pop_back())
+    else:
+        forest_woodland.stream_next_trees()
 
 func _add_point(action: String, title: String, where: Vector2) -> Point:
     var point := POINT_SCENE.instantiate() as Point
@@ -772,8 +794,8 @@ func _remove_emissary() -> void:
         emissary_actor = null
 
 func _process(_delta: float) -> void:
-    if region == "east_pinewood" and is_instance_valid(outdoor_terrain):
-        _update_forest_terrain()
+    if region == "east_pinewood":
+        _stream_east_pinewood()
     if inventory.inventory_open:
         journal_panel.hide()
     var blocked: bool = player.choosing_race or inventory.quest_offer.visible or inventory.inventory_open or journal_panel.visible or grimoire_dialog.visible or mentor_dialog.visible or guild_dialog.visible

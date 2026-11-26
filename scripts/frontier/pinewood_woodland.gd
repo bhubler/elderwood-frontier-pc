@@ -33,10 +33,12 @@ func resume_at_player() -> void:
         _grow_chunk(key, 16)
     pending_chunks.clear()
 
-func _process(_delta: float) -> void:
+func update_player_chunk() -> void:
     var current := Vector2i((player.position / CHUNK_SIZE).floor())
     if current != center:
         _set_center(current)
+
+func stream_next_trees() -> void:
     if not pending_chunks.is_empty() and _grow_chunk(pending_chunks.back(), 4):
         pending_chunks.pop_back()
 

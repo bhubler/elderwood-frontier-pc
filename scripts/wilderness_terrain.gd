@@ -47,6 +47,7 @@ func _ready() -> void:
 		grass_underlay = TileMapLayer.new()
 		grass_underlay.name = "GrassUnderlay"
 		grass_underlay.tile_set = tile_set
+		grass_underlay.rendering_quadrant_size = rendering_quadrant_size
 		grass_underlay.collision_enabled = false
 		grass_underlay.navigation_enabled = false
 		grass_underlay.z_index = -1
@@ -80,7 +81,7 @@ func paint_ground(bounds: Rect2, fill_missing_only := false) -> void:
 		return
 	var local_roads := roads
 	var local_trails := trails
-	if streamed and bounds.has_area():
+	if bounds.has_area():
 		local_roads = ForestLayout.routes_near_bounds(roads, bounds, road_half_width)
 		local_trails = ForestLayout.routes_near_bounds(trails, bounds, trail_half_width)
 	var grass_cells: Array[Vector2i] = []
