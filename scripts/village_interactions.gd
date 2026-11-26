@@ -39,15 +39,24 @@ const InventoryPortrait := preload("res://scripts/inventory_portrait.gd")
 var inventory_portrait: InventoryPortrait
 var inventory_stats: Label
 var item_action: Button
+var second_accessory_action: Button
 var inspected_item := ""
 var inventory_panel: PanelContainer
 var pinewood_script: GDScript
 var notice_timer: Timer
 var inventory_grid: GridContainer
-var equipment_grid: GridContainer
+var equipment_slots: Dictionary = {}
 var gold_label: Label
 var item_details: Label
-var equipment: Dictionary = {"weapon": "rusty_sword", "armor": "cloak", "accessory": ""}
+const DEFAULT_EQUIPMENT := {
+    "weapon": "rusty_sword", "armor": "cloak", "accessory": "", "accessory_2": "",
+    "shield": "", "helmet": "", "boots": "", "belt": "",
+}
+const EQUIPMENT_COLUMNS := [
+    ["helmet", "armor", "belt", "boots"],
+    ["weapon", "shield", "accessory", "accessory_2"],
+]
+var equipment: Dictionary = DEFAULT_EQUIPMENT.duplicate()
 var backpack: Array[String] = ["old_map", "bread", "healing_potion"]
 var item_data: Dictionary = {
     "rusty_sword": {"name": "Worn Iron Sword", "kind": "weapon", "icon": "⚔", "rarity": "Common", "description": "A battered but reliable blade.", "attack": 3},
@@ -301,20 +310,21 @@ func _make_inventory_window() -> void:
     left.custom_minimum_size = Vector2(330, 0)
     left.add_theme_constant_override("separation", 9)
     columns.add_child(left)
+    var loadout := HBoxContainer.new()
+    loadout.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+    loadout.add_theme_constant_override("separation", 8)
+    left.add_child(loadout)
+    _add_equipment_column(loadout, EQUIPMENT_COLUMNS[0])
     inventory_portrait = InventoryPortrait.new()
-    inventory_portrait.custom_minimum_size = Vector2(330, 220)
+    inventory_portrait.custom_minimum_size = Vector2(146, 222)
+    inventory_portrait.size_flags_vertical = Control.SIZE_SHRINK_CENTER
     inventory_portrait.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-    left.add_child(inventory_portrait)
+    loadout.add_child(inventory_portrait)
+    _add_equipment_column(loadout, EQUIPMENT_COLUMNS[1])
     inventory_stats = Label.new()
     inventory_stats.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
     inventory_stats.add_theme_color_override("font_color", Color("#dfc08a"))
     left.add_child(inventory_stats)
-    equipment_grid = GridContainer.new()
-    equipment_grid.columns = 3
-    equipment_grid.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-    equipment_grid.add_theme_constant_override("h_separation", 18)
-    equipment_grid.add_theme_constant_override("v_separation", 5)
-    left.add_child(equipment_grid)
     var right := VBoxContainer.new()
     right.custom_minimum_size = Vector2(420, 0)
     right.add_theme_constant_override("separation", 9)
@@ -339,6 +349,10 @@ func _make_inventory_window() -> void:
     item_action = Button.new()
     item_action.pressed.connect(_apply_inspected_item)
     right.add_child(item_action)
+    second_accessory_action = Button.new()
+    second_accessory_action.text = "Equip in Accessory 2"
+    second_accessory_action.pressed.connect(_apply_inspected_item.bind("accessory_2"))
+    right.add_child(second_accessory_action)
     var footer := Label.new()
     footer.text = "Select gear to compare. Press I or Esc to close."
     footer.add_theme_font_size_override("font_size", 13)
@@ -346,6 +360,26 @@ func _make_inventory_window() -> void:
     layout.add_child(footer)
     _refresh_inventory()
     inventory_panel.hide()
+
+func _add_equipment_column(parent: HBoxContainer, kinds: Array) -> void:
+    var column := VBoxContainer.new()
+    parent.add_child(column)
+    for kind: String in kinds:
+        var slot := InventorySlot.new()
+        slot.pressed.connect(_inspect_equipped.bind(kind))
+        column.add_child(slot)
+        equipment_slots[kind] = slot
+        var title := Label.new()
+        title.text = _equipment_label(kind)
+        title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+        title.add_theme_font_size_override("font_size", 12)
+        column.add_child(title)
+
+func _equipment_label(kind: String) -> String:
+    match kind:
+        "accessory": return "Accessory 1"
+        "accessory_2": return "Accessory 2"
+        _: return kind.capitalize()
 
 func _slot_style() -> StyleBoxFlat:
     var style := StyleBoxFlat.new()
@@ -362,23 +396,10 @@ func _refresh_inventory() -> void:
         inventory_portrait.show_character(player, equipment.get("weapon", ""))
         inventory_stats.text = "%s  ·  Attack +%d  ·  Defense +%d" % [
             player.race, player.attack_bonus, player.defense_bonus]
-    var kinds := ["weapon", "armor", "accessory"]
-    if equipment_grid.get_child_count() == 0:
-        for kind in kinds:
-            var slot := InventorySlot.new()
-            slot.pressed.connect(_inspect_equipped.bind(kind))
-            equipment_grid.add_child(slot)
-        for kind in kinds:
-            var title := Label.new()
-            title.text = kind.capitalize()
-            title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-            title.add_theme_font_size_override("font_size", 13)
-            equipment_grid.add_child(title)
-    for i in range(kinds.size()):
-        var kind: String = kinds[i]
+    for kind in equipment_slots:
         var item_id: String = equipment[kind]
-        var slot := equipment_grid.get_child(i) as InventorySlot
-        slot.show_item(item_id, item_data.get(item_id, {}), "Empty %s slot" % kind)
+        var slot: InventorySlot = equipment_slots[kind]
+        slot.show_item(item_id, item_data.get(item_id, {}), "Empty %s slot" % _equipment_label(kind).to_lower())
     if inventory_grid.get_child_count() == 0:
         for i in range(BACKPACK_CAPACITY):
             var button := InventorySlot.new()
@@ -391,7 +412,7 @@ func _refresh_inventory() -> void:
     _select_item(inspected_item)
 
 func copy_items_from(source: CanvasLayer) -> void:
-    equipment = source.equipment.duplicate()
+    equipment = DEFAULT_EQUIPMENT.merged(source.equipment, true)
     backpack.assign(source.backpack)
     item_data = source.item_data.duplicate(true)
     gold = source.gold
@@ -422,7 +443,9 @@ func _inspect_equipped(kind: String) -> void:
     _select_item(equipment.get(kind, ""))
 
 func _select_item(item_id: String) -> void:
-    var equipped: bool = item_id in equipment.values() and not item_id.is_empty()
+    second_accessory_action.hide()
+    var equipped_slot: String = str(equipment.find_key(item_id)) if not item_id.is_empty() and item_id in equipment.values() else ""
+    var equipped := not equipped_slot.is_empty()
     if not item_data.has(item_id) or (not equipped and item_id not in backpack):
         inspected_item = ""
         item_details.text = "Select an item to inspect it."
@@ -441,27 +464,33 @@ func _select_item(item_id: String) -> void:
                 var change := value - int(current.get(stat, 0))
                 item_details.text += "\n%s +%d" % [stat.capitalize(), value]
                 if not equipped:
-                    item_details.text += " (%+d vs. equipped)" % change
-        item_action.text = "Unequip" if equipped else "Equip"
+                    if kind == "accessory":
+                        var other: Dictionary = item_data.get(equipment["accessory_2"], {})
+                        item_details.text += " (%+d vs. slot 1, %+d vs. slot 2)" % [change, value - int(other.get(stat, 0))]
+                    else:
+                        item_details.text += " (%+d vs. equipped)" % change
+        item_action.text = "Unequip" if equipped else ("Equip in Accessory 1" if kind == "accessory" else "Equip")
+        second_accessory_action.visible = not equipped and kind == "accessory"
         item_action.show()
     elif item_id in ["rite_health_potions", "rite_mana_potions"]:
         item_action.text = "Drink potion"
         item_action.show()
 
-func _apply_inspected_item() -> void:
+func _apply_inspected_item(target_slot := "") -> void:
     if inspected_item.is_empty():
         return
     if inspected_item in ["rite_health_potions", "rite_mana_potions"]:
         _drink_rite_potion(inspected_item)
         return
     var kind: String = item_data[inspected_item]["kind"]
-    if equipment.get(kind) == inspected_item:
+    var equipped_slot: Variant = equipment.find_key(inspected_item)
+    if equipped_slot != null:
         if backpack.size() >= BACKPACK_CAPACITY:
             item_details.text = "Your backpack is full. Make room before unequipping this item."
             return
-        _unequip(kind)
+        _unequip(str(equipped_slot))
     elif inspected_item in backpack:
-        _equip(inspected_item, kind)
+        _equip(inspected_item, target_slot if kind == "accessory" and target_slot == "accessory_2" else kind)
 
 func _drink_rite_potion(item_id: String) -> void:
     var is_health := item_id == "rite_health_potions"

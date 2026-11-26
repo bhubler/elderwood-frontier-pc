@@ -60,7 +60,7 @@ static func restore(village: Node, file: ConfigFile) -> void:
     village.opening_greeting_shown = village.road_quest != village.RoadQuest.OFFERED
     village._update_pip_marker()
     village.gold = file.get_value("inventory", "gold", village.gold)
-    village.equipment = file.get_value("inventory", "equipment", village.equipment)
+    village.equipment = village.DEFAULT_EQUIPMENT.merged(file.get_value("inventory", "equipment", {}), true)
     village.backpack.assign(file.get_value("inventory", "backpack", village.backpack))
     village.item_data = file.get_value("inventory", "item_data", village.item_data)
     village._refresh_inventory()

@@ -21,15 +21,16 @@ func _draw() -> void:
     var outer := Rect2(Vector2(6, 6), size - Vector2(12, 12))
     draw_rect(outer, Color("#141b19"))
     draw_rect(outer.grow(-5), border, false)
-    draw_arc(center + Vector2(0, 62), minf(size.x * 0.32, 66), 0, TAU, 48, Color("#484033"), 1.0, true)
-    var dimension := minf(size.x - 30, size.y - 22)
+    var available := size - Vector2(24, 24)
     if sword_pose:
         var frame := PlayerArt.SWORD_FRAME_SIZE
-        var destination := Rect2(center - Vector2.ONE * dimension * 0.5, Vector2.ONE * dimension)
+        var crop := Rect2(19, 8, 71, 96)
+        var zoom := minf(available.x / crop.size.x, available.y / crop.size.y)
+        var destination := Rect2(center - crop.size * zoom * 0.5, crop.size * zoom)
         draw_texture_rect_region(PlayerArt.SWORD_SWING_ART, destination,
-            Rect2(frame * 3, 0, frame, frame))
+            Rect2(Vector2(frame * 3, 0) + crop.position, crop.size))
         if weapon_id == "sentinel_sword":
-            draw_set_transform(destination.position, 0.0, Vector2.ONE * (dimension / frame))
+            draw_set_transform(destination.position - crop.position * zoom, 0.0, Vector2.ONE * zoom)
             # The front recovery pose holds the grip around (42, 64).
             draw_line(Vector2(41, 64), Vector2(64, 96), Color("#292e37"), 5.0)
             draw_colored_polygon(PackedVector2Array([
@@ -39,5 +40,5 @@ func _draw() -> void:
             draw_line(Vector2(39, 70), Vector2(48, 64), Color("#b59256"), 2.5)
     elif portrait != null:
         var source := portrait.get_size()
-        var fitted := source * (dimension / maxf(source.x, source.y))
+        var fitted := source * minf(available.x / source.x, available.y / source.y)
         draw_texture_rect(portrait, Rect2(center - fitted * 0.5, fitted), false)
