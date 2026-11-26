@@ -76,7 +76,7 @@ func _find_solid_grass() -> void:
 				grass_source = id
 				grass_atlas = atlas
 
-func paint_ground(bounds: Rect2, fill_missing_only := false) -> void:
+func paint_ground(bounds: Rect2) -> void:
 	if tile_set == null:
 		return
 	var local_roads := roads
@@ -102,9 +102,6 @@ func paint_ground(bounds: Rect2, fill_missing_only := false) -> void:
 			var cell := Vector2i(x, y)
 			var pos := map_to_local(cell)
 			if bounds.has_area() and not bounds.has_point(pos):
-				continue
-			var coverage := grass_underlay if streamed and grass_source >= 0 else self
-			if fill_missing_only and coverage.get_cell_source_id(cell) >= 0:
 				continue
 			if streamed and grass_source >= 0:
 				grass_underlay.set_cell(cell, grass_source, grass_atlas)
