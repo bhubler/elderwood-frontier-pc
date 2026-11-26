@@ -60,8 +60,11 @@ var outdoor_terrain: WildernessTerrain
 var stonehaven_terrain: WildernessTerrain
 var forest_terrain: WildernessTerrain
 var forest_woodland: PinewoodWoodland
-const FOREST_TERRAIN_CACHE := "user://east_pinewood_terrain_v1.cache"
-const FOREST_BAKE_STRIP_HEIGHT := 720.0
+var terrain_center := Vector2i(9999, 9999)
+var terrain_patches: Array[Vector2i] = []
+var terrain_patch_offsets: Array[Vector2i] = []
+var painted_patches: Dictionary = {}
+const TERRAIN_PATCH_SIZE := Vector2(240, 144)
 const STONEHAVEN_BUILDING_SCALE := 1.32
 var points: Array[Point] = []
 var enemy: Enemy
@@ -260,6 +263,8 @@ func _load_region(destination: String) -> void:
 
 func _load_outdoor_terrain() -> void:
     outdoor_terrain = null
+    terrain_center = Vector2i(9999, 9999)
+    terrain_patches.clear()
     floor_art.show()
     floor_art.grass_backing = false
     floor_art.tiled_ground = false
@@ -280,8 +285,7 @@ func _load_outdoor_terrain() -> void:
         outdoor_terrain = forest_terrain
         outdoor_terrain.show()
         outdoor_terrain.process_mode = Node.PROCESS_MODE_INHERIT
-        floor_art.grass_backing = true
-        floor_art.z_index = -12
+        _prime_forest_terrain()
         return
     var interior := Floor.is_interior(region)
     var terrain := WildernessTerrain.new()
@@ -327,7 +331,7 @@ func _load_outdoor_terrain() -> void:
     outdoor_terrain = terrain
     if forest:
         forest_terrain = terrain
-        _load_baked_forest(terrain)
+        _prime_forest_terrain()
     elif not terrain.ground_cells().is_empty():
         if city:
             stonehaven_terrain = terrain
@@ -336,44 +340,55 @@ func _load_outdoor_terrain() -> void:
             floor_art.tiled_ground = true
             floor_art.z_index = -9
 
-func _load_baked_forest(terrain: WildernessTerrain) -> void:
+func _prime_forest_terrain() -> void:
     floor_art.grass_backing = true
     floor_art.z_index = -12
-    var bounds := Overworld.FOREST.grow(900)
-    var signature := [
-        Engine.get_version_info()["hex"],
-        FileAccess.get_sha256(WildernessTerrain.TILESET_PATH),
-        FileAccess.get_sha256("res://scripts/wilderness_terrain.gd"),
-        bounds, terrain.roads, terrain.road_half_width, FOREST_BAKE_STRIP_HEIGHT,
-    ]
-    if FileAccess.file_exists(FOREST_TERRAIN_CACHE):
-        var cached := FileAccess.open(FOREST_TERRAIN_CACHE, FileAccess.READ)
-        if cached != null and cached.get_var() == signature:
-            var ground: Variant = cached.get_var()
-            var underlay: Variant = cached.get_var()
-            if cached.get_error() == OK and ground is PackedByteArray and not ground.is_empty() and underlay is PackedByteArray:
-                terrain.tile_map_data = ground
-                terrain.grass_underlay.tile_map_data = underlay
-                return
+    if terrain_patch_offsets.is_empty():
+        for x in range(-6, 7):
+            for y in range(-8, 9):
+                terrain_patch_offsets.append(Vector2i(x, y))
+        terrain_patch_offsets.sort_custom(func(a: Vector2i, b: Vector2i) -> bool:
+            return (Vector2(a) * TERRAIN_PATCH_SIZE).length_squared() > (Vector2(b) * TERRAIN_PATCH_SIZE).length_squared())
+    var center := Vector2i((Vector2(player.position) / TERRAIN_PATCH_SIZE).floor())
+    var first := center - Vector2i(4, 5)
+    var size := Vector2i(9, 11)
+    if painted_patches.is_empty():
+        # Paint the landing area in one pass while the transition is covered.
+        outdoor_terrain.paint_ground(Rect2(Vector2(first) * TERRAIN_PATCH_SIZE,
+            Vector2(size) * TERRAIN_PATCH_SIZE))
+        for x in range(first.x, first.x + size.x):
+            for y in range(first.y, first.y + size.y):
+                painted_patches[Vector2i(x, y)] = true
+    else:
+        for x in range(first.x, first.x + size.x):
+            for y in range(first.y, first.y + size.y):
+                _paint_forest_patch(Vector2i(x, y))
 
-    # Build connected tiles before play. Strips bound each terrain solver call.
-    var top := bounds.position.y
-    while top < bounds.end.y:
-        var height := minf(FOREST_BAKE_STRIP_HEIGHT, bounds.end.y - top)
-        terrain.paint_ground(Rect2(bounds.position.x, top, bounds.size.x, height))
-        top += height
-
-    var pending_path := FOREST_TERRAIN_CACHE + ".tmp"
-    var cache := FileAccess.open(pending_path, FileAccess.WRITE)
-    if cache == null:
+func _paint_forest_patch(key: Vector2i) -> void:
+    if painted_patches.has(key):
         return
-    cache.store_var(signature)
-    cache.store_var(terrain.tile_map_data)
-    cache.store_var(terrain.grass_underlay.tile_map_data)
-    var written := cache.get_error() == OK
-    cache.close()
-    if written:
-        DirAccess.rename_absolute(pending_path, FOREST_TERRAIN_CACHE)
+    outdoor_terrain.paint_ground(Rect2(Vector2(key) * TERRAIN_PATCH_SIZE, TERRAIN_PATCH_SIZE), true)
+    painted_patches[key] = true
+
+func _queue_forest_terrain() -> void:
+    var center := Vector2i((Vector2(player.position) / TERRAIN_PATCH_SIZE).floor())
+    if center != terrain_center:
+        terrain_center = center
+        terrain_patches.clear()
+        for offset in terrain_patch_offsets:
+            var key := center + offset
+            if not painted_patches.has(key):
+                terrain_patches.append(key)
+func _stream_east_pinewood() -> void:
+    if is_instance_valid(outdoor_terrain):
+        _queue_forest_terrain()
+    forest_woodland.update_player_chunk()
+    # Tile updates and attaching tree scenes can both do work at frame end.
+    # When both queues have work, give each its own frame.
+    if not terrain_patches.is_empty() and (forest_woodland.pending_chunks.is_empty() or Engine.get_process_frames() % 2 == 0):
+        _paint_forest_patch(terrain_patches.pop_back())
+    else:
+        forest_woodland.stream_next_trees()
 
 func _add_point(action: String, title: String, where: Vector2) -> Point:
     var point := POINT_SCENE.instantiate() as Point
@@ -780,8 +795,7 @@ func _remove_emissary() -> void:
 
 func _process(_delta: float) -> void:
     if region == "east_pinewood":
-        forest_woodland.update_player_chunk()
-        forest_woodland.stream_next_trees()
+        _stream_east_pinewood()
     if inventory.inventory_open:
         journal_panel.hide()
     var blocked: bool = player.choosing_race or inventory.quest_offer.visible or inventory.inventory_open or journal_panel.visible or grimoire_dialog.visible or mentor_dialog.visible or guild_dialog.visible
