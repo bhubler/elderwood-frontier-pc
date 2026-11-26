@@ -1,5 +1,6 @@
 extends CanvasLayer
 
+const AreaTransition := preload("res://scripts/area_transition.gd")
 const Saves := preload("res://scripts/playthrough_save.gd")
 const PanelHeader := preload("res://scripts/panel_header.gd")
 const WORLD_PATH := "res://scenes/world.tscn"
@@ -181,6 +182,9 @@ func _load_slot(slot: int) -> void:
         _start_game(file)
 
 func _start_game(file: ConfigFile) -> void:
+    AreaTransition.run(get_tree(), _load_world.bind(file))
+
+func _load_world(file: ConfigFile) -> void:
     _clear_world()
     get_tree().paused = false
     var scene := load(WORLD_PATH) as PackedScene
