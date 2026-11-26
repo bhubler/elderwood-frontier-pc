@@ -57,6 +57,7 @@ const STONEHAVEN_BUILDING_SCALE := 1.32
 var points: Array[Point] = []
 var enemy: Enemy
 var crypt_defeated_this_visit: Array[String] = []
+var sentinel_defeated_this_visit := false
 var emissary: Point
 var emissary_actor: Node2D
 var emissary_seen_this_session := false
@@ -196,7 +197,7 @@ func _load_region(destination: String) -> void:
         if not assignment.is_empty() and region == str(assignment[0]) and ("mentor_task_%d" % state.mentorship_year) not in state.quest_items:
             _add_point("mentor_task", str(assignment[2]), assignment[1])
 
-    if region == "ruin_sanctum" and "ruin_warden" in state.defeated and state.lord_stage == "ruin":
+    if region == "ruin_sanctum" and sentinel_defeated_this_visit and state.lord_stage == "ruin":
         _add_point("ancient_stone", "Recover the stone and longsword", Ruins.RELIC)
     _load_outdoor_terrain()
     floor_art.queue_redraw()
@@ -209,6 +210,9 @@ func _load_region(destination: String) -> void:
         var cleared := encounter_id in state.defeated
         if encounter_id in ["ossuary_skeleton", "bonecaller"]:
             cleared = encounter_id in crypt_defeated_this_visit
+        elif encounter_id == "ruin_warden":
+            # Old saves may already have awarded XP for the original one-room fight.
+            cleared = sentinel_defeated_this_visit
         if not cleared and not (region == "cellar_gate" and state.entry_method == "grimoire"):
             _add_enemy(definition, layout.get("enemy_position", Vector2.ZERO))
     if state.emissary_pending:
@@ -871,7 +875,7 @@ func _interact(action: String) -> void:
         _take_item(item_id, "Found %s in the old chest." % Layouts.ITEMS[item_id]["name"])
         return
     if action == "ancient_stone":
-        if "ruin_warden" not in state.defeated:
+        if not sentinel_defeated_this_visit:
             notice = "The Waking Sentinel stands between you and the stone."
         elif state.lord_stage == "ruin":
             var needed := int("ancient_magic_stone" not in inventory.backpack) + int("sentinel_sword" not in inventory.backpack)
@@ -1394,6 +1398,8 @@ func _on_victory(encounter_id: String, reward_xp: int) -> void:
     enemy = null
     if encounter_id in ["ossuary_skeleton", "bonecaller"]:
         crypt_defeated_this_visit.append(encounter_id)
+    if encounter_id == "ruin_warden":
+        sentinel_defeated_this_visit = true
     state.record_victory(encounter_id, reward_xp)
     if encounter_id == "ruin_warden" and region == "ruin_sanctum" and state.lord_stage == "ruin":
         _add_point("ancient_stone", "Recover the stone and longsword", Ruins.RELIC)
