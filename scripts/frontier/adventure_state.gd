@@ -19,6 +19,12 @@ var grimoire_choice := ""
 var initiation := "locked"
 var experience := 0
 var conjuration_uses := 0
+const GUILD_CONTRACTS := {
+    "caravan": ["Raided Caravan", "Search the wreck and defeat the Blackbriar bandit and chief."],
+    "provisions": ["Watchtower Provisions", "Take the guild parcel to the captain inside the eastern watchtower."],
+    "herbs": ["Herbalist Requisition", "Gather ten woodland herbs in East Pinewood."],
+}
+var guild_accepted: Array[String] = []
 var guild_rank := ""
 var guild_provisions := false
 var guild_caravan_inspected := false
@@ -34,20 +40,32 @@ func caravan_assignment_complete() -> bool:
     return guild_caravan_inspected and "blackbriar_bandit" in defeated and "blackbriar_chief" in defeated
 
 func guild_assignments_complete() -> bool:
-    return not guild_rank.is_empty() and caravan_assignment_complete() and guild_watch_supplied and guild_herbs >= 10
+    return not guild_rank.is_empty() and guild_accepted.size() == GUILD_CONTRACTS.size() \
+        and caravan_assignment_complete() and guild_watch_supplied and guild_herbs >= 10
+
+func guild_contract_status(contract: String) -> String:
+    if contract not in guild_accepted:
+        return "Available"
+    match contract:
+        "caravan":
+            return "Complete" if caravan_assignment_complete() else "In progress"
+        "provisions":
+            return "Delivered" if guild_watch_supplied else "In progress"
+        "herbs":
+            return "%d / 10 collected" % guild_herbs
+    return ""
 
 func guild_contracts() -> String:
-    return "Raided Caravan — %s\nWatchtower Provisions — %s\nHerbalist Requisition — %d/10 woodland herbs" % [
-        "Complete" if caravan_assignment_complete() else "Search the wreck and defeat the Blackbriar bandit and chief",
-        "Delivered" if guild_watch_supplied else "Bring the guild parcel to the captain inside the eastern watchtower",
-        guild_herbs,
-    ]
+    var entries: PackedStringArray = []
+    for contract: String in GUILD_CONTRACTS:
+        entries.append("%s — %s" % [GUILD_CONTRACTS[contract][0], guild_contract_status(contract)])
+    return "\n".join(entries)
 
 func guild_journal() -> String:
     if guild_rank.is_empty():
         return "Register at Stonehaven's Adventurer's Guild as a D-rank adventurer."
     if lord_stage == "locked":
-        var next_step := "Return to the Guild Master." if guild_assignments_complete() else "Complete the three assignments in any order."
+        var next_step := "Return to the Guild Master." if guild_assignments_complete() else "Accept and complete the three assignments in any order."
         return "%s\n%s" % [guild_contracts(), next_step]
     if lord_stage == "summoned":
         return "The Lord of Stonehaven requests your presence at his manor."
@@ -154,6 +172,7 @@ func write_progress(file: ConfigFile) -> void:
     file.set_value("chapter", "experience", experience)
     file.set_value("chapter", "conjuration_uses", conjuration_uses)
     file.set_value("chapter", "guild_rank", guild_rank)
+    file.set_value("chapter", "guild_accepted", guild_accepted)
     file.set_value("chapter", "guild_provisions", guild_provisions)
     file.set_value("chapter", "guild_caravan_inspected", guild_caravan_inspected)
     file.set_value("chapter", "guild_watch_supplied", guild_watch_supplied)
@@ -197,6 +216,7 @@ func read_progress(file: ConfigFile) -> Error:
     experience = file.get_value("chapter", "experience", 0)
     conjuration_uses = file.get_value("chapter", "conjuration_uses", 0)
     guild_rank = file.get_value("chapter", "guild_rank", "")
+    guild_accepted.assign(file.get_value("chapter", "guild_accepted", [] if guild_rank.is_empty() else GUILD_CONTRACTS.keys()))
     guild_provisions = file.get_value("chapter", "guild_provisions", false)
     guild_caravan_inspected = file.get_value("chapter", "guild_caravan_inspected", false)
     guild_watch_supplied = file.get_value("chapter", "guild_watch_supplied", false)

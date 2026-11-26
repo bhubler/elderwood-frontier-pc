@@ -74,6 +74,10 @@ var grimoire_heading: Label
 var grimoire_details: Label
 var guild_dialog: CenterContainer
 var guild_details: Label
+var guild_rank_label: Label
+var guild_cards: VBoxContainer
+var guild_status: Dictionary = {}
+var guild_accept_buttons: Dictionary = {}
 var guild_confirm: Button
 var guild_portrait: DialoguePortrait
 var mentor_portrait: DialoguePortrait
@@ -210,7 +214,7 @@ func _load_region(destination: String) -> void:
         _add_point("adventurers_guild", "Adventurer's Guild", Vector2(-260, 360))
         _add_point("city_lord", "Stonehaven Lord", Vector2(-264, -155))
         _add_point("church_mentor", "Church of Stonehaven", Vector2(232, -155))
-    if region == "east_pinewood" and not state.guild_rank.is_empty():
+    if region == "east_pinewood" and "herbs" in state.guild_accepted:
         for index in range(10):
             if ("herb_%d" % index) not in state.quest_items:
                 var herb_position := Overworld.CARAVAN + Vector2(-250 + (index % 5) * 105, 220 + int(index / 5) * 95)
@@ -925,7 +929,7 @@ func _interact(action: String) -> void:
         _show_guild_dialog()
         return
     if action.begins_with("herb_"):
-        if region != "east_pinewood" or state.guild_rank.is_empty():
+        if region != "east_pinewood" or "herbs" not in state.guild_accepted:
             return
         var herb_key := action
         if herb_key in state.quest_items:
@@ -969,7 +973,7 @@ func _interact(action: String) -> void:
         "main_gate":
             return_to_gate.emit()
         "inspect_caravan":
-            if not state.guild_rank.is_empty():
+            if "caravan" in state.guild_accepted:
                 state.guild_caravan_inspected = true
                 _save()
             notice = "Broken crates and a snapped axle litter the road. You search for survivors, but find only tracks toward the Blackbriar raider camp."
@@ -1105,45 +1109,161 @@ func _build_guild_dialog() -> void:
     guild_dialog = CenterContainer.new()
     $HUD.add_child(guild_dialog)
     guild_dialog.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+    guild_dialog.visibility_changed.connect(func() -> void:
+        inventory.set_process_unhandled_key_input(not guild_dialog.visible)
+    )
     var panel := PanelContainer.new()
-    panel.custom_minimum_size.x = 590
+    panel.custom_minimum_size.x = 850
     InventoryFinish.style_dialog(panel)
     guild_dialog.add_child(panel)
+    var columns := HBoxContainer.new()
+    columns.add_theme_constant_override("separation", 18)
+    panel.add_child(columns)
+
+    var portrait_frame := PanelContainer.new()
+    portrait_frame.custom_minimum_size = Vector2(214, 214)
+    portrait_frame.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+    portrait_frame.add_theme_stylebox_override("panel",
+        InventoryFinish.surface(InventoryFinish.RECESS, InventoryFinish.BRASS, 9, true, true))
+    columns.add_child(portrait_frame)
+    guild_portrait = DialoguePortrait.new()
+    guild_portrait.custom_minimum_size = Vector2(196, 196)
+    portrait_frame.add_child(guild_portrait)
+
     var content := VBoxContainer.new()
-    content.add_theme_constant_override("separation", 14)
-    panel.add_child(content)
+    content.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+    content.add_theme_constant_override("separation", 9)
+    columns.add_child(content)
+    var heading_frame := PanelContainer.new()
+    InventoryFinish.style_dialog(heading_frame)
+    content.add_child(heading_frame)
+    var heading := VBoxContainer.new()
+    heading_frame.add_child(heading)
+    var title_row := HBoxContainer.new()
+    heading.add_child(title_row)
+    var balance := Control.new()
+    balance.custom_minimum_size.x = 34
+    title_row.add_child(balance)
     var title := Label.new()
     title.text = "Adventurer's Guild"
-    PanelHeader.add_title(content, title, guild_dialog.hide)
-    InventoryFinish.style_dialog_action(content.get_child(0).get_node("CloseButton"))
+    title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+    title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+    title.add_theme_font_size_override("font_size", 24)
+    title.add_theme_color_override("font_color", InventoryFinish.GOLD)
+    title_row.add_child(title)
+    PanelHeader.add_close_button(title_row, guild_dialog.hide)
+    InventoryFinish.style_dialog_action(title_row.get_node("CloseButton"))
+    guild_rank_label = Label.new()
+    guild_rank_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+    heading.add_child(guild_rank_label)
+
     guild_details = Label.new()
     guild_details.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-    guild_portrait = _append_dialogue_portrait(content, guild_details)
+    content.add_child(guild_details)
+    guild_cards = VBoxContainer.new()
+    guild_cards.add_theme_constant_override("separation", 6)
+    content.add_child(guild_cards)
+    var icons := {
+        "caravan": "res://art/landmarks/caravan.png",
+        "provisions": "res://art/interiors/shops/sacks.png",
+        "herbs": "res://art/items/guild_herbs.png",
+    }
+    for contract: String in State.GUILD_CONTRACTS:
+        _add_guild_card(contract, icons[contract])
     guild_confirm = Button.new()
     InventoryFinish.style_dialog_action(guild_confirm)
     guild_confirm.pressed.connect(_confirm_guild_dialog)
     content.add_child(guild_confirm)
     guild_dialog.hide()
 
+func _add_guild_card(contract: String, icon_path: String) -> void:
+    var frame := PanelContainer.new()
+    frame.add_theme_stylebox_override("panel",
+        InventoryFinish.surface(InventoryFinish.RECESS, InventoryFinish.BRASS, 8, true))
+    guild_cards.add_child(frame)
+    var row := HBoxContainer.new()
+    row.add_theme_constant_override("separation", 12)
+    frame.add_child(row)
+    var illustration := TextureRect.new()
+    illustration.texture = WayfindingArt._texture(icon_path)
+    illustration.custom_minimum_size = Vector2(64, 60)
+    illustration.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+    illustration.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+    row.add_child(illustration)
+    var text := VBoxContainer.new()
+    text.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+    row.add_child(text)
+    var title := Label.new()
+    title.text = State.GUILD_CONTRACTS[contract][0]
+    title.add_theme_font_size_override("font_size", 17)
+    title.add_theme_color_override("font_color", InventoryFinish.GOLD)
+    text.add_child(title)
+    var objective := Label.new()
+    objective.text = State.GUILD_CONTRACTS[contract][1]
+    objective.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+    text.add_child(objective)
+    var status := Label.new()
+    status.add_theme_font_size_override("font_size", 13)
+    text.add_child(status)
+    guild_status[contract] = status
+    var accept := Button.new()
+    accept.text = "Accept"
+    accept.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+    accept.custom_minimum_size.x = 86
+    InventoryFinish.style_dialog_action(accept)
+    accept.pressed.connect(_accept_guild_contract.bind(contract))
+    row.add_child(accept)
+    guild_accept_buttons[contract] = accept
+
 func _show_guild_dialog() -> void:
-    guild_portrait.show_speaker(guild_master)
-    guild_confirm.show()
-    if state.guild_rank.is_empty():
+    guild_portrait.show_speaker(guild_master, null, true)
+    var registered := not state.guild_rank.is_empty()
+    guild_rank_label.text = "%s-Rank Adventurer" % state.guild_rank if registered else "Registration"
+    guild_cards.visible = registered
+    guild_confirm.hide()
+    if not registered:
         if linked_from_gate and not rite_completed:
-            guild_details.text = "Guild Master — Finish your rite and report to Elder Elden in Elderwood Village. Then come back and I'll put your name on the roll."
-            guild_confirm.hide()
+            guild_details.text = "Finish your rite and report to Elder Elden in Elderwood Village. Then come back and I’ll put your name on the roll."
         else:
-            guild_details.text = "Guild Master — Welcome to Stonehaven. Register as a D-rank adventurer and I'll issue three contracts in East Pinewood. You can tackle them in any order."
+            guild_details.text = "Register as a D-rank adventurer to take on three contracts in East Pinewood."
             guild_confirm.text = "Register as D-rank"
+            guild_confirm.show()
     else:
-        guild_details.text = "%s-rank adventurer\n\n%s" % [state.guild_rank, state.guild_journal()]
-        if state.lord_stage == "locked" and state.guild_assignments_complete():
+        for contract: String in State.GUILD_CONTRACTS:
+            guild_status[contract].text = state.guild_contract_status(contract)
+            var accept: Button = guild_accept_buttons[contract]
+            accept.disabled = contract in state.guild_accepted
+            accept.text = "Accepted" if accept.disabled else "Accept"
+        guild_details.text = "Accept and complete the contracts in any order."
+        if state.lord_stage != "locked":
+            guild_details.text = state.guild_journal()
+        elif state.guild_assignments_complete():
+            guild_details.text = "All three contracts are complete."
             guild_confirm.text = "Report to the Guild Master"
+            guild_confirm.show()
         elif state.guild_provisions and "watch_provisions" not in inventory.backpack:
             guild_confirm.text = "Collect watchtower provisions"
-        else:
-            guild_confirm.hide()
+            guild_confirm.show()
     guild_dialog.show()
+
+func _issue_guild_parcel() -> bool:
+    if not inventory.grant_item("watch_provisions", Layouts.ITEMS["watch_provisions"]):
+        guild_details.text = "Make room in your backpack for the watchtower parcel."
+        return false
+    if "watch_provisions" not in state.quest_items:
+        state.quest_items.append("watch_provisions")
+    return true
+
+func _accept_guild_contract(contract: String) -> void:
+    if not guild_dialog.visible or state.guild_rank.is_empty() or not State.GUILD_CONTRACTS.has(contract) or contract in state.guild_accepted:
+        return
+    if contract == "provisions":
+        if not _issue_guild_parcel():
+            return
+        state.guild_provisions = true
+    state.guild_accepted.append(contract)
+    _save()
+    _show_guild_dialog()
 
 func _confirm_guild_dialog() -> void:
     if not guild_dialog.visible or not guild_confirm.visible:
@@ -1151,25 +1271,13 @@ func _confirm_guild_dialog() -> void:
     if state.guild_rank.is_empty():
         if linked_from_gate and not rite_completed:
             return
-        if not inventory.grant_item("watch_provisions", Layouts.ITEMS["watch_provisions"]):
-            guild_details.text = "Guild Master — Make room in your backpack for the watchtower parcel, then register."
-            return
         state.guild_rank = "D"
-        state.guild_provisions = true
-        state.quest_items.append("watch_provisions")
-        _save()
-        _show_guild_dialog()
     elif state.lord_stage == "locked" and state.guild_assignments_complete():
         state.lord_stage = "summoned"
-        _save()
-        _show_guild_dialog()
-    elif state.guild_provisions and inventory.grant_item("watch_provisions", Layouts.ITEMS["watch_provisions"]):
-        if "watch_provisions" not in state.quest_items:
-            state.quest_items.append("watch_provisions")
-        _save()
-        _show_guild_dialog()
-    else:
-        guild_details.text += "\n\nMake room in your backpack for the watchtower parcel."
+    elif not _issue_guild_parcel():
+        return
+    _save()
+    _show_guild_dialog()
 
 func _build_mentor_dialog() -> void:
     mentor_dialog = CenterContainer.new()
