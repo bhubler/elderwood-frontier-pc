@@ -24,7 +24,6 @@ var streamed := false
 var grass_source := -1
 var grass_atlas := Vector2i.ZERO
 var grass_underlay: TileMapLayer
-var solid_grass_tiles: Array[Vector3i] = []
 
 func village_playable_outline() -> PackedVector2Array:
 	var first := Vector2i(-EXTENT, -EXTENT)
@@ -69,14 +68,9 @@ func _find_solid_grass() -> void:
 			if data.terrain_set != TERRAIN_SET or data.terrain != GRASS:
 				continue
 			var score := 0
-			var peering_bits := 0
 			for bit in range(16):
-				if data.is_valid_terrain_peering_bit(bit):
-					peering_bits += 1
-					if data.get_terrain_peering_bit(bit) == GRASS:
-						score += 1
-			if score == peering_bits:
-				solid_grass_tiles.append(Vector3i(id, atlas.x, atlas.y))
+				if data.is_valid_terrain_peering_bit(bit) and data.get_terrain_peering_bit(bit) == GRASS:
+					score += 1
 			if score > best:
 				best = score
 				grass_source = id
@@ -85,39 +79,6 @@ func _find_solid_grass() -> void:
 func paint_ground(bounds: Rect2, fill_missing_only := false) -> void:
 	if tile_set == null:
 		return
-	if streamed and fill_missing_only and bounds.has_area():
-		_paint_streamed_patch(bounds)
-		return
-	_paint_terrain(self, bounds)
-
-func _paint_streamed_patch(bounds: Rect2) -> void:
-	# Terrain Connect can inspect the layer's existing cells. Solve only a
-	# bounded neighborhood, then commit its interior to the cached forest.
-	var solve_bounds := bounds.grow(2.0 * maxi(tile_set.tile_size.x, tile_set.tile_size.y))
-	var cobble_bounds := Rect2(cobble_center - Vector2.ONE * cobble_radius, Vector2.ONE * cobble_radius * 2.0)
-	var patch: TileMapLayer
-	if solid_grass_tiles.is_empty() or (cobble_radius > 0.0 and solve_bounds.intersects(cobble_bounds)) \
-	or not ForestLayout.routes_near_bounds(roads, solve_bounds, road_half_width).is_empty() \
-	or not ForestLayout.routes_near_bounds(trails, solve_bounds, trail_half_width).is_empty():
-		patch = TileMapLayer.new()
-		patch.tile_set = tile_set
-		_paint_terrain(patch, solve_bounds)
-	var coverage := grass_underlay if grass_source >= 0 else self
-	for cell in _cells_in_bounds(bounds):
-		if coverage.get_cell_source_id(cell) >= 0:
-			continue
-		if grass_source >= 0:
-			grass_underlay.set_cell(cell, grass_source, grass_atlas)
-		if patch != null:
-			set_cell(cell, patch.get_cell_source_id(cell), patch.get_cell_atlas_coords(cell),
-				patch.get_cell_alternative_tile(cell))
-		else:
-			var tile := solid_grass_tiles[posmod(hash(cell), solid_grass_tiles.size())]
-			set_cell(cell, tile.x, Vector2i(tile.y, tile.z))
-	if patch != null:
-		patch.free()
-
-func _paint_terrain(layer: TileMapLayer, bounds: Rect2) -> void:
 	var local_roads := roads
 	var local_trails := trails
 	if bounds.has_area():
@@ -126,32 +87,6 @@ func _paint_terrain(layer: TileMapLayer, bounds: Rect2) -> void:
 	var grass_cells: Array[Vector2i] = []
 	var trail_cells: Array[Vector2i] = []
 	var cobble_cells: Array[Vector2i] = []
-	for cell in _cells_in_bounds(bounds):
-		var pos := map_to_local(cell)
-		if layer == self and streamed and grass_source >= 0:
-			grass_underlay.set_cell(cell, grass_source, grass_atlas)
-		var cobbled := pos.distance_to(cobble_center) < cobble_radius
-		if cobble_over_roads and cobbled:
-			cobble_cells.append(cell)
-		elif ForestLayout.near_route(pos, local_roads, road_half_width) \
-		or ForestLayout.near_route(pos, local_trails, trail_half_width):
-			if paved_roads:
-				cobble_cells.append(cell)
-			else:
-				trail_cells.append(cell)
-		elif cobbled:
-			cobble_cells.append(cell)
-		else:
-			grass_cells.append(cell)
-	if not grass_cells.is_empty():
-		layer.set_cells_terrain_connect(grass_cells, TERRAIN_SET, GRASS, streamed)
-	if not trail_cells.is_empty():
-		layer.set_cells_terrain_connect(trail_cells, TERRAIN_SET, TRAIL, streamed)
-	if not cobble_cells.is_empty():
-		layer.set_cells_terrain_connect(cobble_cells, TERRAIN_SET, COBBLE, false)
-
-
-func _cells_in_bounds(bounds: Rect2) -> Array[Vector2i]:
 	var cell_bounds := Rect2i(-cell_extent, -cell_extent, cell_extent * 2 + 1, cell_extent * 2 + 1)
 	if bounds.has_area():
 		var first := local_to_map(bounds.position)
@@ -162,13 +97,36 @@ func _cells_in_bounds(bounds: Rect2) -> Array[Vector2i]:
 		]:
 			area = area.expand(local_to_map(corner))
 		cell_bounds = area.grow(2)
-	var cells: Array[Vector2i] = []
 	for y in range(cell_bounds.position.y, cell_bounds.end.y):
 		for x in range(cell_bounds.position.x, cell_bounds.end.x):
 			var cell := Vector2i(x, y)
-			if not bounds.has_area() or bounds.has_point(map_to_local(cell)):
-				cells.append(cell)
-	return cells
+			var pos := map_to_local(cell)
+			if bounds.has_area() and not bounds.has_point(pos):
+				continue
+			var coverage := grass_underlay if streamed and grass_source >= 0 else self
+			if fill_missing_only and coverage.get_cell_source_id(cell) >= 0:
+				continue
+			if streamed and grass_source >= 0:
+				grass_underlay.set_cell(cell, grass_source, grass_atlas)
+			var cobbled := pos.distance_to(cobble_center) < cobble_radius
+			if cobble_over_roads and cobbled:
+				cobble_cells.append(cell)
+			elif ForestLayout.near_route(pos, local_roads, road_half_width) \
+			or ForestLayout.near_route(pos, local_trails, trail_half_width):
+				if paved_roads:
+					cobble_cells.append(cell)
+				else:
+					trail_cells.append(cell)
+			elif cobbled:
+				cobble_cells.append(cell)
+			else:
+				grass_cells.append(cell)
+	if not grass_cells.is_empty():
+		set_cells_terrain_connect(grass_cells, TERRAIN_SET, GRASS, streamed)
+	if not trail_cells.is_empty():
+		set_cells_terrain_connect(trail_cells, TERRAIN_SET, TRAIL, streamed)
+	if not cobble_cells.is_empty():
+		set_cells_terrain_connect(cobble_cells, TERRAIN_SET, COBBLE, false)
 
 
 func erase_ground_cell(cell: Vector2i) -> void:
