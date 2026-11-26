@@ -19,6 +19,10 @@ const RARITY_COLORS := {
     "Quest": Color("#62563a"),
 }
 static var icons: Dictionary = {}
+var tooltip_heading := ""
+var tooltip_meta := ""
+var tooltip_body: Array[String] = []
+var tooltip_accent := Finish.GOLD
 
 func _init() -> void:
     custom_minimum_size = Vector2(64, 64)
@@ -37,12 +41,43 @@ func show_item(item_id: String, item: Dictionary, empty_label := "Empty backpack
     Finish.style_button(self, background, border, 5)
     icon = _item_icon(item_id) if not empty else null
     text = str(item.get("icon", "")) if icon == null else ""
+    tooltip_text = empty_label if empty else str(item["name"])
+    tooltip_heading = tooltip_text
+    tooltip_meta = ""
+    tooltip_body.clear()
+    tooltip_accent = Finish.GOLD if empty else border.lightened(0.25)
     if empty:
-        tooltip_text = empty_label
-    else:
-        tooltip_text = "%s · %s" % [item["name"], rarity]
-        if item.has("charges"):
-            tooltip_text += " (%d remaining)" % int(item["charges"])
+        return
+    tooltip_meta = "%s · %s" % [rarity, str(item.get("kind", "item")).capitalize()]
+    var description := str(item.get("description", ""))
+    if not description.is_empty():
+        tooltip_body.append(description)
+    for stat in ["attack", "defense", "charges", "weight", "value"]:
+        if item.has(stat):
+            tooltip_body.append("%s  %s" % [stat.capitalize(), str(item[stat])])
+
+func _make_custom_tooltip(_text: String) -> Control:
+    var panel := PanelContainer.new()
+    panel.custom_minimum_size.x = 295
+    panel.add_theme_stylebox_override("panel", Finish.surface(Finish.RECESS, Finish.BRASS, 12, true, true))
+    var stack := VBoxContainer.new()
+    stack.custom_minimum_size.x = 270
+    stack.add_theme_constant_override("separation", 5)
+    panel.add_child(stack)
+    _tooltip_line(stack, tooltip_heading, Finish.INK, 18)
+    if not tooltip_meta.is_empty():
+        _tooltip_line(stack, tooltip_meta, tooltip_accent, 14)
+    for line in tooltip_body:
+        _tooltip_line(stack, line, Finish.INK, 14)
+    return panel
+
+static func _tooltip_line(parent: VBoxContainer, content: String, color: Color, font_size: int) -> void:
+    var label := Label.new()
+    label.text = content
+    label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+    label.add_theme_color_override("font_color", color)
+    label.add_theme_font_size_override("font_size", font_size)
+    parent.add_child(label)
 
 static func _item_icon(item_id: String) -> Texture2D:
     if icons.has(item_id):

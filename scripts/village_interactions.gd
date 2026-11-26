@@ -50,7 +50,8 @@ const CONSUMABLE_FILTERS := {
 }
 var visible_backpack: Array[String] = []
 var backpack_filter := "All"
-var spell_list: Label
+const Spellbook := preload("res://scripts/spellbook.gd")
+var spellbook: Spellbook
 var inventory_page: HBoxContainer
 var spells_page: PanelContainer
 var menu_tabs: ButtonGroup
@@ -390,11 +391,8 @@ func _make_inventory_window() -> void:
     spells_page.add_theme_stylebox_override("panel",
         InventoryFinish.surface(InventoryFinish.RECESS, InventoryFinish.BRASS, 25, true))
     layout.add_child(spells_page)
-    spell_list = Label.new()
-    spell_list.vertical_alignment = VERTICAL_ALIGNMENT_TOP
-    spell_list.add_theme_font_size_override("font_size", 20)
-    spell_list.add_theme_color_override("font_color", InventoryFinish.INK)
-    spells_page.add_child(spell_list)
+    spellbook = Spellbook.new()
+    spells_page.add_child(spellbook)
     spells_page.hide()
     var footer := Label.new()
     footer.text = "Paused  ·  I or Esc to close"
@@ -419,12 +417,10 @@ func _show_character_page(spells: bool) -> void:
     inventory_page.visible = not spells
     spells_page.visible = spells
     if spells:
-        spell_list.text = "Known Spells\n\nFireball\nRMB or F · 2 mana in Pinewood, 30 mana in frontier areas\nLaunch a bolt of fire toward your target."
         var learned := bool(playthrough_progress.get_value("chapter", "spell_learned", false))
         if inventory_only:
             learned = get_parent().state.spell_learned
-        if learned:
-            spell_list.text += "\n\nSummon Skeleton\nQ · 45 mana in frontier areas\nRaise a skeleton to fight beside you."
+        spellbook.show_progress(learned)
 
 func _filter_backpack(index: int) -> void:
     backpack_filter = FILTERS[index]
