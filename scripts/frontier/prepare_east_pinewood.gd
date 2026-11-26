@@ -7,6 +7,7 @@ const CHECKPOINT_INTERVAL := 16
 
 @onready var status: Label = $Content/Status
 @onready var progress: ProgressBar = $Content/Progress
+@onready var scope: OptionButton = $Content/Scope
 @onready var action: Button = $Content/Action
 
 var chapter: Chapter
@@ -31,6 +32,35 @@ func _ready() -> void:
     chapter.outdoor_terrain = terrain
     chapter._restore_forest_patch_cache()
 
+    scope.add_item("Gate-to-caravan corridor")
+    scope.add_item("Full East Pinewood")
+    scope.item_selected.connect(_select_scope)
+    scope.disabled = false
+    action.pressed.connect(_toggle_preparation)
+    _select_scope(0)
+
+func _select_scope(index: int) -> void:
+    var target := _corridor_patches() if index == 0 else _full_forest_patches()
+    patches.clear()
+    next_patch = 0
+    for key in target:
+        if not chapter.painted_patches.has(key):
+            patches.append(key)
+    progress.max_value = target.size()
+    progress.value = target.size() - patches.size()
+    _update_status()
+
+func _full_forest_patches() -> Array[Vector2i]:
+    var first := Vector2i((Overworld.FOREST.position / Chapter.TERRAIN_PATCH_SIZE).floor()) - Chapter.FOREST_LOOKAHEAD
+    var last := Vector2i((Overworld.FOREST.end / Chapter.TERRAIN_PATCH_SIZE).floor()) + Chapter.FOREST_LOOKAHEAD
+    var target: Array[Vector2i] = []
+    # Resume in the same west-to-east order, including the terrain visible beyond the border.
+    for x in range(first.x, last.x + 1):
+        for y in range(first.y, last.y + 1):
+            target.append(Vector2i(x, y))
+    return target
+
+func _corridor_patches() -> Array:
     var corridor: Dictionary = {}
     var road: Array = Overworld.FOREST_ROADS[0]
     for segment in range(3):
@@ -42,14 +72,7 @@ func _ready() -> void:
             for x in range(-Chapter.FOREST_LOOKAHEAD.x, Chapter.FOREST_LOOKAHEAD.x + 1):
                 for y in range(-Chapter.FOREST_LOOKAHEAD.y, Chapter.FOREST_LOOKAHEAD.y + 1):
                     corridor[center + Vector2i(x, y)] = true
-    for key in corridor:
-        if not chapter.painted_patches.has(key):
-            patches.append(key)
-    progress.max_value = corridor.size()
-    progress.value = corridor.size() - patches.size()
-    action.pressed.connect(_toggle_preparation)
-    action.disabled = false
-    _update_status()
+    return corridor.keys()
 
 func _process(_delta: float) -> void:
     if not running:
@@ -63,6 +86,7 @@ func _process(_delta: float) -> void:
             running = false
             status.text = "Could not write the terrain cache. Click Retry Save."
             action.text = "Retry Save"
+            scope.disabled = true
             return
     running = next_patch < patches.size()
     _update_status()
@@ -74,17 +98,21 @@ func _toggle_preparation() -> void:
             running = false
             status.text = "Could not write the terrain cache. Click Retry Save."
             action.text = "Retry Save"
+            scope.disabled = true
             return
     running = not running and next_patch < patches.size()
     _update_status()
 
 func _update_status() -> void:
-    if next_patch == patches.size():
-        status.text = "Corridor ready. Stop this scene and run the game with F5."
-        action.disabled = true
+    scope.disabled = running
+    action.disabled = next_patch == patches.size()
+    var full := scope.selected == 1
+    if action.disabled:
+        var area := "Full East Pinewood" if full else "Corridor"
+        status.text = "%s ready. Stop this scene and run the game with F5." % area
         return
-    status.text = "%d / %d corridor patches ready" % [progress.value, progress.max_value]
-    action.text = "Pause and Save" if running else "Prepare Corridor"
+    status.text = "%d / %d patches ready" % [progress.value, progress.max_value]
+    action.text = "Pause and Save" if running else ("Prepare Full Forest" if full else "Prepare Corridor")
 
 func _exit_tree() -> void:
     if is_instance_valid(chapter):
