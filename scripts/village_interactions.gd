@@ -100,6 +100,7 @@ var prompt: Label
 var forest: Node2D
 var pinewood_requested := false
 var chapter: Node2D
+var stonehaven_terrain_cache: TileMapLayer
 var gate_resources := Vector2.ZERO
 const TravelMap := preload("res://scripts/frontier/travel_map.gd")
 const MapData := preload("res://scripts/frontier/travel_map_data.gd")
@@ -906,6 +907,10 @@ func _mount_chapter() -> void:
     chapter_inventory.copy_items_from(self)
     chapter_inventory.map_host = self
     chapter_inventory.playthrough_progress = playthrough_progress
+    if is_instance_valid(stonehaven_terrain_cache):
+        stonehaven_terrain_cache.reparent(chapter.get_node("Props"), false)
+        chapter.stonehaven_terrain = stonehaven_terrain_cache
+        stonehaven_terrain_cache = null
     get_tree().root.add_child(chapter)
     chapter.player.necromancer_appearance_enabled = player.necromancer_appearance_enabled
     chapter.player._choose_race(player.race)
@@ -917,20 +922,31 @@ func _restore_stonehaven_gate() -> void:
 func _restore_stonehaven_gate_now() -> void:
     if not is_instance_valid(chapter):
         return
-    chapter.state.write_progress(playthrough_progress)
-    playthrough_progress.set_value("map", "chapter_resources", Vector2(chapter.health, chapter.mana))
-    copy_items_from(chapter.inventory)
-    player.necromancer_appearance_enabled = chapter.player.necromancer_appearance_enabled
-    player._choose_race(chapter.player.race)
-    chapter.queue_free()
-    chapter = null
-    var world := get_parent() as Node2D
+    _unmount_chapter()
     _prepare_pinewood(load(PINEWOOD_SCRIPT) as GDScript)
     forest.health = int(gate_resources.x)
     forest.mana = gate_resources.y
     forest.active = true
     forest.show()
     player.global_position = forest.to_global(forest.STONEHAVEN_DISTRICT_SIGN + Vector2(-55, 14))
+    (player.get_node("Camera2D") as Camera2D).reset_smoothing()
+
+func _unmount_chapter() -> void:
+    chapter.state.write_progress(playthrough_progress)
+    playthrough_progress.set_value("map", "chapter_resources", Vector2(chapter.health, chapter.mana))
+    copy_items_from(chapter.inventory)
+    player.necromancer_appearance_enabled = chapter.player.necromancer_appearance_enabled
+    player._choose_race(chapter.player.race)
+    if is_instance_valid(chapter.stonehaven_terrain):
+        stonehaven_terrain_cache = chapter.stonehaven_terrain
+        stonehaven_terrain_cache.hide()
+        stonehaven_terrain_cache.collision_enabled = false
+        stonehaven_terrain_cache.navigation_enabled = false
+        stonehaven_terrain_cache.process_mode = Node.PROCESS_MODE_DISABLED
+        stonehaven_terrain_cache.reparent(get_parent(), false)
+    chapter.queue_free()
+    chapter = null
+    var world := get_parent() as Node2D
     world.process_mode = Node.PROCESS_MODE_INHERIT
     world.show()
     show()
@@ -1042,7 +1058,10 @@ func _fast_travel_to(id: String) -> void:
     var landing: Vector2 = entry[3]
     if target in ["village", "pinewood"]:
         if is_instance_valid(chapter):
-            _restore_stonehaven_gate_now()
+            if target == "village":
+                _unmount_chapter()
+            else:
+                _restore_stonehaven_gate_now()
         if target == "village":
             if is_instance_valid(forest) and forest.active:
                 _leave_pinewood_now()
