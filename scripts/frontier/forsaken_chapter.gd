@@ -11,6 +11,7 @@ var resume_position := Vector2.INF
 
 const Fireball := preload("res://scripts/pinewood_fireball.gd")
 const FIREBALL_COST := 30.0
+const InteractionArt := preload("res://scripts/interaction_art.gd")
 const WayfindingArt := preload("res://scripts/wayfinding_art.gd")
 const DialoguePanel := preload("res://scripts/dialogue_panel.gd")
 const DialoguePortrait := preload("res://scripts/dialogue_portrait.gd")
@@ -222,8 +223,8 @@ func _load_region(destination: String) -> void:
         for index in range(10):
             if ("herb_%d" % index) not in state.quest_items:
                 var herb_position := Overworld.CARAVAN + Vector2(-250 + (index % 5) * 105, 220 + int(index / 5) * 95)
-                var herb := _add_point("herb_%d" % index, "Gather woodland herb", herb_position, false)
-                herb.marker_color = Color("#a9c676")
+                var herb := _add_point("herb_%d" % index, "Gather woodland herb", herb_position)
+                _add_herb_art(herb)
                 herb.radius = 58.0
     if not state.mentorship_faction.is_empty() and state.mentorship_year < 5 and not state.mentorship_focus.is_empty():
         var assignment: Array = Mentorship.mission(state.mentorship_faction, state.mentorship_year)
@@ -232,6 +233,7 @@ func _load_region(destination: String) -> void:
 
     if region == "ruin_sanctum" and sentinel_defeated_this_visit and state.lord_stage == "ruin":
         _add_point("ancient_stone", "Recover the stone and longsword", Ruins.RELIC)
+    _update_quest_markers()
     _load_outdoor_terrain()
     floor_art.queue_redraw()
     if region == "east_pinewood" and "blackbriar_bandit" not in state.defeated:
@@ -363,32 +365,55 @@ func _update_forest_terrain() -> void:
         if Time.get_ticks_usec() >= deadline:
             break
 
-func _add_point(action: String, title: String, where: Vector2, show_caption := true) -> Point:
+func _add_point(action: String, title: String, where: Vector2) -> Point:
     var point := POINT_SCENE.instantiate() as Point
     point.action_id = action
     point.title = title
-    point.show_caption = show_caption and action not in ["veiled_agent", "quiet_finn", "emissary"]
     point.position = where
     if action == "ancient_ruin" and region == "east_pinewood":
-        point.show_disc = false
-        point.show_caption = false
         point.radius = 145.0
     elif action == "cellar_gate" and region == "stonehaven":
-        point.show_caption = false
-        point.show_disc = false
         point.radius = 95.0
     elif action in ["grimoire", "replay_grimoire"]:
-        point.show_disc = false
         point.radius = 120.0
         point.z_index = 12
     elif action == "crypt_approach" and region == "graveyard":
-        point.show_disc = false
         point.radius = 115.0
-    elif action == "veiled_agent":
-        point.show_disc = false
     props.add_child(point)
     points.append(point)
+    if action != "cellar_gate" and (Layouts.REGIONS.has(action) or action == "main_gate"):
+        var hidden := action in ["hideout", "oath_vault", "goblin_hollow"] or region in ["cellar_gate", "hideout", "oath_vault"]
+        var glow := InteractionArt.add_entrance_glow(point, Vector2.ZERO, hidden)
+        glow.z_as_relative = false
     return point
+
+func _add_herb_art(herb: Point) -> void:
+    var leaves := Sprite2D.new()
+    leaves.texture = WayfindingArt._texture("res://art/items/guild_herbs.png")
+    if leaves.texture != null:
+        leaves.scale = Vector2.ONE * (28.0 / leaves.texture.get_height())
+    leaves.position.y = -5
+    herb.add_child(leaves)
+
+func _update_quest_markers() -> void:
+    var guild_turn_in := state.lord_stage == "locked" and state.guild_assignments_complete()
+    var guild_offer := (state.guild_rank.is_empty() and (rite_completed or not linked_from_gate)) \
+        or (not state.guild_rank.is_empty() and state.guild_accepted.size() < State.GUILD_CONTRACTS.size())
+    InteractionArt.update_quest_marker(guild_master, guild_offer, guild_turn_in)
+    var mentor_ready := state.mentorship_year < 5 and state.mentorship_focus.is_empty()
+    var mentor_turn_in := ("mentor_task_%d" % state.mentorship_year) in state.quest_items
+    InteractionArt.update_quest_marker(city_lord, state.lord_stage in ["summoned", "share"]
+        or (state.mentorship_faction == "lord" and mentor_ready),
+        state.lord_stage == "report" or (state.mentorship_faction == "lord" and mentor_turn_in))
+    InteractionArt.update_quest_marker(church_priest, state.lord_stage == "share"
+        or (state.mentorship_faction == "church" and mentor_ready),
+        state.mentorship_faction == "church" and mentor_turn_in)
+    InteractionArt.update_quest_marker(watch_captain, false, state.guild_provisions and not state.guild_watch_supplied)
+    InteractionArt.update_quest_marker(emissary_actor, state.emissary_pending)
+    var ledger_ready := state.initiation == "active" and State.LEDGER in state.quest_items
+    InteractionArt.update_quest_marker(veiled_agent, state.initiation == "available" or state.lord_stage == "share"
+        or (state.mentorship_faction == "black_hand" and mentor_ready),
+        ledger_ready or (state.mentorship_faction == "black_hand" and mentor_turn_in))
 
 func _dress_region() -> void:
     match region:
@@ -436,8 +461,7 @@ func _dress_region() -> void:
             watch_captain = _add_npc("guard_sword", captain_position, 1)
             if is_instance_valid(watch_captain):
                 watch_captain.autonomous_patrol = false
-            var captain_point := _add_point("deliver_provisions", "Watch Captain", captain_position, false)
-            captain_point.show_disc = false
+            _add_point("deliver_provisions", "Watch Captain", captain_position)
             WorldCollision.box(props, "WatchTable", Floor.WATCH_TABLE)
             for bounds in Floor.WATCH_CRATES:
                 WorldCollision.box(props, "WatchCrates", bounds)
@@ -480,6 +504,7 @@ func _place_grimoire() -> void:
 
 func _dress_stonehaven() -> void:
     _add_art(LANDMARK_ROOT + "drainage_hatch.png", Layouts.STONEHAVEN_DRAIN + Vector2(0, 12), 105.0, -2)
+    InteractionArt.add_entrance_glow(props, Layouts.STONEHAVEN_DRAIN, true)
     quiet_finn = _add_npc("elder", Vector2(-646, 390), 5)
     if is_instance_valid(quiet_finn):
         quiet_finn.autonomous_patrol = false
@@ -578,8 +603,7 @@ func _dress_ruins() -> void:
         var chest := Prop.place(props, "inns/chest", where, Vector2(52, 26), player)
         if opened and chest != null:
             chest.modulate = Color("#8d8880")
-        var point := _add_point("ruin_chest", "Search the old chest", where + Vector2(0, 12), false)
-        point.show_disc = false
+        _add_point("ruin_chest", "Search the old chest", where + Vector2(0, 12))
     match region:
         "ancient_ruin":
             Prop.place(props, "crypts/sarcophagus_cracked", Vector2(-470, 310), Vector2(100, 42), player)
@@ -633,8 +657,7 @@ func _add_local_npc(key: String, where: Vector2, wardrobe := 0, title := "", lin
     var dialogue: Array = LOCAL_DIALOGUE[key] if title.is_empty() else [title, line]
     local_npcs[action] = npc
     local_dialogue[action] = dialogue
-    var point := _add_point(action, dialogue[0], where, false)
-    point.show_disc = false
+    var point := _add_point(action, dialogue[0], where)
     point.radius = 76.0
 
 func _add_landmark(key: String, where: Vector2, width: float) -> void:
@@ -731,10 +754,10 @@ func _bring_emissary() -> void:
     var where: Vector2 = player.position.move_toward(Vector2.ZERO, 36) + Vector2(50, 0)
     emissary = _add_point("emissary", "Black Hand Emissary", _bounded(where))
     emissary.radius = 96
-    emissary.show_disc = false
     emissary_actor = _add_npc("black_hand_duelist", emissary.position)
     if is_instance_valid(emissary_actor):
         emissary_actor.autonomous_patrol = false
+        InteractionArt.update_quest_marker(emissary_actor, true)
 
 func _remove_emissary() -> void:
     if is_instance_valid(emissary):
@@ -756,7 +779,7 @@ func _process(_delta: float) -> void:
         enemy.target = null if blocked or health <= 0 or not _can_reach_enemy() else player
     inventory.update_resource_bars(health, _effective_max_health(), mana, State.MAX_MANA)
     var point := _nearest_point()
-    var prompt := "Move to a marker and press E." if point == null else "E  %s" % point.title
+    var prompt := "Approach a doorway or person to interact." if point == null else "E  %s" % point.title
     hud.text = "%s  |  HP %d/%d  |  Mana %d/%d  |  Level %d\n%s\nLMB / Space attack  ·  RMB / F Fireball  ·  L grimoire  ·  Q summon  ·  J journal  ·  I inventory\n%s" % [
         Layouts.REGIONS[region]["title"], health, _effective_max_health(), floori(mana), State.MAX_MANA, state.level(), prompt, notice
     ]
@@ -1550,6 +1573,7 @@ func _recover_at_graveyard() -> void:
     notice = "You recover at the graveyard entrance. Your quest progress is intact."
 
 func _save() -> void:
+    _update_quest_markers()
     if playthrough_progress != null:
         state.write_progress(playthrough_progress)
     elif can_save and state.save_progress(save_path) != OK:

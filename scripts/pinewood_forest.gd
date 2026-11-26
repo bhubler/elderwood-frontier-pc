@@ -1,5 +1,7 @@
 extends Node2D
 
+const InteractionArt := preload("res://scripts/interaction_art.gd")
+
 signal player_fell
 signal wolf_defeated(variant: int)
 
@@ -62,6 +64,9 @@ var swing_overlay: Node2D
 var cast_effect: AnimatedSprite2D
 
 func _ready() -> void:
+	InteractionArt.add_entrance_glow(self, SOUTH_GATE)
+	InteractionArt.add_entrance_glow(self, Vector2(0, -640))
+	InteractionArt.add_entrance_glow(self, Vector2(0, -826))
 	WorldCollision.polygon(self, "ForestEdge", PackedVector2Array([
 		Vector2(-900, -920), Vector2(900, -920), Vector2(900, 870), Vector2(-900, 870)
 	]), CollisionPolygon2D.BUILD_SEGMENTS)

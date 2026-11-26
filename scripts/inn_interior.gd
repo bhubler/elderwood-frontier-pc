@@ -1,5 +1,7 @@
 extends Node2D
 
+const InteractionArt := preload("res://scripts/interaction_art.gd")
+
 const ElderwoodType := preload("res://scripts/elderwood_type.gd")
 ## Separate off-map inn room; no modifications to the exterior village art.
 const Terrain := preload("res://scripts/wilderness_terrain.gd")
@@ -12,6 +14,7 @@ var player: CharacterBody2D
 const WorldCollision := preload("res://scripts/world_collision.gd")
 
 func _ready() -> void:
+    InteractionArt.add_entrance_glow(self, Vector2(0, 199))
     if ResourceLoader.exists(Terrain.TILESET_PATH):
         var tiles := Terrain.new()
         tiles.name = "InnStoneFloor"

@@ -1,4 +1,6 @@
 extends CharacterBody2D
+
+const InteractionArt := preload("res://scripts/interaction_art.gd")
 const ART := {
     &"Mara": preload("res://art/characters/original/mara.png"),
     &"Elden": preload("res://art/characters/original/elden.png"),
@@ -87,22 +89,10 @@ func _face_horizontally(horizontal: float) -> void:
 func _draw() -> void:
     draw_ellipse_shadow()
     if quest_available or quest_ready:
-        var center := Vector2(0, 15.0 - artwork_height - 21.0)
-        var diamond := PackedVector2Array([
-            center + Vector2(0, -13), center + Vector2(10, 0),
-            center + Vector2(0, 13), center + Vector2(-10, 0)
-        ])
-        draw_colored_polygon(diamond, Color("#38271a"))
-        diamond.append(diamond[0])
-        draw_polyline(diamond, Color("#f2bb59"), 2.0, true)
-        if quest_ready:
-            draw_polyline(PackedVector2Array([
-                center + Vector2(-4, -5), center + Vector2(1, -7), center + Vector2(5, -4),
-                center + Vector2(4, -1), center + Vector2(0, 1)
-            ]), Color("#ffe793"), 2.5, true)
-        else:
-            draw_line(center + Vector2(0, -6), center + Vector2(0, 1), Color("#ffe793"), 3.0, true)
-        draw_circle(center + Vector2(0, 5), 1.5, Color("#ffe793"))
+        var icon := InteractionArt.quest_icon(quest_ready)
+        if icon != null:
+            var center := Vector2(0, 15.0 - artwork_height - 19.0)
+            draw_texture_rect(icon, Rect2(center - Vector2(16, 16), Vector2(32, 32)), false)
     if ART.has(name):
         return
     draw_circle(Vector2(0, -19), 11.0, Color("#c99a71"))

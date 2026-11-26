@@ -15,6 +15,8 @@
 
 ## Show public routes in the game
 
+- Use a soft gold glow at public thresholds and a fainter red glow for hidden entrances. Use gold exclamation and question marks above quest givers for offers and turn-ins. Keep proximity prompts and clickable art as the interaction targets.
+
 - Give public destinations a visible sign, door, gate, or other landmark in Elderwood's art style. Make the landmark clickable from a comfortable interaction distance, with a readable destination and a keyboard interaction. Keep intentionally hidden areas discoverable through their own clues.
 
 ## Keep outdoor regions consistent

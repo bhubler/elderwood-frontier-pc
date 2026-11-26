@@ -1,5 +1,7 @@
 extends Node2D
 
+const InteractionArt := preload("res://scripts/interaction_art.gd")
+
 const ElderwoodType := preload("res://scripts/elderwood_type.gd")
 ## Elderwood Frontier: a modest wilderness settlement with room to grow.
 ## The inn is an authored sprite; the other buildings are temporary placeholders.
@@ -27,6 +29,8 @@ var buildings: Array[Dictionary] = [
 
 
 func _ready() -> void:
+	InteractionArt.add_entrance_glow(self, PINEWOOD_ENTRANCE)
+	InteractionArt.add_entrance_glow(self, Vector2(-390, -190))
 	well_art = _load_well_art()
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 17361
