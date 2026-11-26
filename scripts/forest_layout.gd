@@ -19,6 +19,15 @@ const TRAILS := [
 	],
 	[Vector2(0, -610), Vector2(4, -680)]
 ]
+const PINEWOOD_ROAD := [
+	Vector2(0, 855), Vector2(0, 664), Vector2(-184, 453), Vector2(-153, 231),
+	Vector2(100, 55), Vector2(201, -146), Vector2(115, -380),
+	Vector2(0, -566), Vector2(0, -820)
+]
+const PINEWOOD_CLEARING := [
+	Vector2(-153, 231), Vector2(-315, 181), Vector2(-412, 61)
+]
+
 const ROAD_HALF_WIDTH := 36.0
 const TRAIL_HALF_WIDTH := 28.0
 const TRAIL_CLEARANCE := 52.0

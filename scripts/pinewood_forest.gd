@@ -27,14 +27,8 @@ const CAST_WINDUP_TIME := 0.18
 const AIM_RANGE := 460.0
 const AIM_CONE := 0.80
 const TRACKING_SPEED := 4.5
-const ROAD := [
-	Vector2(0, 855), Vector2(0, 664), Vector2(-184, 453), Vector2(-153, 231),
-	Vector2(100, 55), Vector2(201, -146), Vector2(115, -380),
-	Vector2(0, -566), Vector2(0, -820)
-]
-const CLEARING := [
-	Vector2(-153, 231), Vector2(-315, 181), Vector2(-412, 61)
-]
+const ROAD := Layout.PINEWOOD_ROAD
+const CLEARING := Layout.PINEWOOD_CLEARING
 
 var player: CharacterBody2D
 var wolves: Array[Wolf] = []

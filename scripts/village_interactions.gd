@@ -91,6 +91,11 @@ var forest: Node2D
 var pinewood_requested := false
 var chapter: Node2D
 var gate_resources := Vector2.ZERO
+const TravelMap := preload("res://scripts/frontier/travel_map.gd")
+const MapData := preload("res://scripts/frontier/travel_map_data.gd")
+var travel_map: TravelMap
+var map_host: CanvasLayer
+var map_delay := 0.0
 var playthrough_progress := ConfigFile.new()
 var defeated_wolves: Array[int] = []
 var road_quest := RoadQuest.OFFERED
@@ -128,6 +133,7 @@ func _ready() -> void:
         return
     _make_interface()
     _make_inventory_window()
+    _make_travel_map()
     if player.has_method("set_equipment"):
         player.set_equipment(equipment, item_data)
     if inventory_only:
@@ -686,7 +692,13 @@ func _make_interior() -> void:
     get_parent().add_child(interior)
 
 func _process(_delta: float) -> void:
-    if player == null or inventory_only:
+    if player == null:
+        return
+    map_delay -= _delta
+    if map_delay <= 0.0 and not player.choosing_race:
+        map_delay = 0.22
+        _reveal_map_position()
+    if inventory_only:
         return
     _update_pinewood_loading()
     if not opening_greeting_shown and not player.choosing_race and road_quest == RoadQuest.OFFERED:
@@ -805,7 +817,10 @@ func _mount_chapter() -> void:
     chapter.playthrough_progress = playthrough_progress
     chapter.rite_completed = road_quest == RoadQuest.COMPLETE
     chapter.return_to_gate.connect(_restore_stonehaven_gate, CONNECT_DEFERRED)
-    chapter.get_node("Inventory").copy_items_from(self)
+    var chapter_inventory := chapter.get_node("Inventory")
+    chapter_inventory.copy_items_from(self)
+    chapter_inventory.map_host = self
+    chapter_inventory.playthrough_progress = playthrough_progress
     get_tree().root.add_child(chapter)
     chapter.player.necromancer_appearance_enabled = player.necromancer_appearance_enabled
     chapter.player._choose_race(player.race)
@@ -818,6 +833,7 @@ func _restore_stonehaven_gate_now() -> void:
     if not is_instance_valid(chapter):
         return
     chapter.state.write_progress(playthrough_progress)
+    playthrough_progress.set_value("map", "chapter_resources", Vector2(chapter.health, chapter.mana))
     copy_items_from(chapter.inventory)
     player.necromancer_appearance_enabled = chapter.player.necromancer_appearance_enabled
     player._choose_race(chapter.player.race)
@@ -862,6 +878,114 @@ func _pinewood_combat_input(melee: bool, aim: Vector2, cursor := Vector2.INF) ->
     elif not forest.cast_fireball(aim, cursor) and not forest.in_stonehaven() and forest.mana < forest.FIREBALL_COST:
         _show_message("Not enough mana. Give it a moment to recover.", 3.0)
 
+func _make_travel_map() -> void:
+    travel_map = TravelMap.new()
+    travel_map.travel_requested.connect(_request_fast_travel)
+    add_child(travel_map)
+    var button := Button.new()
+    button.text = "Map [M]"
+    button.focus_mode = Control.FOCUS_NONE
+    button.pressed.connect(_open_travel_map)
+    InventoryFinish.style_dialog_action(button)
+    add_child(button)
+    button.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_RIGHT)
+    button.offset_left = -114
+    button.offset_top = -56
+    button.offset_right = -18
+    button.offset_bottom = -18
+
+func _map_region() -> String:
+    if inventory_only:
+        return get_parent().region
+    if inside_inn:
+        return "inn"
+    if is_instance_valid(forest) and forest.active:
+        return "pinewood"
+    return "village"
+
+func _map_position() -> Vector2:
+    if _map_region() == "pinewood":
+        return forest.to_local(player.global_position)
+    return player.position
+
+func _reveal_map_position() -> void:
+    var region := _map_region()
+    if MapData.REGIONS.has(region):
+        MapData.reveal(playthrough_progress, region, _map_position())
+        playthrough_progress.set_value("map", "last_region", region)
+
+func _open_travel_map() -> bool:
+    if player.choosing_race or quest_offer.visible or inventory_open or get_tree().paused:
+        return false
+    if inventory_only:
+        var active_chapter := get_parent()
+        if active_chapter.guild_dialog.visible or active_chapter.mentor_dialog.visible \
+                or active_chapter.grimoire_dialog.visible or active_chapter.journal_panel.visible:
+            return false
+    _reveal_map_position()
+    travel_map.open(playthrough_progress, _map_region(), _map_position(), _fast_travel_block())
+    return true
+
+func _fast_travel_block() -> String:
+    if inventory_only and not is_instance_valid(map_host):
+        return "Fast travel is available from the main game."
+    if not MapData.REGIONS.has(_map_region()):
+        return "Step outside to fast travel."
+    if inventory_only:
+        var enemy: Node2D = get_parent().enemy
+        if is_instance_valid(enemy) and enemy.position.distance_to(player.position) < 270.0:
+            return "Move away from nearby enemies to fast travel."
+    elif _map_region() == "pinewood":
+        for wolf in forest.wolves:
+            if wolf.position.distance_to(_map_position()) < 270.0:
+                return "Move away from nearby enemies to fast travel."
+    return ""
+
+func _request_fast_travel(id: String) -> void:
+    if not travel_map.visible or not MapData.LANDMARKS.has(id) \
+            or not MapData.discovered(playthrough_progress).has(id) or not _fast_travel_block().is_empty():
+        return
+    var host := map_host if inventory_only else self
+    AreaTransition.run(get_tree(), _finish_fast_travel.bind(host, id))
+
+func _finish_fast_travel(host: CanvasLayer, id: String) -> void:
+    travel_map.close()
+    host._fast_travel_to(id)
+
+func _fast_travel_to(id: String) -> void:
+    var entry: Array = MapData.LANDMARKS[id]
+    var target: String = entry[0]
+    var landing: Vector2 = entry[3]
+    if target in ["village", "pinewood"]:
+        if is_instance_valid(chapter):
+            _restore_stonehaven_gate_now()
+        if target == "village":
+            if is_instance_valid(forest) and forest.active:
+                _leave_pinewood_now()
+            player.position = landing
+        else:
+            if not is_instance_valid(forest) or not forest.active:
+                _enter_pinewood_now()
+            player.global_position = forest.to_global(landing)
+        player.velocity = Vector2.ZERO
+        player.get_node("Camera2D").reset_smoothing()
+        _reveal_map_position()
+    elif is_instance_valid(chapter):
+        chapter.resume_position = landing
+        chapter._load_region(target)
+        chapter.player.velocity = Vector2.ZERO
+        chapter.inventory._reveal_map_position()
+    else:
+        var scene := load(FORSAKEN_CHAPTER) as PackedScene
+        chapter = scene.instantiate()
+        chapter.resume_region = target
+        chapter.resume_position = landing
+        _mount_chapter()
+        var resources: Vector2 = playthrough_progress.get_value("map", "chapter_resources", Vector2(chapter.health, chapter.mana))
+        chapter.health = int(resources.x)
+        chapter.mana = resources.y
+        chapter.inventory._reveal_map_position()
+
 func _close_inventory() -> void:
     if not inventory_open:
         return
@@ -877,7 +1001,9 @@ func _unhandled_key_input(event: InputEvent) -> void:
             _close_quest_offer()
         get_viewport().set_input_as_handled()
         return
-    if event.keycode == KEY_I:
+    if event.keycode == KEY_M and _open_travel_map():
+        get_viewport().set_input_as_handled()
+    elif event.keycode == KEY_I:
         if player.choosing_race:
             return
         inventory_open = true
