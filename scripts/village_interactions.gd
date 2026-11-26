@@ -34,6 +34,7 @@ var health_text: Label
 var mana_text: Label
 var travel_button: Button
 var offered_route: Dictionary = {}
+const InventorySlot := preload("res://scripts/inventory_slot.gd")
 const InventoryPortrait := preload("res://scripts/inventory_portrait.gd")
 var inventory_portrait: InventoryPortrait
 var inventory_stats: Label
@@ -309,7 +310,9 @@ func _make_inventory_window() -> void:
     inventory_stats.add_theme_color_override("font_color", Color("#dfc08a"))
     left.add_child(inventory_stats)
     equipment_grid = GridContainer.new()
-    equipment_grid.columns = 1
+    equipment_grid.columns = 3
+    equipment_grid.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+    equipment_grid.add_theme_constant_override("h_separation", 18)
     equipment_grid.add_theme_constant_override("v_separation", 5)
     left.add_child(equipment_grid)
     var right := VBoxContainer.new()
@@ -362,41 +365,29 @@ func _refresh_inventory() -> void:
     var kinds := ["weapon", "armor", "accessory"]
     if equipment_grid.get_child_count() == 0:
         for kind in kinds:
-            var slot := Button.new()
-            slot.custom_minimum_size = Vector2(320, 38)
-            slot.add_theme_stylebox_override("normal", _slot_style())
-            slot.add_theme_font_size_override("font_size", 16)
-            slot.add_theme_color_override("font_color", Color("#e7d2a7"))
-            slot.clip_text = true
+            var slot := InventorySlot.new()
             slot.pressed.connect(_inspect_equipped.bind(kind))
             equipment_grid.add_child(slot)
+        for kind in kinds:
+            var title := Label.new()
+            title.text = kind.capitalize()
+            title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+            title.add_theme_font_size_override("font_size", 13)
+            equipment_grid.add_child(title)
     for i in range(kinds.size()):
         var kind: String = kinds[i]
         var item_id: String = equipment[kind]
-        var slot := equipment_grid.get_child(i) as Button
-        var slot_label := "EMPTY SLOT" if item_id == "" else str(item_data[item_id]["icon"]) + "  " + str(item_data[item_id]["name"])
-        slot.text = kind.capitalize() + "  ·  " + slot_label
-        slot.tooltip_text = slot_label
+        var slot := equipment_grid.get_child(i) as InventorySlot
+        slot.show_item(item_id, item_data.get(item_id, {}), "Empty %s slot" % kind)
     if inventory_grid.get_child_count() == 0:
         for i in range(BACKPACK_CAPACITY):
-            var button := Button.new()
-            button.custom_minimum_size = Vector2(63, 61)
-            button.add_theme_stylebox_override("normal", _slot_style())
-            button.add_theme_font_size_override("font_size", 22)
+            var button := InventorySlot.new()
             button.pressed.connect(_select_backpack_slot.bind(i))
             inventory_grid.add_child(button)
     for i in range(BACKPACK_CAPACITY):
-        var button := inventory_grid.get_child(i) as Button
+        var button := inventory_grid.get_child(i) as InventorySlot
         var item_id := backpack[i] if i < backpack.size() else ""
-        button.text = str(item_data[item_id]["icon"]) if not item_id.is_empty() else ""
-        button.disabled = item_id.is_empty()
-        if not item_id.is_empty():
-            var rarity: String = item_data[item_id].get("rarity", "Common")
-            var ink := Color("#a6c6ae") if rarity == "Uncommon" else Color("#e7d2a7")
-            if rarity in ["Quest", "Rare"]:
-                ink = Color("#d0aacd")
-            button.add_theme_color_override("font_color", ink)
-        button.tooltip_text = (str(item_data[item_id]["name"]) + " (%d remaining)" % int(item_data[item_id].get("charges", 1))) if not item_id.is_empty() and item_id in ["rite_health_potions", "rite_mana_potions"] else (str(item_data[item_id]["name"]) if not item_id.is_empty() else "")
+        button.show_item(item_id, item_data.get(item_id, {}))
     _select_item(inspected_item)
 
 func copy_items_from(source: CanvasLayer) -> void:
