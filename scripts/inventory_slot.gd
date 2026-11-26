@@ -58,10 +58,8 @@ func show_item(item_id: String, item: Dictionary, empty_label := "Empty backpack
 
 func _make_custom_tooltip(_text: String) -> Control:
     var panel := PanelContainer.new()
-    panel.custom_minimum_size.x = 295
     panel.add_theme_stylebox_override("panel", Finish.surface(Finish.RECESS, Finish.BRASS, 12, true, true))
     var stack := VBoxContainer.new()
-    stack.custom_minimum_size.x = 270
     stack.add_theme_constant_override("separation", 5)
     panel.add_child(stack)
     _tooltip_line(stack, tooltip_heading, Finish.INK, 18)
@@ -73,8 +71,21 @@ func _make_custom_tooltip(_text: String) -> Control:
 
 static func _tooltip_line(parent: VBoxContainer, content: String, color: Color, font_size: int) -> void:
     var label := Label.new()
-    label.text = content
-    label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+    # Give the tooltip its final line breaks before Godot measures its popup window.
+    var font := ThemeDB.fallback_font
+    var lines: Array[String] = []
+    for paragraph in content.split("\n"):
+        var current := ""
+        for word in paragraph.split(" ", false):
+            var candidate := word if current.is_empty() else current + " " + word
+            if not current.is_empty() and font.get_string_size(candidate, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size).x > 285:
+                lines.append(current)
+                current = word
+            else:
+                current = candidate
+        lines.append(current)
+    label.text = "\n".join(lines)
+    label.add_theme_font_override("font", font)
     label.add_theme_color_override("font_color", color)
     label.add_theme_font_size_override("font_size", font_size)
     parent.add_child(label)

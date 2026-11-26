@@ -10,6 +10,7 @@ var resume_position := Vector2.INF
 const Fireball := preload("res://scripts/pinewood_fireball.gd")
 const FIREBALL_COST := 30.0
 const WayfindingArt := preload("res://scripts/wayfinding_art.gd")
+const InventoryFinish := preload("res://scripts/inventory_finish.gd")
 const PanelHeader := preload("res://scripts/panel_header.gd")
 const AreaTransition := preload("res://scripts/area_transition.gd")
 const Prop := preload("res://scripts/interior_prop.gd")
@@ -127,11 +128,13 @@ func _ready() -> void:
             state.quest_items.append(State.GRIMOIRE)
             _save()
     var journal_content := VBoxContainer.new()
+    InventoryFinish.style_dialog(journal_panel)
     journal_panel.remove_child(journal_text)
     journal_panel.add_child(journal_content)
     var journal_title := Label.new()
     journal_title.text = "Quest Journal"
     PanelHeader.add_title(journal_content, journal_title, journal_panel.hide)
+    InventoryFinish.style_dialog_action(journal_content.get_child(0).get_node("CloseButton"))
     journal_content.add_child(journal_text)
     _build_grimoire_dialog()
     _build_mentor_dialog()
@@ -1073,6 +1076,7 @@ func _build_guild_dialog() -> void:
     guild_dialog.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
     var panel := PanelContainer.new()
     panel.custom_minimum_size.x = 590
+    InventoryFinish.style_dialog(panel)
     guild_dialog.add_child(panel)
     var content := VBoxContainer.new()
     content.add_theme_constant_override("separation", 14)
@@ -1080,10 +1084,12 @@ func _build_guild_dialog() -> void:
     var title := Label.new()
     title.text = "Adventurer's Guild"
     PanelHeader.add_title(content, title, guild_dialog.hide)
+    InventoryFinish.style_dialog_action(content.get_child(0).get_node("CloseButton"))
     guild_details = Label.new()
     guild_details.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
     content.add_child(guild_details)
     guild_confirm = Button.new()
+    InventoryFinish.style_dialog_action(guild_confirm)
     guild_confirm.pressed.connect(_confirm_guild_dialog)
     content.add_child(guild_confirm)
     guild_dialog.hide()
@@ -1139,12 +1145,14 @@ func _build_mentor_dialog() -> void:
     mentor_dialog.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
     var panel := PanelContainer.new()
     panel.custom_minimum_size.x = 570
+    InventoryFinish.style_dialog(panel)
     mentor_dialog.add_child(panel)
     var content := VBoxContainer.new()
     content.add_theme_constant_override("separation", 12)
     panel.add_child(content)
     mentor_heading = Label.new()
     PanelHeader.add_title(content, mentor_heading, mentor_dialog.hide)
+    InventoryFinish.style_dialog_action(content.get_child(0).get_node("CloseButton"))
     mentor_details = Label.new()
     mentor_details.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
     content.add_child(mentor_details)
@@ -1187,6 +1195,7 @@ func _offer_mentor(faction: String) -> void:
         child.queue_free()
     for focus in Mentorship.focuses(faction):
         var button := Button.new()
+        InventoryFinish.style_dialog_action(button)
         button.text = str(focus)
         button.pressed.connect(_choose_mentor_focus.bind(str(focus)))
         mentor_choices.add_child(button)
@@ -1214,12 +1223,7 @@ func _build_grimoire_dialog() -> void:
     grimoire_dialog.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
     var panel := PanelContainer.new()
     panel.custom_minimum_size.x = 600
-    var style := StyleBoxFlat.new()
-    style.bg_color = Color("#1c1721")
-    style.border_color = Color("#b09364")
-    style.set_border_width_all(2)
-    style.set_content_margin_all(18)
-    panel.add_theme_stylebox_override("panel", style)
+    InventoryFinish.style_dialog(panel)
     grimoire_dialog.add_child(panel)
     var content := VBoxContainer.new()
     content.add_theme_constant_override("separation", 14)
@@ -1227,6 +1231,7 @@ func _build_grimoire_dialog() -> void:
     grimoire_heading = Label.new()
     grimoire_heading.add_theme_font_size_override("font_size", 25)
     PanelHeader.add_title(content, grimoire_heading, grimoire_dialog.hide)
+    InventoryFinish.style_dialog_action(content.get_child(0).get_node("CloseButton"))
     grimoire_details = Label.new()
     grimoire_details.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
     content.add_child(grimoire_details)
@@ -1234,6 +1239,7 @@ func _build_grimoire_dialog() -> void:
     content.add_child(actions)
     for choice in [["Destroy", "destroy"], ["Take", "take"], ["Study", "study"], ["Decide later", "later"]]:
         var button := Button.new()
+        InventoryFinish.style_dialog_action(button)
         button.text = choice[0]
         button.custom_minimum_size.y = 35
         button.pressed.connect(_choose_grimoire.bind(choice[1]))

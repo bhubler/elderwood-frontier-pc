@@ -28,6 +28,7 @@ var quest_title: Label
 var quest_details: Label
 var decline_quest: Button
 var turning_in_quest := false
+var intro_objective_open := false
 var health_bar: ProgressBar
 var mana_bar: ProgressBar
 var health_text: Label
@@ -154,7 +155,7 @@ func _make_interface() -> void:
     style.set_border_width_all(2)
     style.set_corner_radius_all(6)
     style.set_content_margin_all(12)
-    ui.add_theme_stylebox_override("panel", style)
+    InventoryFinish.style_dialog(ui)
     message = Label.new()
     message.custom_minimum_size = Vector2(382, 0)
     message.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -169,7 +170,7 @@ func _make_interface() -> void:
     travel_button.pressed.connect(_activate_offered_route)
     holder.add_child(travel_button)
     travel_button.hide()
-    _make_quest_offer(holder, style)
+    _make_quest_offer(holder)
     notice_timer = Timer.new()
     notice_timer.one_shot = true
     notice_timer.timeout.connect(_on_notice_timeout)
@@ -216,13 +217,13 @@ func _make_bar(parent: Control, color: Color, maximum: float) -> ProgressBar:
     parent.add_child(bar)
     return bar
 
-func _make_quest_offer(holder: Control, style: StyleBoxFlat) -> void:
+func _make_quest_offer(holder: Control) -> void:
     quest_offer = CenterContainer.new()
     holder.add_child(quest_offer)
     quest_offer.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
     var panel := PanelContainer.new()
-    panel.custom_minimum_size.x = 560
-    panel.add_theme_stylebox_override("panel", style)
+    panel.custom_minimum_size.x = 610
+    InventoryFinish.style_dialog(panel)
     quest_offer.add_child(panel)
     var content := VBoxContainer.new()
     content.add_theme_constant_override("separation", 14)
@@ -231,23 +232,52 @@ func _make_quest_offer(holder: Control, style: StyleBoxFlat) -> void:
     quest_title.add_theme_font_size_override("font_size", 26)
     quest_title.add_theme_color_override("font_color", Color("#ffe5ad"))
     PanelHeader.add_title(content, quest_title, _close_quest_offer)
+    InventoryFinish.style_dialog_action(content.get_child(0).get_node("CloseButton"))
+    var body := HBoxContainer.new()
+    body.add_theme_constant_override("separation", 18)
+    content.add_child(body)
+    var elder_portrait := TextureRect.new()
+    elder_portrait.texture = VillageNPC.ART[&"Elden"]
+    elder_portrait.custom_minimum_size = Vector2(112, 128)
+    elder_portrait.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+    elder_portrait.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+    elder_portrait.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+    elder_portrait.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+    body.add_child(elder_portrait)
     quest_details = Label.new()
     quest_details.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
     quest_details.add_theme_font_size_override("font_size", 18)
-    content.add_child(quest_details)
+    quest_details.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+    quest_details.add_theme_color_override("font_color", InventoryFinish.INK)
+    body.add_child(quest_details)
     var actions := HBoxContainer.new()
     actions.alignment = BoxContainer.ALIGNMENT_END
     content.add_child(actions)
     decline_quest = Button.new()
     decline_quest.pressed.connect(_close_quest_offer)
     actions.add_child(decline_quest)
+    InventoryFinish.style_dialog_action(decline_quest)
     accept_quest = Button.new()
     accept_quest.custom_minimum_size.y = 36
     accept_quest.pressed.connect(_confirm_road_quest)
     actions.add_child(accept_quest)
+    InventoryFinish.style_dialog_action(accept_quest)
     quest_offer.hide()
 
+func _show_intro_objective() -> void:
+    intro_objective_open = true
+    quest_title.text = "Speak to the Village Elder"
+    quest_details.text = "Find Elder Elden in Elderwood Village. Look for the gold quest marker above his head, then press E when you’re near him."
+    accept_quest.text = "Continue"
+    decline_quest.hide()
+    notice_timer.stop()
+    ui.hide()
+    quest_offer.show()
+    accept_quest.grab_focus()
+
 func _show_quest_offer(turn_in := false) -> void:
+    intro_objective_open = false
+    decline_quest.show()
     turning_in_quest = turn_in
     quest_title.text = "Rite of Manhood — Complete" if turn_in else "Your Fifteenth Birthday — Rite of Manhood"
     quest_details.text = ("Elden — Village Elder:\n\nYou have returned safely and protected our sheep. You have passed your rite of manhood, and I am proud of you. Take %d gold, two health potions, and two mana potions.\n\nYour next journey is to Stonehaven City. Seek out the Adventurer's Guild and register there." if turn_in else "Elden — Village Elder:\n\nHappy fifteenth birthday! We have trained you for this day. You have become a young man, proficient with the sword and skilled with magic, and now you are ready to set out on your own.\n\nFour wolves in Pinewood Forest have been threatening our sheep. Go into the forest, defeat all four, and return to me. This will be your first quest, and your rite of manhood.\n\nReward: %d gold, two health potions, and two mana potions.") % ROAD_REWARD
@@ -260,10 +290,13 @@ func _show_quest_offer(turn_in := false) -> void:
 
 func _close_quest_offer() -> void:
     quest_offer.hide()
+    intro_objective_open = false
     conversation_open = false
 
 func _confirm_road_quest() -> void:
-    if not turning_in_quest:
+    if intro_objective_open:
+        _close_quest_offer()
+    elif not turning_in_quest:
         _accept_road_quest()
     elif quest_offer.visible and _road_ready_to_turn_in():
         road_quest = RoadQuest.COMPLETE
@@ -663,7 +696,7 @@ func _process(_delta: float) -> void:
     _update_pinewood_loading()
     if not opening_greeting_shown and not player.choosing_race and road_quest == RoadQuest.OFFERED:
         opening_greeting_shown = true
-        _show_quest_offer()
+        _show_intro_objective()
     if is_instance_valid(speaker) and not conversation_open:
         speaker.talking = false
         speaker = null
@@ -682,7 +715,7 @@ func _process(_delta: float) -> void:
     if inventory_open:
         prompt.text = "Inventory open — press I to close"
     elif quest_offer.visible:
-        prompt.text = "Elden — Village Elder"
+        prompt.text = quest_title.text
     elif conversation_open:
         prompt.text = "Press E or Esc to close dialogue"
     elif in_forest:
@@ -699,6 +732,8 @@ func _process(_delta: float) -> void:
             prompt.text = "E — Talk to %s (%s) | I inventory" % [people[nearby]["name"], people[nearby]["role"]]
         elif player.position.distance_to(Vector2(-390, -190)) < 155.0:
             prompt.text = "E — Enter the Wayfarer Inn | I inventory"
+        elif road_quest == RoadQuest.OFFERED and opening_greeting_shown:
+            prompt.text = "Objective: Speak to Elder Elden | I inventory"
         else:
             prompt.text = "WASD move | E interact | I inventory"
 

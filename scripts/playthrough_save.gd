@@ -46,6 +46,7 @@ static func write_slot(village: Node, slot: int) -> Error:
     file.set_value("world", "race", actor.race)
     file.set_value("world", "necromancer_art", actor.necromancer_appearance_enabled)
     file.set_value("world", "road_quest", village.road_quest)
+    file.set_value("world", "elder_intro_seen", village.opening_greeting_shown)
     file.set_value("world", "wolves", village.defeated_wolves)
     file.set_value("inventory", "gold", inventory.gold)
     file.set_value("inventory", "equipment", inventory.equipment)
@@ -57,7 +58,7 @@ static func restore(village: Node, file: ConfigFile) -> void:
     village.playthrough_progress = file
     village.road_quest = file.get_value("world", "road_quest", 0)
     village.defeated_wolves.assign(file.get_value("world", "wolves", []))
-    village.opening_greeting_shown = village.road_quest != village.RoadQuest.OFFERED
+    village.opening_greeting_shown = file.get_value("world", "elder_intro_seen", village.road_quest != village.RoadQuest.OFFERED)
     village._update_pip_marker()
     village.gold = file.get_value("inventory", "gold", village.gold)
     village.equipment = village.DEFAULT_EQUIPMENT.merged(file.get_value("inventory", "equipment", {}), true)

@@ -62,3 +62,10 @@ static func style_button(button: Button, base: Color, trim: Color, padding: int,
     button.add_theme_stylebox_override("focus", focus)
     button.add_theme_color_override("font_color", INK)
     button.add_theme_color_override("font_hover_color", Color.WHITE)
+
+
+static func style_dialog(panel: PanelContainer) -> void:
+    panel.add_theme_stylebox_override("panel", surface(CHARCOAL, BRASS, 18, false, true))
+
+static func style_dialog_action(button: Button) -> void:
+    style_button(button, Color("#3a3228"), BRASS, 8, false)
