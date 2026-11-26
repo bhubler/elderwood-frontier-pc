@@ -1,5 +1,6 @@
 extends Button
 
+const Finish := preload("res://scripts/inventory_finish.gd")
 const Art := preload("res://scripts/wayfinding_art.gd")
 const ATLAS_PATH := "res://art/items/inventory_items.png"
 const ICON_CELLS := {
@@ -31,12 +32,9 @@ func show_item(item_id: String, item: Dictionary, empty_label := "Empty backpack
     var empty := item.is_empty()
     disabled = empty
     var rarity: String = item.get("rarity", "Common")
-    var background: Color = Color("#1c2220") if empty else RARITY_COLORS.get(rarity, RARITY_COLORS["Common"])
+    var background: Color = Finish.RECESS if empty else RARITY_COLORS.get(rarity, RARITY_COLORS["Common"])
     var border: Color = Color("#524a39") if empty else background.lightened(0.38)
-    add_theme_stylebox_override("normal", _tile_style(background, border))
-    add_theme_stylebox_override("disabled", _tile_style(background, border))
-    add_theme_stylebox_override("hover", _tile_style(background.lightened(0.12), border.lightened(0.22)))
-    add_theme_stylebox_override("pressed", _tile_style(background.darkened(0.16), border.lightened(0.22)))
+    Finish.style_button(self, background, border, 5)
     icon = _item_icon(item_id) if not empty else null
     text = str(item.get("icon", "")) if icon == null else ""
     if empty:
@@ -45,14 +43,6 @@ func show_item(item_id: String, item: Dictionary, empty_label := "Empty backpack
         tooltip_text = "%s · %s" % [item["name"], rarity]
         if item.has("charges"):
             tooltip_text += " (%d remaining)" % int(item["charges"])
-
-static func _tile_style(background: Color, border: Color) -> StyleBoxFlat:
-    var style := StyleBoxFlat.new()
-    style.bg_color = background
-    style.border_color = border
-    style.set_border_width_all(1)
-    style.set_content_margin_all(5)
-    return style
 
 static func _item_icon(item_id: String) -> Texture2D:
     if icons.has(item_id):

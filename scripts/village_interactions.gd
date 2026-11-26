@@ -34,6 +34,7 @@ var health_text: Label
 var mana_text: Label
 var travel_button: Button
 var offered_route: Dictionary = {}
+const InventoryFinish := preload("res://scripts/inventory_finish.gd")
 const InventorySlot := preload("res://scripts/inventory_slot.gd")
 const InventoryPortrait := preload("res://scripts/inventory_portrait.gd")
 var inventory_portrait: InventoryPortrait
@@ -279,18 +280,18 @@ func _make_inventory_window() -> void:
     inventory_panel.custom_minimum_size.x = 866
     inventory_panel.mouse_filter = Control.MOUSE_FILTER_STOP
     inventory_center.add_child(inventory_panel)
-    var frame := StyleBoxFlat.new()
-    frame.bg_color = Color("#171b1b")
-    frame.border_color = Color("#b18b51")
-    frame.set_border_width_all(3)
-    frame.set_corner_radius_all(8)
-    frame.set_content_margin_all(18)
-    inventory_panel.add_theme_stylebox_override("panel", frame)
+    inventory_panel.add_theme_stylebox_override("panel",
+        InventoryFinish.surface(InventoryFinish.CHARCOAL, InventoryFinish.BRASS, 14, false, true))
     var layout := VBoxContainer.new()
-    layout.add_theme_constant_override("separation", 9)
+    layout.add_theme_constant_override("separation", 8)
     inventory_panel.add_child(layout)
+    var header := PanelContainer.new()
+    header.add_theme_stylebox_override("panel",
+        InventoryFinish.surface(Color("#363638"), InventoryFinish.BRASS, 9))
+    layout.add_child(header)
     var top := HBoxContainer.new()
-    layout.add_child(top)
+    top.add_theme_constant_override("separation", 14)
+    header.add_child(top)
     var heading := Label.new()
     heading.text = "Character & Inventory"
     heading.add_theme_font_size_override("font_size", 22)
@@ -301,15 +302,14 @@ func _make_inventory_window() -> void:
     gold_label.add_theme_color_override("font_color", Color("#e7c589"))
     top.add_child(gold_label)
     PanelHeader.add_close_button(top, _close_inventory)
-    var rule := HSeparator.new()
-    layout.add_child(rule)
+    InventoryFinish.style_button(top.get_node("CloseButton"), InventoryFinish.RECESS, InventoryFinish.BRASS, 4)
     var columns := HBoxContainer.new()
-    columns.add_theme_constant_override("separation", 22)
+    columns.add_theme_constant_override("separation", 9)
     layout.add_child(columns)
     var left := VBoxContainer.new()
     left.custom_minimum_size = Vector2(330, 0)
     left.add_theme_constant_override("separation", 9)
-    columns.add_child(left)
+    _inventory_well(columns, left)
     var loadout := HBoxContainer.new()
     loadout.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
     loadout.add_theme_constant_override("separation", 8)
@@ -328,7 +328,7 @@ func _make_inventory_window() -> void:
     var right := VBoxContainer.new()
     right.custom_minimum_size = Vector2(420, 0)
     right.add_theme_constant_override("separation", 9)
-    columns.add_child(right)
+    _inventory_well(columns, right)
     var bag_title := Label.new()
     bag_title.text = "Backpack"
     bag_title.add_theme_color_override("font_color", Color("#dfc08a"))
@@ -340,7 +340,8 @@ func _make_inventory_window() -> void:
     right.add_child(inventory_grid)
     var details_frame := PanelContainer.new()
     details_frame.custom_minimum_size = Vector2(420, 106)
-    details_frame.add_theme_stylebox_override("panel", _slot_style())
+    details_frame.add_theme_stylebox_override("panel",
+        InventoryFinish.surface(Color("#242425"), InventoryFinish.BRASS.darkened(0.25), 11, true))
     right.add_child(details_frame)
     item_details = Label.new()
     item_details.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -349,10 +350,12 @@ func _make_inventory_window() -> void:
     item_action = Button.new()
     item_action.pressed.connect(_apply_inspected_item)
     right.add_child(item_action)
+    InventoryFinish.style_button(item_action, Color("#3a3228"), InventoryFinish.BRASS, 7, false)
     second_accessory_action = Button.new()
     second_accessory_action.text = "Equip in Accessory 2"
     second_accessory_action.pressed.connect(_apply_inspected_item.bind("accessory_2"))
     right.add_child(second_accessory_action)
+    InventoryFinish.style_button(second_accessory_action, Color("#3a3228"), InventoryFinish.BRASS, 7, false)
     var footer := Label.new()
     footer.text = "Select gear to compare. Press I or Esc to close."
     footer.add_theme_font_size_override("font_size", 13)
@@ -381,14 +384,13 @@ func _equipment_label(kind: String) -> String:
         "accessory_2": return "Accessory 2"
         _: return kind.capitalize()
 
-func _slot_style() -> StyleBoxFlat:
-    var style := StyleBoxFlat.new()
-    style.bg_color = Color("#292d2b")
-    style.border_color = Color("#64533b")
-    style.set_border_width_all(1)
-    style.set_corner_radius_all(3)
-    style.set_content_margin_all(5)
-    return style
+func _inventory_well(parent: HBoxContainer, content: Control) -> void:
+    var panel := PanelContainer.new()
+    panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+    panel.add_theme_stylebox_override("panel",
+        InventoryFinish.surface(InventoryFinish.RECESS, InventoryFinish.BRASS.darkened(0.20), 10, true))
+    parent.add_child(panel)
+    panel.add_child(content)
 
 func _refresh_inventory() -> void:
     gold_label.text = "%d GOLD" % gold

@@ -1,5 +1,6 @@
 extends Control
 
+const Finish := preload("res://scripts/inventory_finish.gd")
 const PlayerArt := preload("res://scripts/player.gd")
 
 var portrait: Texture2D
@@ -17,10 +18,8 @@ func show_character(actor: Node, weapon: String) -> void:
 
 func _draw() -> void:
     var center := Vector2(size.x * 0.5, size.y * 0.5)
-    var border := Color("#6b5438")
-    var outer := Rect2(Vector2(6, 6), size - Vector2(12, 12))
-    draw_rect(outer, Color("#141b19"))
-    draw_rect(outer.grow(-5), border, false)
+    var outer := Rect2(Vector2(2, 2), size - Vector2(4, 4))
+    draw_style_box(Finish.surface(Color("#202123"), Finish.BRASS, 8, true, true), outer)
     var available := size - Vector2(24, 24)
     if sword_pose:
         var frame := PlayerArt.SWORD_FRAME_SIZE
