@@ -34,6 +34,11 @@ var health_text: Label
 var mana_text: Label
 var travel_button: Button
 var offered_route: Dictionary = {}
+const InventoryPortrait := preload("res://scripts/inventory_portrait.gd")
+var inventory_portrait: InventoryPortrait
+var inventory_stats: Label
+var item_action: Button
+var inspected_item := ""
 var inventory_panel: PanelContainer
 var pinewood_script: GDScript
 var notice_timer: Timer
@@ -93,7 +98,7 @@ func _ready() -> void:
     _make_interface()
     _make_inventory_window()
     if player.has_method("set_equipment"):
-        player.set_equipment(equipment)
+        player.set_equipment(equipment, item_data)
     if inventory_only:
         return
     _make_villagers()
@@ -257,10 +262,13 @@ func _accept_road_quest() -> void:
 
 func _make_inventory_window() -> void:
     inventory_panel = PanelContainer.new()
-    inventory_panel.position = Vector2(220, 65)
-    inventory_panel.custom_minimum_size = Vector2(835, 0)
+    var inventory_center := CenterContainer.new()
+    add_child(inventory_center)
+    inventory_center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+    inventory_center.mouse_filter = Control.MOUSE_FILTER_IGNORE
+    inventory_panel.custom_minimum_size.x = 866
     inventory_panel.mouse_filter = Control.MOUSE_FILTER_STOP
-    add_child(inventory_panel)
+    inventory_center.add_child(inventory_panel)
     var frame := StyleBoxFlat.new()
     frame.bg_color = Color("#171b1b")
     frame.border_color = Color("#b18b51")
@@ -274,7 +282,7 @@ func _make_inventory_window() -> void:
     var top := HBoxContainer.new()
     layout.add_child(top)
     var heading := Label.new()
-    heading.text = "ELDERWOOD  /  THE ADVENTURER"
+    heading.text = "Character & Inventory"
     heading.add_theme_font_size_override("font_size", 22)
     heading.add_theme_color_override("font_color", Color("#e7c589"))
     heading.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -292,35 +300,24 @@ func _make_inventory_window() -> void:
     left.custom_minimum_size = Vector2(330, 0)
     left.add_theme_constant_override("separation", 9)
     columns.add_child(left)
-    var equipment_title := Label.new()
-    equipment_title.text = "EQUIPMENT  /  WANDERER"
-    equipment_title.add_theme_color_override("font_color", Color("#dfc08a"))
-    left.add_child(equipment_title)
-    var character_info := Label.new()
-    character_info.text = "LEVEL 1   /   FRONTIER WANDERER"
-    character_info.add_theme_font_size_override("font_size", 12)
-    character_info.add_theme_color_override("font_color", Color("#a99b84"))
-    left.add_child(character_info)
-    var equipment_hint := Label.new()
-    equipment_hint.text = "EQUIPPED GEAR"
-    equipment_hint.add_theme_font_size_override("font_size", 13)
-    equipment_hint.add_theme_color_override("font_color", Color("#e7c589"))
-    left.add_child(equipment_hint)
+    inventory_portrait = InventoryPortrait.new()
+    inventory_portrait.custom_minimum_size = Vector2(330, 220)
+    inventory_portrait.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+    left.add_child(inventory_portrait)
+    inventory_stats = Label.new()
+    inventory_stats.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+    inventory_stats.add_theme_color_override("font_color", Color("#dfc08a"))
+    left.add_child(inventory_stats)
     equipment_grid = GridContainer.new()
     equipment_grid.columns = 1
-    equipment_grid.add_theme_constant_override("v_separation", 9)
+    equipment_grid.add_theme_constant_override("v_separation", 5)
     left.add_child(equipment_grid)
-    var preview_note := Label.new()
-    preview_note.text = "Character preview unlocks with animated sprites."
-    preview_note.add_theme_font_size_override("font_size", 12)
-    preview_note.add_theme_color_override("font_color", Color("#998d79"))
-    left.add_child(preview_note)
     var right := VBoxContainer.new()
     right.custom_minimum_size = Vector2(420, 0)
     right.add_theme_constant_override("separation", 9)
     columns.add_child(right)
     var bag_title := Label.new()
-    bag_title.text = "BACKPACK  /  24 SLOTS"
+    bag_title.text = "Backpack"
     bag_title.add_theme_color_override("font_color", Color("#dfc08a"))
     right.add_child(bag_title)
     inventory_grid = GridContainer.new()
@@ -336,8 +333,11 @@ func _make_inventory_window() -> void:
     item_details.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
     item_details.add_theme_color_override("font_color", Color("#e6d4b0"))
     details_frame.add_child(item_details)
+    item_action = Button.new()
+    item_action.pressed.connect(_apply_inspected_item)
+    right.add_child(item_action)
     var footer := Label.new()
-    footer.text = "CLICK AN ITEM TO INSPECT / EQUIP   •   I OR ESC TO CLOSE"
+    footer.text = "Select gear to compare. Press I or Esc to close."
     footer.add_theme_font_size_override("font_size", 13)
     footer.add_theme_color_override("font_color", Color("#ad9c80"))
     layout.add_child(footer)
@@ -355,23 +355,28 @@ func _slot_style() -> StyleBoxFlat:
 
 func _refresh_inventory() -> void:
     gold_label.text = "%d GOLD" % gold
+    if is_instance_valid(player):
+        inventory_portrait.show_character(player, equipment.get("weapon", ""))
+        inventory_stats.text = "%s  ·  Attack +%d  ·  Defense +%d" % [
+            player.race, player.attack_bonus, player.defense_bonus]
     var kinds := ["weapon", "armor", "accessory"]
     if equipment_grid.get_child_count() == 0:
         for kind in kinds:
             var slot := Button.new()
-            slot.custom_minimum_size = Vector2(320, 84)
+            slot.custom_minimum_size = Vector2(320, 38)
             slot.add_theme_stylebox_override("normal", _slot_style())
             slot.add_theme_font_size_override("font_size", 16)
             slot.add_theme_color_override("font_color", Color("#e7d2a7"))
             slot.clip_text = true
-            slot.pressed.connect(_unequip.bind(kind))
+            slot.pressed.connect(_inspect_equipped.bind(kind))
             equipment_grid.add_child(slot)
     for i in range(kinds.size()):
         var kind: String = kinds[i]
         var item_id: String = equipment[kind]
         var slot := equipment_grid.get_child(i) as Button
         var slot_label := "EMPTY SLOT" if item_id == "" else str(item_data[item_id]["icon"]) + "  " + str(item_data[item_id]["name"])
-        slot.text = kind.to_upper() + "     /     " + slot_label
+        slot.text = kind.capitalize() + "  ·  " + slot_label
+        slot.tooltip_text = slot_label
     if inventory_grid.get_child_count() == 0:
         for i in range(BACKPACK_CAPACITY):
             var button := Button.new()
@@ -384,8 +389,15 @@ func _refresh_inventory() -> void:
         var button := inventory_grid.get_child(i) as Button
         var item_id := backpack[i] if i < backpack.size() else ""
         button.text = str(item_data[item_id]["icon"]) if not item_id.is_empty() else ""
+        button.disabled = item_id.is_empty()
+        if not item_id.is_empty():
+            var rarity: String = item_data[item_id].get("rarity", "Common")
+            var ink := Color("#a6c6ae") if rarity == "Uncommon" else Color("#e7d2a7")
+            if rarity in ["Quest", "Rare"]:
+                ink = Color("#d0aacd")
+            button.add_theme_color_override("font_color", ink)
         button.tooltip_text = (str(item_data[item_id]["name"]) + " (%d remaining)" % int(item_data[item_id].get("charges", 1))) if not item_id.is_empty() and item_id in ["rite_health_potions", "rite_mana_potions"] else (str(item_data[item_id]["name"]) if not item_id.is_empty() else "")
-    item_details.text = "SELECT AN ITEM\nInspect its properties and equip weapons or armor."
+    _select_item(inspected_item)
 
 func copy_items_from(source: CanvasLayer) -> void:
     equipment = source.equipment.duplicate()
@@ -393,7 +405,7 @@ func copy_items_from(source: CanvasLayer) -> void:
     item_data = source.item_data.duplicate(true)
     gold = source.gold
     if is_instance_valid(player):
-        player.set_equipment(equipment)
+        player.set_equipment(equipment, item_data)
         _refresh_inventory()
 
 func grant_item(item_id: String, definition: Dictionary) -> bool:
@@ -415,20 +427,50 @@ func _select_backpack_slot(index: int) -> void:
     if index < backpack.size():
         _select_item(backpack[index])
 
+func _inspect_equipped(kind: String) -> void:
+    _select_item(equipment.get(kind, ""))
+
 func _select_item(item_id: String) -> void:
-    if item_id in ["rite_health_potions", "rite_mana_potions"]:
-        _drink_rite_potion(item_id)
+    var equipped: bool = item_id in equipment.values() and not item_id.is_empty()
+    if not item_data.has(item_id) or (not equipped and item_id not in backpack):
+        inspected_item = ""
+        item_details.text = "Select an item to inspect it."
+        item_action.hide()
         return
+    inspected_item = item_id
     var data: Dictionary = item_data[item_id]
-    var stats := ""
-    if data.has("attack"):
-        stats = "  |  ATTACK +%d" % int(data["attack"])
-    if data.has("defense"):
-        stats = "  |  DEFENSE +%d" % int(data["defense"])
-    item_details.text = "%s  [%s]%s\n%s" % [data["name"], data["rarity"], stats, data["description"]]
     var kind: String = data["kind"]
-    if kind in ["weapon", "armor", "accessory"]:
-        _equip(item_id, kind)
+    item_details.text = "%s  ·  %s\n%s" % [data["name"], data["rarity"], data["description"]]
+    item_action.hide()
+    if kind in equipment:
+        var current: Dictionary = item_data.get(equipment[kind], {})
+        for stat in ["attack", "defense"]:
+            if data.has(stat) or current.has(stat):
+                var value := int(data.get(stat, 0))
+                var change := value - int(current.get(stat, 0))
+                item_details.text += "\n%s +%d" % [stat.capitalize(), value]
+                if not equipped:
+                    item_details.text += " (%+d vs. equipped)" % change
+        item_action.text = "Unequip" if equipped else "Equip"
+        item_action.show()
+    elif item_id in ["rite_health_potions", "rite_mana_potions"]:
+        item_action.text = "Drink potion"
+        item_action.show()
+
+func _apply_inspected_item() -> void:
+    if inspected_item.is_empty():
+        return
+    if inspected_item in ["rite_health_potions", "rite_mana_potions"]:
+        _drink_rite_potion(inspected_item)
+        return
+    var kind: String = item_data[inspected_item]["kind"]
+    if equipment.get(kind) == inspected_item:
+        if backpack.size() >= BACKPACK_CAPACITY:
+            item_details.text = "Your backpack is full. Make room before unequipping this item."
+            return
+        _unequip(kind)
+    elif inspected_item in backpack:
+        _equip(inspected_item, kind)
 
 func _drink_rite_potion(item_id: String) -> void:
     var is_health := item_id == "rite_health_potions"
@@ -472,18 +514,18 @@ func _equip(item_id: String, kind: String) -> void:
     if old_id != "":
         backpack.append(old_id)
     if player.has_method("set_equipment"):
-        player.set_equipment(equipment)
+        player.set_equipment(equipment, item_data)
     _refresh_inventory()
     item_details.text = "EQUIPPED: %s\n%s" % [item_data[item_id]["name"], item_data[item_id]["description"]]
 
 func _unequip(kind: String) -> void:
     var item_id: String = equipment[kind]
-    if item_id == "" or backpack.size() >= 24:
+    if item_id == "" or backpack.size() >= BACKPACK_CAPACITY:
         return
     equipment[kind] = ""
     backpack.append(item_id)
     if player.has_method("set_equipment"):
-        player.set_equipment(equipment)
+        player.set_equipment(equipment, item_data)
     _refresh_inventory()
     item_details.text = "UNEQUIPPED: %s" % item_data[item_id]["name"]
 
@@ -707,6 +749,7 @@ func _unhandled_key_input(event: InputEvent) -> void:
         inventory_open = not inventory_open
         conversation_open = false
         if inventory_open:
+            _refresh_inventory()
             notice_timer.stop()
             ui.hide()
             inventory_panel.show()

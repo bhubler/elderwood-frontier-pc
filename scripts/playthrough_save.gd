@@ -67,7 +67,7 @@ static func restore(village: Node, file: ConfigFile) -> void:
     var actor: Node = village.player
     actor.necromancer_appearance_enabled = file.get_value("world", "necromancer_art", false)
     actor._choose_race(file.get_value("world", "race", "Human"))
-    actor.set_equipment(village.equipment)
+    actor.set_equipment(village.equipment, village.item_data)
     var location: String = file.get_value("world", "location", "village")
     var resources: Vector2 = file.get_value("world", "resources", Vector2.ZERO)
     village.gate_resources = file.get_value("world", "gate_resources", Vector2.ZERO)

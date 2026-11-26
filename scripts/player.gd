@@ -223,11 +223,15 @@ func _unhandled_key_input(event: InputEvent) -> void:
         _refresh_character_appearance()
         get_viewport().set_input_as_handled()
 
-func set_equipment(gear: Dictionary) -> void:
+func set_equipment(gear: Dictionary, definitions: Dictionary) -> void:
     equipped_weapon = str(gear.get("weapon", ""))
     equipped_armor = str(gear.get("armor", ""))
-    attack_bonus = 3 if equipped_weapon == "rusty_sword" else 0
-    defense_bonus = 1 if equipped_armor == "cloak" else 0
+    attack_bonus = 0
+    defense_bonus = 0
+    for item_id in gear.values():
+        var item: Dictionary = definitions.get(item_id, {})
+        attack_bonus += int(item.get("attack", 0))
+        defense_bonus += int(item.get("defense", 0))
     queue_redraw()
 
 func _build_race_selection() -> void:
