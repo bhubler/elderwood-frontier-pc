@@ -67,6 +67,7 @@ var painted_patches: Dictionary = {}
 var forest_cache_dirty := false
 const FOREST_PATCH_CACHE := "user://east_pinewood_explored_v1.cache"
 const TERRAIN_PATCH_SIZE := Vector2(240, 144)
+const FOREST_LOOKAHEAD := Vector2i(6, 8)
 const STONEHAVEN_BUILDING_SCALE := 1.32
 var points: Array[Point] = []
 var enemy: Enemy
@@ -297,8 +298,6 @@ func _load_outdoor_terrain() -> void:
     terrain.z_index = -10
     if city:
         terrain.roads = Overworld.CITY_ROADS
-    elif forest:
-        terrain.roads = Overworld.FOREST_ROADS
     elif region == "graveyard":
         terrain.roads = Floor.GRAVEYARD_ROADS
     elif interior:
@@ -309,14 +308,8 @@ func _load_outdoor_terrain() -> void:
     terrain.road_half_width = 55.0
     terrain.cobble_radius = 650.0 if interior else 0.0
     terrain.paved_roads = city or region == "graveyard"
-    terrain.populate_on_ready = not forest
-    terrain.streamed = forest
     if forest:
-        # Trunks and map boundaries use dedicated world collision, not ground tiles.
-        # Rebuild smaller rendering batches when a streamed patch changes.
-        terrain.rendering_quadrant_size = 8
-        terrain.collision_enabled = false
-        terrain.navigation_enabled = false
+        configure_forest_terrain(terrain)
     if city:
         terrain.ground_bounds = Overworld.CITY.grow(740)
     elif not forest:
@@ -344,6 +337,18 @@ func _load_outdoor_terrain() -> void:
         else:
             floor_art.tiled_ground = true
             floor_art.z_index = -9
+
+static func configure_forest_terrain(terrain: WildernessTerrain) -> void:
+    terrain.roads = Overworld.FOREST_ROADS
+    terrain.trails = []
+    terrain.road_half_width = 55.0
+    terrain.cobble_radius = 0.0
+    terrain.populate_on_ready = false
+    terrain.streamed = true
+    terrain.rendering_quadrant_size = 8
+    # Trunks and boundaries have their own collision bodies.
+    terrain.collision_enabled = false
+    terrain.navigation_enabled = false
 
 func _forest_patch_cache_signature() -> Array:
     return [
@@ -398,8 +403,8 @@ func _prime_forest_terrain() -> void:
     floor_art.grass_backing = true
     floor_art.z_index = -12
     if terrain_patch_offsets.is_empty():
-        for x in range(-6, 7):
-            for y in range(-8, 9):
+        for x in range(-FOREST_LOOKAHEAD.x, FOREST_LOOKAHEAD.x + 1):
+            for y in range(-FOREST_LOOKAHEAD.y, FOREST_LOOKAHEAD.y + 1):
                 terrain_patch_offsets.append(Vector2i(x, y))
         terrain_patch_offsets.sort_custom(func(a: Vector2i, b: Vector2i) -> bool:
             return (Vector2(a) * TERRAIN_PATCH_SIZE).length_squared() > (Vector2(b) * TERRAIN_PATCH_SIZE).length_squared())
