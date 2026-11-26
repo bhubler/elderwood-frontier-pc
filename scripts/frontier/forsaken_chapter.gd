@@ -10,6 +10,7 @@ var resume_position := Vector2.INF
 const Fireball := preload("res://scripts/pinewood_fireball.gd")
 const FIREBALL_COST := 30.0
 const WayfindingArt := preload("res://scripts/wayfinding_art.gd")
+const DialoguePortrait := preload("res://scripts/dialogue_portrait.gd")
 const InventoryFinish := preload("res://scripts/inventory_finish.gd")
 const PanelHeader := preload("res://scripts/panel_header.gd")
 const AreaTransition := preload("res://scripts/area_transition.gd")
@@ -74,6 +75,11 @@ var grimoire_details: Label
 var guild_dialog: CenterContainer
 var guild_details: Label
 var guild_confirm: Button
+var guild_portrait: DialoguePortrait
+var mentor_portrait: DialoguePortrait
+var city_lord: Node2D
+var church_priest: Node2D
+var quiet_finn: Node2D
 var guild_master: Node2D
 var watch_captain: Node2D
 var mentor_dialog: CenterContainer
@@ -170,6 +176,9 @@ func _load_region(destination: String) -> void:
     grimoire_replay = false
     veiled_agent = null
     guild_master = null
+    city_lord = null
+    church_priest = null
+    quiet_finn = null
     watch_captain = null
 
     var layout: Dictionary = Layouts.REGIONS[region]
@@ -463,9 +472,9 @@ func _place_grimoire() -> void:
 
 func _dress_stonehaven() -> void:
     _add_art(LANDMARK_ROOT + "drainage_hatch.png", Layouts.STONEHAVEN_DRAIN + Vector2(0, 12), 105.0, -2)
-    var finn := _add_npc("elder", Vector2(-646, 390), 5)
-    if is_instance_valid(finn):
-        finn.autonomous_patrol = false
+    quiet_finn = _add_npc("elder", Vector2(-646, 390), 5)
+    if is_instance_valid(quiet_finn):
+        quiet_finn.autonomous_patrol = false
     _add_local_vendor("blacksmith", "forge", Vector2(-708, 14))
     _add_local_vendor("alchemist", "alch_shop", Vector2(-270, 14))
     _add_local_vendor("shopkeeper", "goods_shop", Vector2(247, 14))
@@ -480,9 +489,9 @@ func _dress_stonehaven() -> void:
     _add_landmark("way_shrine", Vector2(658, 440), 76)
     _add_local_npc("guard_sword", Vector2(-610, -178))
     _add_local_npc("guard_spear", Vector2(722, 115))
-    _add_npc("priest", Vector2(238, -178))
+    church_priest = _add_npc("priest", Vector2(238, -178))
     _add_local_npc("monk", Vector2(354, -118), 2)
-    _add_npc("noble", Vector2(-255, -178))
+    city_lord = _add_npc("noble", Vector2(-255, -178))
     _add_local_npc("sweeper", Vector2(-212, 131), 2)
     _add_local_npc("dockhand", Vector2(403, 145), 5)
     guild_master = _add_npc("noble", Vector2(-260, 360), 2)
@@ -656,7 +665,7 @@ func _add_npc(key: String, where: Vector2, wardrobe := 0) -> Node2D:
 func _unhandled_input(event: InputEvent) -> void:
     if not event is InputEventMouseButton or not event.pressed:
         return
-    if player.choosing_race or inventory.inventory_open or journal_panel.visible or grimoire_dialog.visible or mentor_dialog.visible or guild_dialog.visible or health <= 0:
+    if player.choosing_race or inventory.quest_offer.visible or inventory.inventory_open or journal_panel.visible or grimoire_dialog.visible or mentor_dialog.visible or guild_dialog.visible or health <= 0:
         return
     var cursor: Vector2 = get_global_transform_with_canvas().affine_inverse() * event.position
     if event.button_index == MOUSE_BUTTON_RIGHT:
@@ -733,7 +742,7 @@ func _process(_delta: float) -> void:
         _update_forest_terrain()
     if inventory.inventory_open:
         journal_panel.hide()
-    var blocked: bool = player.choosing_race or inventory.inventory_open or journal_panel.visible or grimoire_dialog.visible or mentor_dialog.visible or guild_dialog.visible
+    var blocked: bool = player.choosing_race or inventory.quest_offer.visible or inventory.inventory_open or journal_panel.visible or grimoire_dialog.visible or mentor_dialog.visible or guild_dialog.visible
     player.set_physics_process(not blocked)
     if is_instance_valid(enemy):
         enemy.target = null if blocked or health <= 0 or not _can_reach_enemy() else player
@@ -751,7 +760,7 @@ func _process(_delta: float) -> void:
 
 func _physics_process(delta: float) -> void:
     player.position = _bounded(player.position)
-    if player.choosing_race or inventory.inventory_open or journal_panel.visible or grimoire_dialog.visible or health <= 0:
+    if player.choosing_race or inventory.quest_offer.visible or inventory.inventory_open or journal_panel.visible or grimoire_dialog.visible or health <= 0:
         return
     mana = minf(State.MAX_MANA, mana + 8.0 * delta)
     attack_wait = maxf(0.0, attack_wait - delta)
@@ -794,7 +803,7 @@ func _bounded(where: Vector2) -> Vector2:
 func _unhandled_key_input(event: InputEvent) -> void:
     if not event is InputEventKey or not event.pressed or event.echo:
         return
-    if player.choosing_race or inventory.inventory_open or health <= 0:
+    if player.choosing_race or inventory.quest_offer.visible or inventory.inventory_open or health <= 0:
         return
     if guild_dialog.visible:
         if event.keycode == KEY_ESCAPE:
@@ -857,7 +866,8 @@ func _interact(action: String) -> void:
             local_npcs[action].attack()
         else:
             local_npcs[action].interact()
-        notice = "%s — %s" % local_dialogue[action]
+        var lines: Array = local_dialogue[action]
+        inventory.show_person_dialogue(lines[0], lines[1], local_npcs[action])
         return
     if action == "mentor_task":
         if state.mentorship_faction.is_empty() or state.mentorship_year >= 5:
@@ -885,6 +895,7 @@ func _interact(action: String) -> void:
             notice = "The watchtower has already received its supplies."
         else:
             notice = "Watch Captain — Speak with the Guild Master if you're here about our provisions."
+        _show_speaker("Watch Captain", watch_captain)
         return
     if action == "ruin_chest" and RUIN_TREASURE.has(region):
         var item_id: String = RUIN_TREASURE[region][1]
@@ -945,12 +956,14 @@ func _interact(action: String) -> void:
         else:
             notice = "Lord of Stonehaven — The city has burdens enough. Earn the Guild Master's trust and return."
         _save()
+        _show_speaker("Lord of Stonehaven", city_lord)
         return
     if action == "church_mentor":
         if state.lord_stage == "share" or state.mentorship_faction == "church":
             _offer_mentor("church")
         else:
             notice = "Priest — May you find wisdom in your journeys. Bring the ancient stone's prophecy to us if you learn more."
+            _show_speaker("Priest", church_priest)
         return
     match action:
         "main_gate":
@@ -971,6 +984,7 @@ func _interact(action: String) -> void:
                     _add_point("cellar_gate", "Hidden Drainage Door", Layouts.STONEHAVEN_DRAIN)
                 _save()
             notice = "Quiet Finn whispers about a scratched black hand on a low hatch tucked behind the forge."
+            _show_speaker("Quiet Finn", quiet_finn)
         "emissary":
             if not is_instance_valid(emissary):
                 return
@@ -985,6 +999,7 @@ func _interact(action: String) -> void:
             else:
                 notice = "Emissary — The Black Hand remembers you. The way beneath Stonehaven is still open."
             state.emissary_pending = false
+            _show_speaker("Emissary", emissary_actor)
             _remove_emissary()
             _save()
         "veiled_agent":
@@ -1058,6 +1073,22 @@ func _speak_to_agent() -> void:
                 notice = "Veiled Agent — The ledger is still in the oath vault."
         "complete":
             notice = "Veiled Agent — Welcome back, Black Hand."
+        _:
+            return
+    _show_speaker("Veiled Agent", veiled_agent)
+
+func _show_speaker(title: String, actor: Node) -> void:
+    inventory.show_person_dialogue(title, notice.trim_prefix(title + " — "), actor)
+
+func _append_dialogue_portrait(content: VBoxContainer, dialogue: Label) -> DialoguePortrait:
+    var row := HBoxContainer.new()
+    row.add_theme_constant_override("separation", 18)
+    content.add_child(row)
+    var portrait := DialoguePortrait.new()
+    row.add_child(portrait)
+    dialogue.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+    row.add_child(dialogue)
+    return portrait
 
 func _take_item(item_id: String, message: String) -> void:
     if item_id in state.quest_items:
@@ -1087,7 +1118,7 @@ func _build_guild_dialog() -> void:
     InventoryFinish.style_dialog_action(content.get_child(0).get_node("CloseButton"))
     guild_details = Label.new()
     guild_details.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-    content.add_child(guild_details)
+    guild_portrait = _append_dialogue_portrait(content, guild_details)
     guild_confirm = Button.new()
     InventoryFinish.style_dialog_action(guild_confirm)
     guild_confirm.pressed.connect(_confirm_guild_dialog)
@@ -1095,6 +1126,7 @@ func _build_guild_dialog() -> void:
     guild_dialog.hide()
 
 func _show_guild_dialog() -> void:
+    guild_portrait.show_speaker(guild_master)
     guild_confirm.show()
     if state.guild_rank.is_empty():
         if linked_from_gate and not rite_completed:
@@ -1155,17 +1187,27 @@ func _build_mentor_dialog() -> void:
     InventoryFinish.style_dialog_action(content.get_child(0).get_node("CloseButton"))
     mentor_details = Label.new()
     mentor_details.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-    content.add_child(mentor_details)
+    mentor_portrait = _append_dialogue_portrait(content, mentor_details)
     mentor_choices = VBoxContainer.new()
     content.add_child(mentor_choices)
     mentor_dialog.hide()
 
+func _mentor_actor(faction: String) -> Node2D:
+    match faction:
+        "church": return church_priest
+        "black_hand": return veiled_agent
+        _: return city_lord
+
 func _offer_mentor(faction: String) -> void:
+    var actor := _mentor_actor(faction)
+    var title := Mentorship.mentor(faction)
     if not state.mentorship_faction.is_empty() and state.mentorship_faction != faction:
         notice = "Your apprenticeship is already pledged to %s. You may still study other disciplines later." % Mentorship.mentor(state.mentorship_faction)
+        _show_speaker(title, actor)
         return
     if state.mentorship_year >= 5:
         notice = "%s — Five years have passed. You are twenty now. Your apprenticeship is complete, but the world still has much to teach." % Mentorship.mentor(faction)
+        _show_speaker(title, actor)
         return
     var task_key := "mentor_task_%d" % state.mentorship_year
     if task_key in state.quest_items:
@@ -1182,11 +1224,13 @@ func _offer_mentor(faction: String) -> void:
             state.lord_stage = "prologue_complete"
             notice = "Five years have passed. You are now twenty years old. %s has trained you through five assignments. Your journey truly begins. (+60 XP)" % Mentorship.mentor(faction)
             _save()
+            _show_speaker(title, actor)
             return
         notice = "Year %d complete. A year passes in training under %s. (+60 XP) Choose your focus for your next year." % [state.mentorship_year, Mentorship.mentor(faction)]
     elif not state.mentorship_focus.is_empty():
         var mission: Array = Mentorship.mission(faction, state.mentorship_year)
         notice = "%s — Your assignment: %s. %s" % [Mentorship.mentor(faction), str(mission[2]), str(mission[3])]
+        _show_speaker(title, actor)
         return
     pending_mentor = faction
     mentor_heading.text = Mentorship.mentor(faction)
@@ -1199,6 +1243,7 @@ func _offer_mentor(faction: String) -> void:
         button.text = str(focus)
         button.pressed.connect(_choose_mentor_focus.bind(str(focus)))
         mentor_choices.add_child(button)
+    mentor_portrait.show_speaker(actor)
     mentor_dialog.show()
 
 func _choose_mentor_focus(focus: String) -> void:
@@ -1213,6 +1258,7 @@ func _choose_mentor_focus(focus: String) -> void:
     var mission: Array = Mentorship.mission(state.mentorship_faction, state.mentorship_year)
     notice = "%s takes you as an apprentice. Year %d focus: %s. First task: %s. %s" % [Mentorship.mentor(state.mentorship_faction), state.mentorship_year + 1, focus, str(mission[2]), str(mission[3])]
     _save()
+    _show_speaker(Mentorship.mentor(state.mentorship_faction), _mentor_actor(state.mentorship_faction))
 
 func _build_grimoire_dialog() -> void:
     grimoire_dialog = CenterContainer.new()

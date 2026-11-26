@@ -28,7 +28,9 @@ var quest_title: Label
 var quest_details: Label
 var decline_quest: Button
 var turning_in_quest := false
-var intro_objective_open := false
+var dialogue_continue_only := false
+const DialoguePortrait := preload("res://scripts/dialogue_portrait.gd")
+var quest_portrait: DialoguePortrait
 var health_bar: ProgressBar
 var mana_bar: ProgressBar
 var health_text: Label
@@ -236,14 +238,8 @@ func _make_quest_offer(holder: Control) -> void:
     var body := HBoxContainer.new()
     body.add_theme_constant_override("separation", 18)
     content.add_child(body)
-    var elder_portrait := TextureRect.new()
-    elder_portrait.texture = VillageNPC.ART[&"Elden"]
-    elder_portrait.custom_minimum_size = Vector2(112, 128)
-    elder_portrait.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-    elder_portrait.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-    elder_portrait.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-    elder_portrait.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-    body.add_child(elder_portrait)
+    quest_portrait = DialoguePortrait.new()
+    body.add_child(quest_portrait)
     quest_details = Label.new()
     quest_details.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
     quest_details.add_theme_font_size_override("font_size", 18)
@@ -265,18 +261,27 @@ func _make_quest_offer(holder: Control) -> void:
     quest_offer.hide()
 
 func _show_intro_objective() -> void:
-    intro_objective_open = true
-    quest_title.text = "Speak to the Village Elder"
-    quest_details.text = "Find Elder Elden in Elderwood Village. Look for the gold quest marker above his head, then press E when you’re near him."
+    show_person_dialogue("Speak to the Village Elder",
+        "Find Elder Elden in Elderwood Village. Look for the gold quest marker above his head, then press E when you’re near him.",
+        null, VillageNPC.ART[&"Elden"])
+
+func show_person_dialogue(title: String, words: String, actor: Node, fallback: Texture2D = null) -> void:
+    dialogue_continue_only = true
+    conversation_open = true
+    quest_title.text = title
+    quest_details.text = words
+    quest_portrait.show_speaker(actor, fallback)
     accept_quest.text = "Continue"
     decline_quest.hide()
     notice_timer.stop()
     ui.hide()
     quest_offer.show()
+    player.set_physics_process(false)
     accept_quest.grab_focus()
 
 func _show_quest_offer(turn_in := false) -> void:
-    intro_objective_open = false
+    quest_portrait.show_speaker(speaker, VillageNPC.ART[&"Elden"])
+    dialogue_continue_only = false
     decline_quest.show()
     turning_in_quest = turn_in
     quest_title.text = "Rite of Manhood — Complete" if turn_in else "Your Fifteenth Birthday — Rite of Manhood"
@@ -286,15 +291,17 @@ func _show_quest_offer(turn_in := false) -> void:
     notice_timer.stop()
     ui.hide()
     quest_offer.show()
+    player.set_physics_process(false)
     accept_quest.grab_focus()
 
 func _close_quest_offer() -> void:
     quest_offer.hide()
-    intro_objective_open = false
+    dialogue_continue_only = false
+    player.set_physics_process(true)
     conversation_open = false
 
 func _confirm_road_quest() -> void:
-    if intro_objective_open:
+    if dialogue_continue_only:
         _close_quest_offer()
     elif not turning_in_quest:
         _accept_road_quest()
@@ -878,7 +885,7 @@ func _unhandled_key_input(event: InputEvent) -> void:
     if not event is InputEventKey or not event.pressed or event.echo:
         return
     if quest_offer.visible:
-        if event.keycode == KEY_ESCAPE:
+        if event.keycode == KEY_ESCAPE or (dialogue_continue_only and event.keycode == KEY_E):
             _close_quest_offer()
         get_viewport().set_input_as_handled()
         return
@@ -918,8 +925,7 @@ func _unhandled_key_input(event: InputEvent) -> void:
             if player.position.distance_to(Vector2(4200, 120)) < 190.0:
                 _leave_inn()
             else:
-                conversation_open = true
-                _show_message("Mara: Make yourself at home. The fire is warm and the road can wait.", 0.0)
+                show_person_dialogue("Mara · Innkeeper", "Make yourself at home. The fire is warm and the road can wait.", null, VillageNPC.ART[&"Mara"])
         else:
             var nearest := _nearest_person()
             if _near_pinewood_entrance() and not player.choosing_race:
@@ -938,9 +944,7 @@ func _unhandled_key_input(event: InputEvent) -> void:
                     return
                 if road_dialogue:
                     words = _pip_road_dialogue()
-                _show_message("%s — %s:\n%s\n\n[E] Continue" % [people[nearest]["name"], people[nearest]["role"], words], 0.0)
-                if road_dialogue:
-                    notice_timer.stop()
+                show_person_dialogue("%s · %s" % [people[nearest]["name"], people[nearest]["role"]], words, speaker)
             elif player.position.distance_to(Vector2(-390, -190)) < 155.0:
                 _enter_inn()
         get_viewport().set_input_as_handled()

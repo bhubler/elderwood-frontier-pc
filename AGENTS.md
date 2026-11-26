@@ -28,3 +28,9 @@
 - Assign matching sprites to every visible character, enemy, landmark, and required interactable before marking a new area ready. Reuse existing artwork where it fits. Create and integrate matching artwork for missing pieces in the same update.
 - Check the area from its normal entrance, including encounter spawns, combat, object interactions, and exits. Verify both a fresh playthrough and returning with existing progress when saved state affects the area.
 - Give dismissible menus, tabs, and dialogs a clickable X in the upper-right corner. Route it through the same close behavior as the keyboard shortcut so focus, input, and state recover consistently.
+
+## Present NPC interactions with portrait dialogue
+
+- Use the inventory's matte charcoal panels and aged brass trim for dialogue, quest offers, quest turn-ins, and choices. Reuse the shared dialogue portrait and the common close-button behavior.
+- Show the speaking NPC's in-world art in the panel, including their wardrobe variant. Use the same layout for ordinary conversation, merchants, and quest NPCs. Reserve brief HUD messages for system feedback and interactions with objects.
+- Verify each new conversation through its normal interaction prompt. Check that the correct speaker appears, the dialog can be dismissed, and any quest or dialogue choices still work.
