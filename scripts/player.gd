@@ -1,4 +1,6 @@
 extends CharacterBody2D
+
+const ElderwoodType := preload("res://scripts/elderwood_type.gd")
 ## Four fixed male adventurer designs. No customization dependencies or paid character assets.
 const SPEED: float = 235.0
 const RACES := ["Human", "High Elf", "Dark Elf", "Orc"]
@@ -258,6 +260,7 @@ func _build_race_selection() -> void:
     column.add_theme_constant_override("separation", 14)
     panel.add_child(column)
     var title := Label.new()
+    ElderwoodType.heading(title)
     title.text = "ELDERWOOD FRONTIER"
     title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
     title.add_theme_font_size_override("font_size", 30)

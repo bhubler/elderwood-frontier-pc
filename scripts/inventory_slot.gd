@@ -1,5 +1,6 @@
 extends Button
 
+const ElderwoodType := preload("res://scripts/elderwood_type.gd")
 const Finish := preload("res://scripts/inventory_finish.gd")
 const Art := preload("res://scripts/wayfinding_art.gd")
 const ATLAS_PATH := "res://art/items/inventory_items.png"
@@ -72,7 +73,7 @@ func _make_custom_tooltip(_text: String) -> Control:
 static func _tooltip_line(parent: VBoxContainer, content: String, color: Color, font_size: int) -> void:
     var label := Label.new()
     # Give the tooltip its final line breaks before Godot measures its popup window.
-    var font := ThemeDB.fallback_font
+    var font: Font = ElderwoodType.DISPLAY if font_size >= 18 else ElderwoodType.BODY
     var lines: Array[String] = []
     for paragraph in content.split("\n"):
         var current := ""
@@ -85,7 +86,10 @@ static func _tooltip_line(parent: VBoxContainer, content: String, color: Color, 
                 current = candidate
         lines.append(current)
     label.text = "\n".join(lines)
-    label.add_theme_font_override("font", font)
+    if font_size >= 18:
+        ElderwoodType.heading(label, color)
+    else:
+        label.add_theme_font_override("font", font)
     label.add_theme_color_override("font_color", color)
     label.add_theme_font_size_override("font_size", font_size)
     parent.add_child(label)

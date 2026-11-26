@@ -1,4 +1,6 @@
 extends CanvasLayer
+
+const ElderwoodType := preload("res://scripts/elderwood_type.gd")
 ## Frontier village interactions: NPCs, inn interior, dialogue, and starter inventory.
 @export var inventory_only := false
 
@@ -329,6 +331,7 @@ func _make_inventory_window() -> void:
     top.add_theme_constant_override("separation", 14)
     header.add_child(top)
     var heading := Label.new()
+    ElderwoodType.heading(heading)
     heading.text = "Character & Inventory"
     heading.add_theme_font_size_override("font_size", 22)
     heading.add_theme_color_override("font_color", Color("#e7c589"))
@@ -377,6 +380,7 @@ func _make_inventory_window() -> void:
     right.add_theme_constant_override("separation", 9)
     _inventory_well(columns, right)
     var bag_title := Label.new()
+    ElderwoodType.heading(bag_title)
     bag_title.text = "Backpack"
     bag_title.add_theme_color_override("font_color", Color("#dfc08a"))
     right.add_child(bag_title)

@@ -1,4 +1,6 @@
 extends Node2D
+
+const ElderwoodType := preload("res://scripts/elderwood_type.gd")
 ## Elderwood Frontier: a modest wilderness settlement with room to grow.
 ## The inn is an authored sprite; the other buildings are temporary placeholders.
 const WELL_ART_PATH := "res://art/village_well.png"
@@ -301,7 +303,7 @@ func _draw_general_goods_stand(p: Vector2) -> void:
 		draw_circle(p + Vector2(x + 7, -28), 8.0, Color("#71804a"))
 	draw_rect(Rect2(p + Vector2(-64, 7), Vector2(30, 33)), Color("#796042"))
 	draw_rect(Rect2(p + Vector2(42, 12), Vector2(30, 28)), Color("#796042"))
-	draw_string(ThemeDB.fallback_font, p + Vector2(-65, 65), "GENERAL GOODS", HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color("#ead4a3"))
+	draw_string(ElderwoodType.DISPLAY, p + Vector2(-65, 65), "GENERAL GOODS", HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color("#ead4a3"))
 
 func _draw_building(b: Dictionary) -> void:
 	var p: Vector2 = b["pos"]
@@ -324,7 +326,7 @@ func _draw_building(b: Dictionary) -> void:
 		draw_rect(Rect2(p + Vector2(x, -34), Vector2(23, 26)), Color("#e6b76b"))
 		draw_rect(Rect2(p + Vector2(x, -34), Vector2(23, 26)), Color("#4a3c30"), false, 3.0)
 	draw_rect(Rect2(p + Vector2(-108, 55), Vector2(216, 26)), Color("#3c3028"))
-	draw_string(ThemeDB.fallback_font, p + Vector2(-101, 73), str(b["name"]), HORIZONTAL_ALIGNMENT_LEFT, -1, 15, Color("#f4dfb0"))
+	draw_string(ElderwoodType.DISPLAY, p + Vector2(-101, 73), str(b["name"]), HORIZONTAL_ALIGNMENT_LEFT, -1, 15, Color("#f4dfb0"))
 
 func _draw_tree(p: Vector2) -> void:
 	var grove := WayfindingArt._texture("res://art/landmarks/pine_grove.png")

@@ -1,4 +1,6 @@
 extends Node2D
+
+const ElderwoodType := preload("res://scripts/elderwood_type.gd")
 ## Standalone necromancer prototype. Open scenes/necromancer_prototype.tscn and press F6.
 ## Original procedural art; no external asset or paid pack required.
 const WALK_SPEED: float = 170.0
@@ -54,9 +56,9 @@ func _draw() -> void:
     for p in particles:
         var alpha: float = clampf(float(p["life"]) / float(p["max_life"]), 0.0, 1.0)
         draw_circle(p["p"], 4.0 * alpha + 1.0, Color(0.72, 0.35, 1.0, alpha))
-    draw_string(ThemeDB.fallback_font, Vector2(28, 38), "ELDERWOOD FRONTIER  /  NECROMANCER STUDY", HORIZONTAL_ALIGNMENT_LEFT, -1, 22, Color("#e4d3b4"))
-    draw_string(ThemeDB.fallback_font, Vector2(28, 65), "WASD / arrows: move     SPACE: cast bone-staff spell     F6: run this scene", HORIZONTAL_ALIGNMENT_LEFT, -1, 16, Color("#b5a8a9"))
-    draw_string(ThemeDB.fallback_font, Vector2(28, 688), "Experimental animated character study - village gameplay remains unchanged", HORIZONTAL_ALIGNMENT_LEFT, -1, 15, Color("#998c91"))
+    draw_string(ElderwoodType.BODY, Vector2(28, 38), "ELDERWOOD FRONTIER  /  NECROMANCER STUDY", HORIZONTAL_ALIGNMENT_LEFT, -1, 22, Color("#e4d3b4"))
+    draw_string(ElderwoodType.BODY, Vector2(28, 65), "WASD / arrows: move     SPACE: cast bone-staff spell     F6: run this scene", HORIZONTAL_ALIGNMENT_LEFT, -1, 16, Color("#b5a8a9"))
+    draw_string(ElderwoodType.BODY, Vector2(28, 688), "Experimental animated character study - village gameplay remains unchanged", HORIZONTAL_ALIGNMENT_LEFT, -1, 15, Color("#998c91"))
 
 func _draw_stage() -> void:
     draw_rect(Rect2(Vector2.ZERO, STAGE_SIZE), Color("#15171d"))

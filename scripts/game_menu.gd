@@ -1,5 +1,7 @@
 extends CanvasLayer
 
+const ElderwoodType := preload("res://scripts/elderwood_type.gd")
+
 const AreaTransition := preload("res://scripts/area_transition.gd")
 const Saves := preload("res://scripts/playthrough_save.gd")
 const PanelHeader := preload("res://scripts/panel_header.gd")
@@ -55,6 +57,7 @@ func _heading(title: String, close := Callable()) -> void:
         content.remove_child(child)
         child.queue_free()
     var heading := Label.new()
+    ElderwoodType.heading(heading)
     heading.text = title
     heading.add_theme_font_size_override("font_size", 28)
     heading.add_theme_color_override("font_color", Color("#e5cda0"))

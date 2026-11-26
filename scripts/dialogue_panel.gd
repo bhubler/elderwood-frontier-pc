@@ -1,4 +1,6 @@
 extends PanelContainer
+
+const ElderwoodType := preload("res://scripts/elderwood_type.gd")
 ## Shared illustrated layout for NPC conversations, quest boards, and choice dialogs.
 
 const Finish := preload("res://scripts/inventory_finish.gd")
@@ -42,6 +44,7 @@ func build(close: Callable) -> void:
     balance.custom_minimum_size.x = 34
     title_row.add_child(balance)
     title = Label.new()
+    ElderwoodType.heading(title)
     title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
     title.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
     title.size_flags_horizontal = Control.SIZE_EXPAND_FILL

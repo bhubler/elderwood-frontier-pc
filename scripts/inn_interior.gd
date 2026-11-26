@@ -1,4 +1,6 @@
 extends Node2D
+
+const ElderwoodType := preload("res://scripts/elderwood_type.gd")
 ## Separate off-map inn room; no modifications to the exterior village art.
 const Terrain := preload("res://scripts/wilderness_terrain.gd")
 const Art := preload("res://scripts/wayfinding_art.gd")
@@ -57,5 +59,5 @@ func _draw_furnishings(canvas: Node2D) -> void:
     canvas.draw_rect(Rect2(-375, -204, 18, 426), Color("#40332a"))
     canvas.draw_rect(Rect2(357, -204, 18, 426), Color("#40332a"))
     canvas.draw_rect(Rect2(-65, 203, 130, 22), Color("#8a6a4a"))
-    canvas.draw_string(ThemeDB.fallback_font, Vector2(-32, 198), "EXIT ↓",
+    canvas.draw_string(ElderwoodType.BODY, Vector2(-32, 198), "EXIT ↓",
         HORIZONTAL_ALIGNMENT_LEFT, -1, 18, Color("#f3dba9"))

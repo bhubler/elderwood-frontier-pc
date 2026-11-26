@@ -1,5 +1,7 @@
 extends Node2D
 
+const ElderwoodType := preload("res://scripts/elderwood_type.gd")
+
 signal return_to_gate
 var linked_from_gate := false
 var rite_completed := false
@@ -143,6 +145,7 @@ func _ready() -> void:
     journal_panel.remove_child(journal_text)
     journal_panel.add_child(journal_content)
     var journal_title := Label.new()
+    ElderwoodType.heading(journal_title)
     journal_title.text = "Quest Journal"
     PanelHeader.add_title(journal_content, journal_title, journal_panel.hide)
     InventoryFinish.style_dialog_action(journal_content.get_child(0).get_node("CloseButton"))
@@ -1146,6 +1149,7 @@ func _add_guild_card(contract: String, icon_path: String) -> void:
     text.size_flags_horizontal = Control.SIZE_EXPAND_FILL
     row.add_child(text)
     var title := Label.new()
+    ElderwoodType.heading(title)
     title.text = State.GUILD_CONTRACTS[contract][0]
     title.add_theme_font_size_override("font_size", 17)
     title.add_theme_color_override("font_color", InventoryFinish.GOLD)

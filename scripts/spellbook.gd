@@ -1,5 +1,7 @@
 extends HBoxContainer
 
+const ElderwoodType := preload("res://scripts/elderwood_type.gd")
+
 const Slot := preload("res://scripts/inventory_slot.gd")
 const Finish := preload("res://scripts/inventory_finish.gd")
 const Art := preload("res://scripts/wayfinding_art.gd")
@@ -42,6 +44,7 @@ func _ready() -> void:
     page.add_theme_constant_override("separation", 16)
     add_child(page)
     title = Label.new()
+    ElderwoodType.heading(title)
     title.add_theme_font_size_override("font_size", 25)
     title.add_theme_color_override("font_color", Finish.GOLD)
     page.add_child(title)
@@ -104,6 +107,7 @@ func _add_spell(spell_name: String, status: String, description: String, control
     labels.size_flags_vertical = Control.SIZE_SHRINK_CENTER
     row.add_child(labels)
     var heading := Label.new()
+    ElderwoodType.heading(heading)
     heading.text = spell_name
     heading.add_theme_font_size_override("font_size", 19)
     labels.add_child(heading)
