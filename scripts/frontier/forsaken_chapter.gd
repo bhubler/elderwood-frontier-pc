@@ -3,6 +3,9 @@ extends Node2D
 signal return_to_gate
 var linked_from_gate := false
 var rite_completed := false
+var playthrough_progress: ConfigFile
+var resume_region := ""
+var resume_position := Vector2.INF
 
 const Fireball := preload("res://scripts/pinewood_fireball.gd")
 const FIREBALL_COST := 30.0
@@ -107,7 +110,11 @@ var can_save := true
 var save_path := SAVE_PATH
 
 func _ready() -> void:
-    var result := state.load_progress(save_path)
+    var result := ERR_FILE_NOT_FOUND
+    if playthrough_progress == null:
+        result = state.load_progress(save_path)
+    elif playthrough_progress.has_section("chapter"):
+        result = state.read_progress(playthrough_progress)
     if result != OK and result != ERR_FILE_NOT_FOUND:
         can_save = false
         notice = "Chapter save could not be loaded. This session will not overwrite it."
@@ -133,7 +140,10 @@ func _ready() -> void:
     summon.z_index = 6
     summon.hide()
     add_child(summon)
-    _load_region("stonehaven" if linked_from_gate else "graveyard")
+    if Layouts.REGIONS.has(resume_region):
+        _load_region(resume_region)
+    else:
+        _load_region("stonehaven" if linked_from_gate else "graveyard")
 
 func _load_region(destination: String) -> void:
     var previous := region
@@ -180,6 +190,9 @@ func _load_region(destination: String) -> void:
             player.position = Vector2(0, 397)
     if region == "east_pinewood" and previous.is_empty():
         player.position = Overworld.FOREST_WEST + Vector2(105, 0)
+    if resume_position != Vector2.INF:
+        player.position = _bounded(resume_position)
+        resume_position = Vector2.INF
     _dress_region()
     if region == "stonehaven":
         _add_point("adventurers_guild", "Adventurer's Guild", Vector2(-260, 360))
@@ -1435,5 +1448,7 @@ func _recover_at_graveyard() -> void:
     notice = "You recover at the graveyard entrance. Your quest progress is intact."
 
 func _save() -> void:
-    if can_save and state.save_progress(save_path) != OK:
+    if playthrough_progress != null:
+        state.write_progress(playthrough_progress)
+    elif can_save and state.save_progress(save_path) != OK:
         notice += " Chapter progress could not be saved."

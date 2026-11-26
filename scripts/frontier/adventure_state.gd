@@ -138,6 +138,10 @@ func journal() -> String:
 
 func save_progress(path: String) -> Error:
     var file := ConfigFile.new()
+    write_progress(file)
+    return write_file(file, path)
+
+func write_progress(file: ConfigFile) -> void:
     file.set_value("chapter", "version", VERSION)
     file.set_value("chapter", "defeated", defeated)
     file.set_value("chapter", "quest_items", quest_items)
@@ -160,6 +164,8 @@ func save_progress(path: String) -> Error:
     file.set_value("chapter", "mentorship_focus", mentorship_focus)
     file.set_value("chapter", "mentorship_history", mentorship_history)
     file.set_value("chapter", "player_age", player_age)
+
+static func write_file(file: ConfigFile, path: String) -> Error:
     var temporary_path := path + ".tmp"
     var result := file.save(temporary_path)
     if result == OK:
@@ -173,6 +179,9 @@ func load_progress(path: String) -> Error:
     var result := file.load(path)
     if result != OK:
         return result
+    return read_progress(file)
+
+func read_progress(file: ConfigFile) -> Error:
     if file.get_value("chapter", "version", 0) != VERSION:
         return ERR_FILE_UNRECOGNIZED
     defeated.assign(file.get_value("chapter", "defeated", []))

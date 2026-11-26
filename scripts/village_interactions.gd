@@ -55,6 +55,7 @@ var forest: Node2D
 var pinewood_requested := false
 var chapter: Node2D
 var gate_resources := Vector2.ZERO
+var playthrough_progress := ConfigFile.new()
 var defeated_wolves: Array[int] = []
 var road_quest := RoadQuest.OFFERED
 var opening_greeting_shown := false
@@ -622,17 +623,20 @@ func _enter_stonehaven_district_now() -> void:
 
 func _mount_chapter() -> void:
     var world := get_parent() as Node2D
-    gate_resources = Vector2(forest.health, forest.mana)
-    forest.queue_free()
-    forest = null
+    if is_instance_valid(forest):
+        gate_resources = Vector2(forest.health, forest.mana)
+        forest.queue_free()
+        forest = null
     world.hide()
     world.process_mode = Node.PROCESS_MODE_DISABLED
     hide()
     chapter.linked_from_gate = true
+    chapter.playthrough_progress = playthrough_progress
     chapter.rite_completed = road_quest == RoadQuest.COMPLETE
     chapter.return_to_gate.connect(_restore_stonehaven_gate, CONNECT_DEFERRED)
     chapter.get_node("Inventory").copy_items_from(self)
     get_tree().root.add_child(chapter)
+    chapter.player.necromancer_appearance_enabled = player.necromancer_appearance_enabled
     chapter.player._choose_race(player.race)
     chapter.player.get_node("Camera2D").make_current()
 
@@ -642,7 +646,10 @@ func _restore_stonehaven_gate() -> void:
 func _restore_stonehaven_gate_now() -> void:
     if not is_instance_valid(chapter):
         return
+    chapter.state.write_progress(playthrough_progress)
     copy_items_from(chapter.inventory)
+    player.necromancer_appearance_enabled = chapter.player.necromancer_appearance_enabled
+    player._choose_race(chapter.player.race)
     chapter.queue_free()
     chapter = null
     var world := get_parent() as Node2D
