@@ -10,6 +10,7 @@ var resume_position := Vector2.INF
 const Fireball := preload("res://scripts/pinewood_fireball.gd")
 const FIREBALL_COST := 30.0
 const WayfindingArt := preload("res://scripts/wayfinding_art.gd")
+const DialoguePanel := preload("res://scripts/dialogue_panel.gd")
 const DialoguePortrait := preload("res://scripts/dialogue_portrait.gd")
 const InventoryFinish := preload("res://scripts/inventory_finish.gd")
 const PanelHeader := preload("res://scripts/panel_header.gd")
@@ -1084,16 +1085,6 @@ func _speak_to_agent() -> void:
 func _show_speaker(title: String, actor: Node) -> void:
     inventory.show_person_dialogue(title, notice.trim_prefix(title + " — "), actor)
 
-func _append_dialogue_portrait(content: VBoxContainer, dialogue: Label) -> DialoguePortrait:
-    var row := HBoxContainer.new()
-    row.add_theme_constant_override("separation", 18)
-    content.add_child(row)
-    var portrait := DialoguePortrait.new()
-    row.add_child(portrait)
-    dialogue.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-    row.add_child(dialogue)
-    return portrait
-
 func _take_item(item_id: String, message: String) -> void:
     if item_id in state.quest_items:
         notice = "You already recovered this item."
@@ -1112,57 +1103,18 @@ func _build_guild_dialog() -> void:
     guild_dialog.visibility_changed.connect(func() -> void:
         inventory.set_process_unhandled_key_input(not guild_dialog.visible)
     )
-    var panel := PanelContainer.new()
-    panel.custom_minimum_size.x = 850
-    InventoryFinish.style_dialog(panel)
+    var panel := DialoguePanel.new()
     guild_dialog.add_child(panel)
-    var columns := HBoxContainer.new()
-    columns.add_theme_constant_override("separation", 18)
-    panel.add_child(columns)
-
-    var portrait_frame := PanelContainer.new()
-    portrait_frame.custom_minimum_size = Vector2(214, 214)
-    portrait_frame.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-    portrait_frame.add_theme_stylebox_override("panel",
-        InventoryFinish.surface(InventoryFinish.RECESS, InventoryFinish.BRASS, 9, true, true))
-    columns.add_child(portrait_frame)
-    guild_portrait = DialoguePortrait.new()
-    guild_portrait.custom_minimum_size = Vector2(196, 196)
-    portrait_frame.add_child(guild_portrait)
-
-    var content := VBoxContainer.new()
-    content.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-    content.add_theme_constant_override("separation", 9)
-    columns.add_child(content)
-    var heading_frame := PanelContainer.new()
-    InventoryFinish.style_dialog(heading_frame)
-    content.add_child(heading_frame)
-    var heading := VBoxContainer.new()
-    heading_frame.add_child(heading)
-    var title_row := HBoxContainer.new()
-    heading.add_child(title_row)
-    var balance := Control.new()
-    balance.custom_minimum_size.x = 34
-    title_row.add_child(balance)
-    var title := Label.new()
-    title.text = "Adventurer's Guild"
-    title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-    title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-    title.add_theme_font_size_override("font_size", 24)
-    title.add_theme_color_override("font_color", InventoryFinish.GOLD)
-    title_row.add_child(title)
-    PanelHeader.add_close_button(title_row, guild_dialog.hide)
-    InventoryFinish.style_dialog_action(title_row.get_node("CloseButton"))
+    panel.build(guild_dialog.hide)
+    panel.title.text = "Adventurer's Guild"
+    guild_portrait = panel.portrait
+    guild_details = panel.details
     guild_rank_label = Label.new()
     guild_rank_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-    heading.add_child(guild_rank_label)
-
-    guild_details = Label.new()
-    guild_details.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-    content.add_child(guild_details)
+    panel.header.add_child(guild_rank_label)
     guild_cards = VBoxContainer.new()
     guild_cards.add_theme_constant_override("separation", 6)
-    content.add_child(guild_cards)
+    panel.content.add_child(guild_cards)
     var icons := {
         "caravan": "res://art/landmarks/caravan.png",
         "provisions": "res://art/interiors/shops/sacks.png",
@@ -1173,7 +1125,7 @@ func _build_guild_dialog() -> void:
     guild_confirm = Button.new()
     InventoryFinish.style_dialog_action(guild_confirm)
     guild_confirm.pressed.connect(_confirm_guild_dialog)
-    content.add_child(guild_confirm)
+    panel.content.add_child(guild_confirm)
     guild_dialog.hide()
 
 func _add_guild_card(contract: String, icon_path: String) -> void:
@@ -1283,21 +1235,14 @@ func _build_mentor_dialog() -> void:
     mentor_dialog = CenterContainer.new()
     $HUD.add_child(mentor_dialog)
     mentor_dialog.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-    var panel := PanelContainer.new()
-    panel.custom_minimum_size.x = 570
-    InventoryFinish.style_dialog(panel)
+    var panel := DialoguePanel.new()
     mentor_dialog.add_child(panel)
-    var content := VBoxContainer.new()
-    content.add_theme_constant_override("separation", 12)
-    panel.add_child(content)
-    mentor_heading = Label.new()
-    PanelHeader.add_title(content, mentor_heading, mentor_dialog.hide)
-    InventoryFinish.style_dialog_action(content.get_child(0).get_node("CloseButton"))
-    mentor_details = Label.new()
-    mentor_details.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-    mentor_portrait = _append_dialogue_portrait(content, mentor_details)
+    panel.build(mentor_dialog.hide)
+    mentor_heading = panel.title
+    mentor_details = panel.details
+    mentor_portrait = panel.portrait
     mentor_choices = VBoxContainer.new()
-    content.add_child(mentor_choices)
+    panel.content.add_child(mentor_choices)
     mentor_dialog.hide()
 
 func _mentor_actor(faction: String) -> Node2D:
@@ -1351,7 +1296,7 @@ func _offer_mentor(faction: String) -> void:
         button.text = str(focus)
         button.pressed.connect(_choose_mentor_focus.bind(str(focus)))
         mentor_choices.add_child(button)
-    mentor_portrait.show_speaker(actor)
+    mentor_portrait.show_speaker(actor, null, true)
     mentor_dialog.show()
 
 func _choose_mentor_focus(focus: String) -> void:
@@ -1375,22 +1320,15 @@ func _build_grimoire_dialog() -> void:
     )
     $HUD.add_child(grimoire_dialog)
     grimoire_dialog.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-    var panel := PanelContainer.new()
-    panel.custom_minimum_size.x = 600
-    InventoryFinish.style_dialog(panel)
+    var panel := DialoguePanel.new()
     grimoire_dialog.add_child(panel)
-    var content := VBoxContainer.new()
-    content.add_theme_constant_override("separation", 14)
-    panel.add_child(content)
-    grimoire_heading = Label.new()
-    grimoire_heading.add_theme_font_size_override("font_size", 25)
-    PanelHeader.add_title(content, grimoire_heading, grimoire_dialog.hide)
-    InventoryFinish.style_dialog_action(content.get_child(0).get_node("CloseButton"))
-    grimoire_details = Label.new()
-    grimoire_details.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-    content.add_child(grimoire_details)
+    panel.build(grimoire_dialog.hide)
+    panel.portrait.show_speaker(null, WayfindingArt._texture("res://art/interiors/crypts/grimoire_open.png"))
+    grimoire_heading = panel.title
+    grimoire_details = panel.details
     var actions := HBoxContainer.new()
-    content.add_child(actions)
+    actions.alignment = BoxContainer.ALIGNMENT_END
+    panel.content.add_child(actions)
     for choice in [["Destroy", "destroy"], ["Take", "take"], ["Study", "study"], ["Decide later", "later"]]:
         var button := Button.new()
         InventoryFinish.style_dialog_action(button)

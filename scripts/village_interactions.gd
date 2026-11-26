@@ -29,6 +29,7 @@ var quest_details: Label
 var decline_quest: Button
 var turning_in_quest := false
 var dialogue_continue_only := false
+const DialoguePanel := preload("res://scripts/dialogue_panel.gd")
 const DialoguePortrait := preload("res://scripts/dialogue_portrait.gd")
 var quest_portrait: DialoguePortrait
 var health_bar: ProgressBar
@@ -223,32 +224,15 @@ func _make_quest_offer(holder: Control) -> void:
     quest_offer = CenterContainer.new()
     holder.add_child(quest_offer)
     quest_offer.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-    var panel := PanelContainer.new()
-    panel.custom_minimum_size.x = 610
-    InventoryFinish.style_dialog(panel)
+    var panel := DialoguePanel.new()
     quest_offer.add_child(panel)
-    var content := VBoxContainer.new()
-    content.add_theme_constant_override("separation", 14)
-    panel.add_child(content)
-    quest_title = Label.new()
-    quest_title.add_theme_font_size_override("font_size", 26)
-    quest_title.add_theme_color_override("font_color", Color("#ffe5ad"))
-    PanelHeader.add_title(content, quest_title, _close_quest_offer)
-    InventoryFinish.style_dialog_action(content.get_child(0).get_node("CloseButton"))
-    var body := HBoxContainer.new()
-    body.add_theme_constant_override("separation", 18)
-    content.add_child(body)
-    quest_portrait = DialoguePortrait.new()
-    body.add_child(quest_portrait)
-    quest_details = Label.new()
-    quest_details.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-    quest_details.add_theme_font_size_override("font_size", 18)
-    quest_details.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-    quest_details.add_theme_color_override("font_color", InventoryFinish.INK)
-    body.add_child(quest_details)
+    panel.build(_close_quest_offer)
+    quest_title = panel.title
+    quest_portrait = panel.portrait
+    quest_details = panel.details
     var actions := HBoxContainer.new()
     actions.alignment = BoxContainer.ALIGNMENT_END
-    content.add_child(actions)
+    panel.content.add_child(actions)
     decline_quest = Button.new()
     decline_quest.pressed.connect(_close_quest_offer)
     actions.add_child(decline_quest)
@@ -270,7 +254,7 @@ func show_person_dialogue(title: String, words: String, actor: Node, fallback: T
     conversation_open = true
     quest_title.text = title
     quest_details.text = words
-    quest_portrait.show_speaker(actor, fallback)
+    quest_portrait.show_speaker(actor, fallback, true)
     accept_quest.text = "Continue"
     decline_quest.hide()
     notice_timer.stop()
@@ -280,7 +264,7 @@ func show_person_dialogue(title: String, words: String, actor: Node, fallback: T
     accept_quest.grab_focus()
 
 func _show_quest_offer(turn_in := false) -> void:
-    quest_portrait.show_speaker(speaker, VillageNPC.ART[&"Elden"])
+    quest_portrait.show_speaker(speaker, VillageNPC.ART[&"Elden"], true)
     dialogue_continue_only = false
     decline_quest.show()
     turning_in_quest = turn_in
