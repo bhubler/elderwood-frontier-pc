@@ -41,6 +41,18 @@ static func near_route(point: Vector2, routes: Array, clearance: float) -> bool:
 				return true
 	return false
 
+# Keep only segments that could reach a point in the area.
+static func routes_near_bounds(routes: Array, bounds: Rect2, clearance: float) -> Array:
+	var segments: Array = []
+	for route in routes:
+		for i in range(route.size() - 1):
+			var start: Vector2 = route[i]
+			var end: Vector2 = route[i + 1]
+			var segment_bounds := Rect2(start, Vector2.ZERO).expand(end)
+			if segment_bounds.grow(clearance).intersects(bounds):
+				segments.append([start, end])
+	return segments
+
 static func has_trunk_clearance(point: Vector2, trunks: Array[Vector2]) -> bool:
 	for trunk in trunks:
 		if point.distance_squared_to(trunk) < TRUNK_SPACING * TRUNK_SPACING:

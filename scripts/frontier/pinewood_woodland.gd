@@ -76,6 +76,8 @@ func _grow_chunk(key: Vector2i, slots: int) -> bool:
     var chunk: Node2D = chunks[key]
     var progress: Array = unfinished[key]
     var rng: RandomNumberGenerator = progress[1]
+    var road_check_bounds := Rect2(chunk.position - Vector2(0, 90), Vector2(CHUNK_SIZE, CHUNK_SIZE + 90))
+    var nearby_roads := ForestLayout.routes_near_bounds(Layout.FOREST_ROADS, road_check_bounds, 113.0)
     var end := mini(int(progress[0]) + slots, 16)
     for index in range(int(progress[0]), end):
         var column := index >> 2
@@ -86,8 +88,8 @@ func _grow_chunk(key: Vector2i, slots: int) -> bool:
             continue
         if world_point.distance_to(Layout.FOREST_WEST) < 210.0 or _near_landmark(world_point):
             continue
-        if ForestLayout.near_route(world_point, Layout.FOREST_ROADS, 112.0) \
-            or ForestLayout.near_route(world_point - Vector2(0, 90), Layout.FOREST_ROADS, 113.0):
+        if ForestLayout.near_route(world_point, nearby_roads, 112.0) \
+            or ForestLayout.near_route(world_point - Vector2(0, 90), nearby_roads, 113.0):
             continue
         var selection := rng.randi()
         var bundled := is_instance_valid(vegetation) and vegetation.place_tree(chunk, p, selection)

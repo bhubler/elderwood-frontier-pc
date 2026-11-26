@@ -78,6 +78,11 @@ func _find_solid_grass() -> void:
 func paint_ground(bounds: Rect2, fill_missing_only := false) -> void:
 	if tile_set == null:
 		return
+	var local_roads := roads
+	var local_trails := trails
+	if streamed and bounds.has_area():
+		local_roads = ForestLayout.routes_near_bounds(roads, bounds, road_half_width)
+		local_trails = ForestLayout.routes_near_bounds(trails, bounds, trail_half_width)
 	var grass_cells: Array[Vector2i] = []
 	var trail_cells: Array[Vector2i] = []
 	var cobble_cells: Array[Vector2i] = []
@@ -105,8 +110,8 @@ func paint_ground(bounds: Rect2, fill_missing_only := false) -> void:
 			var cobbled := pos.distance_to(cobble_center) < cobble_radius
 			if cobble_over_roads and cobbled:
 				cobble_cells.append(cell)
-			elif ForestLayout.near_route(pos, roads, road_half_width) \
-			or ForestLayout.near_route(pos, trails, trail_half_width):
+			elif ForestLayout.near_route(pos, local_roads, road_half_width) \
+			or ForestLayout.near_route(pos, local_trails, trail_half_width):
 				if paved_roads:
 					cobble_cells.append(cell)
 				else:

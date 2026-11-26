@@ -61,6 +61,7 @@ var forest_terrain: WildernessTerrain
 var forest_woodland: PinewoodWoodland
 var terrain_center := Vector2i(9999, 9999)
 var terrain_patches: Array[Vector2i] = []
+var terrain_patch_offsets: Array[Vector2i] = []
 var painted_patches: Dictionary = {}
 const TERRAIN_PATCH_SIZE := Vector2(240, 144)
 const STONEHAVEN_BUILDING_SCALE := 1.32
@@ -327,6 +328,12 @@ func _load_outdoor_terrain() -> void:
 func _prime_forest_terrain() -> void:
     floor_art.grass_backing = true
     floor_art.z_index = -12
+    if terrain_patch_offsets.is_empty():
+        for x in range(-6, 7):
+            for y in range(-8, 9):
+                terrain_patch_offsets.append(Vector2i(x, y))
+        terrain_patch_offsets.sort_custom(func(a: Vector2i, b: Vector2i) -> bool:
+            return (Vector2(a) * TERRAIN_PATCH_SIZE).length_squared() > (Vector2(b) * TERRAIN_PATCH_SIZE).length_squared())
     var center := Vector2i((Vector2(player.position) / TERRAIN_PATCH_SIZE).floor())
     var first := center - Vector2i(4, 5)
     var size := Vector2i(9, 11)
@@ -353,18 +360,13 @@ func _update_forest_terrain() -> void:
     if center != terrain_center:
         terrain_center = center
         terrain_patches.clear()
-        for x in range(-6, 7):
-            for y in range(-8, 9):
-                var key := center + Vector2i(x, y)
-                if not painted_patches.has(key):
-                    terrain_patches.append(key)
-        terrain_patches.sort_custom(func(a: Vector2i, b: Vector2i) -> bool:
-            return (Vector2(a - center) * TERRAIN_PATCH_SIZE).length_squared() > (Vector2(b - center) * TERRAIN_PATCH_SIZE).length_squared())
-    var deadline := Time.get_ticks_usec() + 1500
-    for i in range(mini(2, terrain_patches.size())):
+        for offset in terrain_patch_offsets:
+            var key := center + offset
+            if not painted_patches.has(key):
+                terrain_patches.append(key)
+    # TileMapLayer applies rendering changes together at the end of the frame.
+    if not terrain_patches.is_empty():
         _paint_forest_patch(terrain_patches.pop_back())
-        if Time.get_ticks_usec() >= deadline:
-            break
 
 func _add_point(action: String, title: String, where: Vector2) -> Point:
     var point := POINT_SCENE.instantiate() as Point
@@ -784,11 +786,12 @@ func _process(_delta: float) -> void:
     hud.text = "%s  |  HP %d/%d  |  Mana %d/%d  |  Level %d\n%s\nLMB / Space attack  ·  RMB / F Fireball  ·  L grimoire  ·  Q summon  ·  J journal  ·  I inventory\n%s" % [
         Layouts.REGIONS[region]["title"], health, _effective_max_health(), floori(mana), State.MAX_MANA, state.level(), prompt, notice
     ]
-    journal_text.text = "%s\n%d XP  ·  %d unspent character points  ·  Conjuration rank %d (%d casts)\nBlack Hand reputation %d%s\n\nJ or Esc to close" % [
-        state.journal() + "\n\nAdventurer's Guild\n" + state.guild_journal(), state.experience, state.training_points(),
-        state.conjuration_rank(), state.conjuration_uses, state.black_hand_reputation(),
-        "  ·  Entry by %s" % state.entry_method if not state.entry_method.is_empty() else ""
-    ]
+    if journal_panel.visible:
+        journal_text.text = "%s\n%d XP  ·  %d unspent character points  ·  Conjuration rank %d (%d casts)\nBlack Hand reputation %d%s\n\nJ or Esc to close" % [
+            state.journal() + "\n\nAdventurer's Guild\n" + state.guild_journal(), state.experience, state.training_points(),
+            state.conjuration_rank(), state.conjuration_uses, state.black_hand_reputation(),
+            "  ·  Entry by %s" % state.entry_method if not state.entry_method.is_empty() else ""
+        ]
 
 func _physics_process(delta: float) -> void:
     player.position = _bounded(player.position)
