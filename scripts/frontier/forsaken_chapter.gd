@@ -64,6 +64,8 @@ var terrain_center := Vector2i(9999, 9999)
 var terrain_patches: Array[Vector2i] = []
 var terrain_patch_offsets: Array[Vector2i] = []
 var painted_patches: Dictionary = {}
+var forest_cache_dirty := false
+const FOREST_PATCH_CACHE := "user://east_pinewood_explored_v1.cache"
 const TERRAIN_PATCH_SIZE := Vector2(240, 144)
 const STONEHAVEN_BUILDING_SCALE := 1.32
 var points: Array[Point] = []
@@ -168,6 +170,8 @@ func _ready() -> void:
 
 func _load_region(destination: String) -> void:
     var previous := region
+    if previous == "east_pinewood" and destination != previous:
+        _save_forest_patch_cache()
     region = destination
     ruin_walls.clear()
     if is_instance_valid(stonehaven_terrain):
@@ -331,6 +335,7 @@ func _load_outdoor_terrain() -> void:
     outdoor_terrain = terrain
     if forest:
         forest_terrain = terrain
+        _restore_forest_patch_cache()
         _prime_forest_terrain()
     elif not terrain.ground_cells().is_empty():
         if city:
@@ -339,6 +344,55 @@ func _load_outdoor_terrain() -> void:
         else:
             floor_art.tiled_ground = true
             floor_art.z_index = -9
+
+func _forest_patch_cache_signature() -> Array:
+    return [
+        Engine.get_version_info()["hex"],
+        FileAccess.get_sha256(WildernessTerrain.TILESET_PATH),
+        FileAccess.get_sha256("res://scripts/wilderness_terrain.gd"),
+        Overworld.FOREST, Overworld.FOREST_ROADS, forest_terrain.road_half_width, TERRAIN_PATCH_SIZE,
+    ]
+
+func _restore_forest_patch_cache() -> void:
+    if not FileAccess.file_exists(FOREST_PATCH_CACHE):
+        return
+    var file := FileAccess.open(FOREST_PATCH_CACHE, FileAccess.READ)
+    if file == null or file.get_var() != _forest_patch_cache_signature():
+        return
+    var keys: Variant = file.get_var()
+    var ground: Variant = file.get_var()
+    var underlay: Variant = file.get_var()
+    if file.get_error() != OK or not keys is Array or keys.is_empty() \
+            or not ground is PackedByteArray or ground.is_empty() \
+            or not underlay is PackedByteArray:
+        return
+    for key in keys:
+        if not key is Vector2i:
+            return
+    if forest_terrain.grass_source >= 0 and underlay.is_empty():
+        return
+    forest_terrain.tile_map_data = ground
+    forest_terrain.grass_underlay.tile_map_data = underlay
+    for key in keys:
+        painted_patches[key] = true
+
+func _save_forest_patch_cache() -> void:
+    if not forest_cache_dirty or not is_instance_valid(forest_terrain):
+        return
+    var pending := "%s.%d.tmp" % [FOREST_PATCH_CACHE, OS.get_process_id()]
+    var file := FileAccess.open(pending, FileAccess.WRITE)
+    if file == null:
+        return
+    file.store_var(_forest_patch_cache_signature())
+    file.store_var(painted_patches.keys())
+    file.store_var(forest_terrain.tile_map_data)
+    file.store_var(forest_terrain.grass_underlay.tile_map_data)
+    var written := file.get_error() == OK
+    file.close()
+    if written and DirAccess.rename_absolute(pending, FOREST_PATCH_CACHE) == OK:
+        forest_cache_dirty = false
+    elif FileAccess.file_exists(pending):
+        DirAccess.remove_absolute(pending)
 
 func _prime_forest_terrain() -> void:
     floor_art.grass_backing = true
@@ -353,6 +407,7 @@ func _prime_forest_terrain() -> void:
     var first := center - Vector2i(4, 5)
     var size := Vector2i(9, 11)
     if painted_patches.is_empty():
+        forest_cache_dirty = true
         # Paint the landing area in one pass while the transition is covered.
         outdoor_terrain.paint_ground(Rect2(Vector2(first) * TERRAIN_PATCH_SIZE,
             Vector2(size) * TERRAIN_PATCH_SIZE))
@@ -369,6 +424,7 @@ func _paint_forest_patch(key: Vector2i) -> void:
         return
     outdoor_terrain.paint_ground(Rect2(Vector2(key) * TERRAIN_PATCH_SIZE, TERRAIN_PATCH_SIZE), true)
     painted_patches[key] = true
+    forest_cache_dirty = true
 
 func _queue_forest_terrain() -> void:
     var center := Vector2i((Vector2(player.position) / TERRAIN_PATCH_SIZE).floor())
