@@ -28,7 +28,7 @@ const LANDMARKS := {
     "shrine": ["east_pinewood", "Roadside Shrine", Overworld.SHRINE + Vector2(0, 77), Overworld.SHRINE + Vector2(0, 110)],
     "ruins": ["east_pinewood", "Awakening Ruins", Ruins.ENTRANCE, Ruins.ENTRANCE + Vector2(0, 62)],
     "cabin": ["east_pinewood", "Old Woodland Cabin", Overworld.CABIN + Vector2(0, 112), Overworld.CABIN + Vector2(0, 159)],
-    "cemetery": ["east_pinewood", "Forsaken Graveyard Approach", Overworld.CRYPT + Vector2(0, 123), Overworld.CRYPT + Vector2(0, 172)],
+    "cemetery": ["graveyard", "Forsaken Graveyard", Vector2(0, 145), Vector2(0, 145)],
     "graveyard": ["graveyard", "Forsaken Graveyard", Vector2(0, 145), Vector2(0, 145)],
     "crypt": ["graveyard", "Crypt of the Bonecaller", Vector2(0, -225), Vector2(0, -133)],
 }

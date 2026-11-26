@@ -17,8 +17,8 @@ const PLACES := {
     "shrine": [Vector2(0.68, 0.70), "Roadside Shrine", -1, 50],
     "ruins": [Vector2(0.77, 0.48), "Awakening Ruins", 2, 55],
     "cabin": [Vector2(0.86, 0.26), "Woodland Cabin", 1, 54],
-    "cemetery": [Vector2(0.85, 0.76), "Forsaken Graveyard", -1, 55],
-    "crypt": [Vector2(0.90, 0.62), "Bonecaller Crypt", 2, 47],
+    "cemetery": [Vector2(0.20, 0.47), "Forsaken Graveyard", -1, 55],
+    "crypt": [Vector2(0.21, 0.27), "Bonecaller Crypt", 2, 47],
 }
 # Each route links named destinations, with a few points to shape its curves.
 const ROUTES := [
@@ -29,8 +29,8 @@ const ROUTES := [
     ["watchtower", "cabin", [Vector2(0.73, 0.19), Vector2(0.80, 0.22)]],
     ["caravan", "shrine", [Vector2(0.58, 0.58), Vector2(0.63, 0.65)]],
     ["caravan", "ruins", [Vector2(0.65, 0.46), Vector2(0.71, 0.47)]],
-    ["shrine", "cemetery", [Vector2(0.75, 0.71), Vector2(0.80, 0.77)]],
-    ["cemetery", "crypt", [Vector2(0.87, 0.69)]],
+    ["stonehaven", "cemetery", [Vector2(0.35, 0.36), Vector2(0.29, 0.40), Vector2(0.25, 0.46)]],
+    ["cemetery", "crypt", [Vector2(0.19, 0.39), Vector2(0.23, 0.33)]],
 ]
 const GROVES := [
     [Vector2(0.17, 0.31), Vector2(0.10, 0.17)],
